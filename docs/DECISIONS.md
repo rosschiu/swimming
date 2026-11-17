@@ -2,6 +2,10 @@
 
 Recorded 2026-11-17. This document preserves the discussion; proposals are not silently promoted to approved business rules.
 
+## Active development goal
+
+The user has authorised staged implementation and reviewed PR merges. Deliver all agreed web features for coach, student/parent and administrator, including actual typed/voice AI integration. Payments are mock-only in this goal: pending, success, failure and duplicate outcomes must exercise persistent entitlement/receipt services. Real payment integration remains future end-game scope. Native clients, hosting selection and public deployment are excluded. See BACKLOG.md for acceptance gates.
+
 ## Confirmed direction
 
 Build one reliable operating system for one swimming school with multiple venues and coaches. Parents manage lessons and payments, coaches run classes and record progress, administrators handle operations and exceptions. One action must update all affected records consistently, without manual reconciliation across role-specific screens.
@@ -59,7 +63,13 @@ Future end-game scope additionally includes integrated digital payments and the 
 
 Advanced marketing, marketplace features, payroll, AI-generated coaching programmes and a large teaching library are not first-release requirements. Offline attendance is undecided, not promised.
 
-## Proposed rules requiring confirmation
+## Approved starting rules (2026-11-17)
+
+The user approved: booking reserves a credit; attendance consumes it; fixed enrolment requires explicit renewal; package expiry is an administrator-entered date; carry-forward transfers unused credits on renewal to the new expiry; assigned coaches recover credits with a reason and new expiry. Remaining details below are still proposals where not covered by this approval.
+
+Students have separate login access to their own schedule and progress; guardians control bookings and payments (confirmed 2026-11-17).
+
+## Additional rule details
 
 - Booking reserves a credit; attended lessons consume it. Retained credits are released from the booking and remain subject to validity rules.
 - Keep the original booking during a pending change. Do not reserve a destination place until approval; recheck capacity then.
