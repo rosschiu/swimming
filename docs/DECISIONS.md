@@ -71,6 +71,8 @@ Students have separate login access to their own schedule and progress; guardian
 
 User also confirmed configurable timing defaults: parent change requests at least 24 hours ahead; coach availability locked within 72 hours; attendance opens 15 minutes after session start; attendance corrections allowed for three days.
 
+The user requires an external notification delivery channel in addition to in-app notifications. Implementation direction: email, consistent with the mockup; use local mail capture in development. Real provider validation requires credentials and an authorised test recipient, not messages to real users.
+
 ## Additional rule details
 
 - Booking reserves a credit; attended lessons consume it. Retained credits are released from the booking and remain subject to validity rules.
