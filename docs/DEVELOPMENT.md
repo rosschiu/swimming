@@ -54,3 +54,7 @@ Teaching email is off by default. A parent or student can enable “Email shared
 Emails contain a generic bilingual sign-in link, with no student details. The server worker retries transient failures, recovers expired leases after restart and exposes failures in the administrator's Notification deliveries screen. Administrators can retry a failed delivery with a reason after correcting the problem. “SMTP accepted” means the server accepted the email, not that it reached an inbox. Crash recovery can duplicate email. An already authorized email can arrive after access removal, but no further attempt is authorized after withdrawal and app access is rechecked. Opt-out/unlink suppress queued email permanently; re-enabling does not backfill it. Missing SMTP configuration remains retryable for opted-in, allowlisted recipients.
 
 Local Mailpit proves actual SMTP handoff and captured message contents. External recipient/provider delivery and booking reminders remain separate work.
+
+## Synthetic recovery verification
+
+After the cumulative browser suite finishes and its application servers stop, follow [the restore runbook](RESTORE.md) to dump and verify restoration of the dedicated synthetic database. The opt-in check creates and removes its own temporary database, compares schema/data/sequences, and exercises restored account permissions. CI runs it after Playwright. It does not establish production backup retention or recovery objectives.

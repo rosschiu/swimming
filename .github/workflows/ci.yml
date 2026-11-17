@@ -57,6 +57,12 @@ jobs:
           go run ./cmd/migrate
           ALLOW_DEMO_SEED=true go run ./cmd/seed
       - run: npm run test:e2e
+      - name: Verify synthetic backup and restore
+        working-directory: services/api
+        env:
+          RESTORE_VERIFY_SYNTHETIC: 'true'
+          RESTORE_VERIFY_PG_CONTAINER: ${{ job.services.postgres.id }}
+        run: go test -race ./internal/app -run '^TestRestore' -count=1 -v
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
