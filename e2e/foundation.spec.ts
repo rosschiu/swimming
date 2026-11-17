@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { expectContract } from './contract';
 
 async function login(page: Page, role: string) {
   await page.goto('/');
@@ -25,6 +26,7 @@ for (const role of ['parent', 'coach', 'student']) {
     await expect(page.getByRole('button', { name: 'Add student' })).toHaveCount(0);
     expect((await page.request.get('/api/v1/students/ben')).status()).toBe(404);
     const session = await (await page.request.get('/api/v1/auth/me')).json();
+    expectContract('Auth', session);
     const denied = await page.request.post('/api/v1/students', { headers: { Origin: 'http://localhost:18573', 'X-CSRF-Token': session.csrfToken }, data: { name: 'Forbidden', level: 'Beginner' } });
     expect(denied.status()).toBe(403);
     await page.reload();
@@ -44,12 +46,14 @@ test('administrator creates and edits a persistent student with stale-write prot
   await page.getByRole('button', { name: 'Save student', exact: true }).click();
   await expect(page.getByRole('heading', { name, exact: true })).toBeVisible();
   const list = await (await page.request.get('/api/v1/students')).json();
+  for (const student of list.items) expectContract('Student', student);
   const saved = list.items.find((student: {name: string}) => student.name === name);
   await page.getByRole('button', { name: 'Edit student', exact: true }).click();
   await page.getByLabel('Swimming level', { exact: true }).fill('Intermediate');
   await page.getByRole('button', { name: 'Save student', exact: true }).click();
   await expect(page.getByText('Intermediate', { exact: true })).toBeVisible();
   const session = await (await page.request.get('/api/v1/auth/me')).json();
+    expectContract('Auth', session);
   const stale = await page.request.patch(`/api/v1/students/${saved.id}`, { headers: { Origin: 'http://localhost:18573', 'X-CSRF-Token': session.csrfToken }, data: { name, level: 'Stale', version: saved.version } });
   expect(stale.status()).toBe(409);
   await page.reload();

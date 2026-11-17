@@ -9,9 +9,10 @@ import (
 )
 
 type Config struct {
-	DatabaseURL, Addr, Origin string
-	CookieSecure              bool
-	SessionTTL                time.Duration
+	DatabaseURL, Addr, Origin                           string
+	SMTPAddr, SMTPFrom, SMTPTLS, SMTPUser, SMTPPassword string
+	CookieSecure                                        bool
+	SessionTTL                                          time.Duration
 }
 
 func LoadConfig() (Config, error) {
@@ -34,6 +35,20 @@ func LoadConfig() (Config, error) {
 		if err != nil {
 			return c, fmt.Errorf("COOKIE_SECURE must be a boolean")
 		}
+	}
+	c.SMTPAddr = os.Getenv("SMTP_ADDR")
+	c.SMTPFrom = os.Getenv("SMTP_FROM")
+	c.SMTPTLS = os.Getenv("SMTP_TLS")
+	c.SMTPUser = os.Getenv("SMTP_USER")
+	c.SMTPPassword = os.Getenv("SMTP_PASSWORD")
+	if c.SMTPTLS == "" {
+		c.SMTPTLS = "starttls"
+	}
+	if c.SMTPTLS != "none" && c.SMTPTLS != "starttls" && c.SMTPTLS != "tls" {
+		return c, fmt.Errorf("SMTP_TLS must be none, starttls or tls")
+	}
+	if c.SMTPTLS == "none" && (c.SMTPUser != "" || c.SMTPPassword != "") {
+		return c, fmt.Errorf("SMTP authentication requires TLS")
 	}
 	return c, nil
 }

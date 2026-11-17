@@ -18,7 +18,13 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
+      mail:
+        image: axllent/mailpit:v1.27
+        ports: ['11025:1025', '18025:8025']
     env:
+      SMTP_ADDR: 127.0.0.1:11025
+      SMTP_FROM: school@swim.test
+      SMTP_TLS: none
       DATABASE_URL: postgres://swimming:swimming-test@localhost:5432/swimming?sslmode=disable
     steps:
       - uses: actions/checkout@v4
