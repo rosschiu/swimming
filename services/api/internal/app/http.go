@@ -68,6 +68,7 @@ func New(cfg Config, db *pgxpool.Pool) http.Handler {
 	})
 	a.identityRoutes(mux)
 	a.schedulingRoutes(mux)
+	a.availabilityRoutes(mux)
 	mux.HandleFunc("POST /api/v1/auth/login", a.login)
 	mux.HandleFunc("GET /api/v1/auth/me", a.auth(func(w http.ResponseWriter, r *http.Request, s Session) { respond(w, 200, s) }))
 	mux.HandleFunc("POST /api/v1/auth/logout", a.auth(a.logout))

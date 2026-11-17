@@ -1,0 +1,40 @@
+# Stage 03 design and decision gate
+
+Proposal only. Stage 02b merged and main verified before creating stage/03a-packages-mock-payments. No entitlement implementation has begun.
+
+## Delivery slices
+
+- 03a: administrator package offers and school credit-policy defaults; guardian mock checkout, payment attempts, receipts and credit ledger.
+- 03b: flexible booking reserves a place and credit atomically; parent/student own lesson lists and coach actual rosters.
+- 03c: bounded fixed enrolment, explicit renewal and configured carry-forward.
+
+## Agreed requirements
+
+Booking reserves credits; attendance consumes them. Cancellation/absence policies are configurable per case and default to retaining credits. Expiry and carry-forward default enabled. Package expiry is administrator-entered. Recurring enrolment renews explicitly. Assigned coaches recover credits with reason and new expiry. Students have their own schedule/progress access; guardians control bookings and payments. All financial interactions in this goal are simulated.
+
+## Proposed 03a persistence and controls
+
+Separate package definitions, immutable purchase orders and payment attempts. New orders snapshot price in integer HKD minor units, allowance, validity and effective credit policy/version. School defaults and optional complete package overrides affect new orders only.
+
+Order creation uses a stable actor-scoped idempotency key; replay returns the same order, while a different payload under the same key is a conflict. Failed payment attempts may be retried on the same order. A single pending attempt per order avoids concurrent checkout branches. Successful fulfilment locks the order and commits payment, entitlement, initial ledger movement, receipt and audit together. PostgreSQL uniqueness enforces one entitlement and one receipt per order. Duplicate success returns existing records; contradictory terminal outcomes are conflicts.
+
+Keep provider simulation behind a narrow boundary invoking shared fulfilment services. Label every payment/receipt as simulated. No client-supplied trusted prices, real-provider callbacks or real financial transactions.
+
+Guardians can act only for currently linked children, with scope rechecked on every operation. Administrators manage offers and review mock finance. Coaches may read scoped allowance, without financial amounts. Student financial access is not implied by their schedule/progress login.
+
+Ledger fields distinguish available, reserved, consumed and expired quantities. Immutable movement references prevent duplicate grants and later duplicate reservations/transfers. Do not claim booking, expiry processing or renewal completed in 03a.
+
+## Pending user decisions
+
+Questions were sent asynchronously; no answer is assumed:
+
+- Whether class eligibility requires matching recorded swimming level with reasoned administrator override, or is guidance only.
+- Whether assigned coach recovery is limited to actual expired unused credits, with extra grants administrator-only, or always needs administrator approval.
+- Whether credits must remain valid through lesson end, recurring enrolment is all-or-nothing, and renewal carries only unreserved unused credits to matching eligibility while existing reservations remain on the old package.
+- Whether expiry is set on each package offer (inclusive Hong Kong day), blocking pending purchase completion once expired/archived, or set individually per purchase.
+
+Package/class-type restrictions and exact endpoint shapes will be settled with the above answers before generating shared contracts.
+
+## Verification plan
+
+Frontend checks cover selected-child isolation, clear simulation labels, retained input on failed checkout and absence of usable credits for pending/failed payments. PostgreSQL tests cover scope changes, immutable snapshots, idempotent order/attempt creation, concurrent outcomes, atomic rollback and uniqueness. Real-stack Playwright follows administrator offer creation, guardian failed payment/retry/success/duplicate outcome, then verifies exactly one receipt and entitlement. Later booking slices extend this to coach rosters and student schedules.

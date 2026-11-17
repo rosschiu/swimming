@@ -73,3 +73,23 @@ The default different-venue travel gap is 30 minutes, configurable from 0–1440
 Archiving a venue/type prevents new assignments but does not cancel existing sessions or hide them from the catalogue. Editing an existing session may retain unchanged archived venue/type references; assigning a different archived reference is rejected. An inactive coach must be reassigned to an active coach before any session update. Disabling a coach prevents new assignments and login; existing sessions remain for administrator reassignment in later operational flows. Mutations and their audit events commit together. Stale versions return 409.
 
 Tests cover HK date boundaries, bounded recurrence, role scope, filters, travel equality/both directions/midnight, same-venue parallelism, overlap, atomic series rollback, isolated occurrence editing, concurrent settings/session/series writes, active-reference races and audit rollback.
+
+Stage 02c adds coach planning availability at `/api/v1/availability` and
+`/api/v1/settings/availability`. Migration 4 runs through the existing migrate
+command. Coaches create, edit and cancel their own submitted slots; administrators
+review all slots and configure `lockHours` (default 72, range 0–8760), but cannot
+change coach submissions. Parents and students have no availability access.
+Lists require inclusive Hong Kong `from`/`to` dates spanning at most 93 days.
+
+The current setting and server time govern each write after scheduling and
+eligibility locks are acquired. Equality at the cutoff is allowed; edits require
+both the existing and proposed start to satisfy it. Cancelled slots cannot be
+edited. Responses calculate `editable` for the requesting coach; administrators
+always receive false. Settings changes affect future edit decisions immediately.
+Writes use optimistic versions and transactional audits. An unchanged archived
+venue can remain on an existing slot, but new assignments require an active venue.
+
+Submitted slots cannot overlap the coach's other submitted slots or assigned
+classes (touching endpoints are allowed). They are planning data, not reservations:
+there is no travel-gap enforcement across slots, automatic class creation, or
+publication flow in this stage. Class scheduling does not consume or modify slots.

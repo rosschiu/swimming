@@ -1,6 +1,6 @@
 # Stage 02b: school scheduling
 
-In progress; no completion claim yet.
+Merged [PR #4](https://github.com/rosschiu/swimming/pull/4) as `04fa641`.
 
 Scope reaches migration 3, Go scheduling services/routes, OpenAPI/generated types, React school setup and schedule screens, frontend/Go tests, real-stack Playwright and operating documentation. Existing identity and family access must remain intact. Booking rosters and individual booked schedules arrive in stage 03, using these persistent sessions.
 
@@ -19,3 +19,5 @@ Implementation ownership: backend agent services/api, frontend agent apps/web ex
 Integration evidence so far: migration 3 applied to existing local data; all 9 cumulative real-stack Playwright tests passed, including SMTP account flows and scheduling UI/API cross-role journeys. AJV now validates date/date-time formats as well as response shapes. Independent review requested explicit overnight end-date display and edits preserving unchanged archived references; fixes and final regression gates remain pending.
 
 Final integrated frontend tests: 29 passed; production build passed. Final cumulative Playwright: 9 passed against real PostgreSQL/Go/SMTP, including contract date formats. Independent reviewer rechecked fixes and approved subject to final backend race suite and CI. Backend non-race suite passed after the archive correction; race/CI pending.
+
+Final backend race suite passed (83.303 seconds), vet and non-race suite passed. Both push and PR CI passed on `a6e5106`; main `04fa641` is clean, matches that tested tree, and passes generated contract drift checks. Independent review approval confirmed.
