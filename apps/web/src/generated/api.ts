@@ -3027,7 +3027,9 @@ export interface operations {
     markNotificationRead: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                "X-CSRF-Token": string;
+            };
             path: {
                 notificationId: string;
             };
@@ -3087,7 +3089,9 @@ export interface operations {
     updateNotificationPreferences: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                "X-CSRF-Token": string;
+            };
             path?: never;
             cookie?: never;
         };
@@ -3153,7 +3157,9 @@ export interface operations {
     retryNotificationDelivery: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                "X-CSRF-Token": string;
+            };
             path: {
                 id: string;
             };

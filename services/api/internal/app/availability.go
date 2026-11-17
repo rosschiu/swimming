@@ -98,6 +98,9 @@ func (a *API) updateAvailabilitySettings(w http.ResponseWriter, r *http.Request,
 		return
 	}
 	defer tx.Rollback(r.Context())
+	if !a.currentAdminAccess(w, r, s, tx) {
+		return
+	}
 	var before AvailabilitySettings
 	if err = tx.QueryRow(r.Context(), "SELECT lock_hours,version FROM availability_settings WHERE id").Scan(&before.LockHours, &before.Version); err != nil {
 		internal(w, err)

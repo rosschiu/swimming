@@ -86,8 +86,9 @@ func identityError(w http.ResponseWriter, err error) {
 	internal(w, err)
 }
 func (a *API) currentAdminAccess(w http.ResponseWriter, r *http.Request, s Session, tx pgx.Tx) bool {
+	// Hold administrator access until the transaction finishes, so disabling waits.
 	var active bool
-	if err := tx.QueryRow(r.Context(), "SELECT EXISTS(SELECT 1 FROM users WHERE id=$1 AND active AND role=$2)", s.User.ID, s.User.Role).Scan(&active); err != nil {
+	if err := tx.QueryRow(r.Context(), "SELECT EXISTS(SELECT 1 FROM users WHERE id=$1 AND active AND role=$2 FOR SHARE)", s.User.ID, s.User.Role).Scan(&active); err != nil {
 		internal(w, err)
 		return false
 	}
