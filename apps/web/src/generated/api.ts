@@ -518,6 +518,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/students/{id}/progress-notes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Notes shared with currently authorised student, guardians and coaches; administrators see all. Inaccessible student returns404. Ordered newest first. */
+        get: operations["listProgressNotes"];
+        put?: never;
+        /** @description Administrator or currently assigned coach. Actor-scoped requestId replays the same student/body with200; different payload reuse returns409. Saved notes are shared immediately. */
+        post: operations["createProgressNote"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/students/{id}/progress-notes/{noteId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** @description Author coach while still assigned, or administrator. Requires current version and correction reason; stale updates return409. Preserves original author and creation time, audits before/after/reason. */
+        patch: operations["updateProgressNote"];
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -765,6 +800,30 @@ export interface components {
             /** Format: date-time */
             endsAt: string;
             capacity: number;
+        };
+        ProgressNote: {
+            id: string;
+            studentId: string;
+            authorId: string;
+            authorName: string;
+            updatedById: string;
+            updatedByName: string;
+            body: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            version: number;
+            editable: boolean;
+        };
+        ProgressNoteInput: {
+            requestId: string;
+            body: string;
+        };
+        ProgressNoteUpdate: {
+            body: string;
+            version: number;
+            reason: string;
         };
     };
     responses: never;
@@ -2355,6 +2414,123 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ClassSession"];
+                };
+            };
+            /** @description Request failed */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    listProgressNotes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["ProgressNote"][];
+                    };
+                };
+            };
+            /** @description Request failed */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    createProgressNote: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-Token": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProgressNoteInput"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProgressNote"];
+                };
+            };
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProgressNote"];
+                };
+            };
+            /** @description Request failed */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    updateProgressNote: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-Token": string;
+            };
+            path: {
+                id: string;
+                noteId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProgressNoteUpdate"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProgressNote"];
                 };
             };
             /** @description Request failed */

@@ -1,6 +1,6 @@
 # Stage 03 design and decision gate
 
-Proposal only. Stage 02b merged and main verified before creating stage/03a-packages-mock-payments. No entitlement implementation has begun.
+Proposal only. Stage 02d merged as `6e4c142` and main verified before advancing stage/03a-packages-mock-payments. No entitlement implementation has begun. Sol completed a read-only design proposal; Astra is reviewing/testing the preceding stage before dependent implementation.
 
 ## Delivery slices
 
@@ -38,3 +38,20 @@ Package/class-type restrictions and exact endpoint shapes will be settled with t
 ## Verification plan
 
 Frontend checks cover selected-child isolation, clear simulation labels, retained input on failed checkout and absence of usable credits for pending/failed payments. PostgreSQL tests cover scope changes, immutable snapshots, idempotent order/attempt creation, concurrent outcomes, atomic rollback and uniqueness. Real-stack Playwright follows administrator offer creation, guardian failed payment/retry/success/duplicate outcome, then verifies exactly one receipt and entitlement. Later booking slices extend this to coach rosters and student schedules.
+
+## Contract preparation after stage02d
+
+Proposed records: versioned package offers, immutable purchase terms, payment attempts, credit packages, append-only credit movements and immutable simulated receipts. Enforce one credit package and receipt per purchase at the database level. A duplicate success is replay of a successful attempt, not a separate payment status. Preserve failed attempt history while permitting an explicit new attempt on the same order; a successful order cannot grant twice.
+
+Proposed endpoint families (not yet generated or implemented):
+
+- Admin offer management: `GET/POST /package-offers`, `PATCH /package-offers/{id}` with version and archive state.
+- Guardian checkout/history: `POST/GET /students/{id}/purchases`, `GET /purchases/{id}`.
+- Explicit retry and simulation: create a payment attempt on a pending purchase, then submit pending/success/failed to that attempt. Exact request shapes await the expiry decision.
+- Scoped credit history: `GET /students/{id}/credits`; financial receipt read: `GET /receipts/{id}`.
+
+Scope finance separately from generic `studentScope`: that helper deliberately allows coach/student access and is inappropriate for prices or receipts. Recheck current guardian links and student/account eligibility under locks coordinated with identity mutations. A former guardian must not complete checkout based only on a previously authorised purchase.
+
+Use integer minor units with an explicit currency field; HKD is the proposed initial UI currency, not a confirmed multi-currency requirement. Do not trust client prices or credit quantities. Settlement takes trusted stored terms, locks the purchase, and commits the attempt outcome, entitlement, grant movement, receipt and audit together. The mock transport calls this application operation; future providers should call the same operation after their own verification. No real provider implementation is included.
+
+The Sol proposal suggested making failed purchases terminal. Lead retains the already documented explicit retry-attempt model: it preserves purchase/attempt separation and lets the mock exercise retry without silently making a new purchase. This is an implementation choice, not a change to credit policies. Booking eligibility, recovery limits and renewal mechanics remain unresolved and must not be inferred from this design.

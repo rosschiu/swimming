@@ -30,3 +30,9 @@ Local SMTP capture listens on `127.0.0.1:11025`; inspect messages at `http://127
 ## Coach availability
 
 Coaches use Availability to submit venue/time/capacity proposals and edit or cancel their own entries. Administrators review proposals and configure the editing cutoff in School setup (72 hours by default). The server checks the old and new start times when editing. Cancelled records remain visible in history. Submitting availability does not create classes, reserve places or guarantee travel feasibility. Administrators open “View / schedule lessons” on a window to create one or more shorter lessons, choosing a class type, time and capacity. Created classes appear in Schedule and retain their source history. Editing or cancelling a window leaves its classes unchanged; administrators manage class corrections separately in Schedule. Creation rechecks coach overlap/travel rules and current window details. After an uncertain response, retry the same submission before changing its details. Migration 5 must be applied before running this version.
+
+## Student progress notes
+
+After applying migration 6, open a student profile to view shared progress notes. Assigned coaches and administrators can add feedback; guardians and students can read only records within their current access. The author coach (while still assigned) or an administrator can correct a note with a reason. Corrections retain the original author and are audited; stale versions require reloading and reviewing before retrying.
+
+Notes are immediately shared with the student and linked family; there is no private/draft-note storage. The editor preserves text during recoverable request failures, but switching student/account views clears local drafts. A failed creation with an uncertain outcome offers the same submission again to prevent duplicate notes. Progress notes do not imply attendance, a completed skill milestone or a credit change.
