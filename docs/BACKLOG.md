@@ -13,7 +13,7 @@ Frontend behaviour tests, Go tests, relevant PostgreSQL integration tests, API c
 | 00 | Record active goal, exclusions, stage gates and open decisions | None | In progress; documentation-only PR |
 | 01 | Runnable Go/Postgres/React foundation; persistent authenticated sessions; scoped parent/coach/admin home; synthetic seed; CI and real-stack Playwright login/permission journeys | 00 | Pending |
 | 02 | Admin maintains families/students/coaches/venues/class types/sessions; coach roster and parent child selection read shared records; invitations/recovery and student access decision resolved | 01 | Pending |
-| 03 | Configurable packages, ledger, mock payment pending/success/failure/duplicates, receipts; flexible and bounded recurring bookings; concurrency/overlap/eligibility checks | 02 and credit decisions | Pending |
+| 03 | Configurable packages, ledger, clearly labelled mock payment pending/success/failure/duplicates through shared entitlement services, receipts; flexible and bounded recurring bookings; concurrency/overlap/eligibility checks | 02 and credit decisions | Pending |
 | 04 | Attendance/corrections, cancellation cases, change approval/rejection, expiry, carry-forward, scoped coach recovery, substitution and school cancellation; audit all consequences | 03 and timing/recovery decisions | Pending |
 | 05 | Progress entry/history, skill milestones, notification history/reminders, coach availability, admin action queue, search/filters; complete role journeys and language/accessibility states | 04 | Pending |
 | 06 | Provider-backed typed assistant, STT and optional TTS; scoped reads and confirmed mutations; ambiguity/stale confirmation/idempotency/failure tests; actual provider validation | Stable domain tools; provider credentials | Pending |
@@ -23,7 +23,7 @@ Stage scope may be split into smaller reviewed PRs when useful, but requirements
 
 ## Open decisions and external dependencies
 
-- Asked user to confirm credit reservation/consumption, explicit recurring renewal, administrator-entered package expiry, renewal carry-forward and scoped recovery with reasons/new expiry. Awaiting answer; no dependent implementation yet.
+- User approved credit reservation/consumption, explicit recurring renewal, administrator-entered package expiry, renewal carry-forward and assigned-coach recovery with reasons/new expiry on 2026-11-17.
 - Asked whether students need their own read-only login or parent-only accounts. Awaiting answer.
 - Timing, eligibility, notifications and other unresolved questions remain in DECISIONS.md; resolve before dependent work.
 - Actual language-model and STT/TTS credentials/provider access must be established before claiming stage 06 complete. Do not expose credentials in logs or repository.
@@ -31,4 +31,4 @@ Stage scope may be split into smaller reviewed PRs when useful, but requirements
 
 ## Evidence log
 
-2026-11-17: Read attached goal and repository documentation; confirmed clean main and Go/Node/Docker/GitHub tools. Started stage/00-delivery-scope. No app existed at baseline. No application tests are claimed for stage 00.
+2026-11-17: Read attached goal and repository documentation; confirmed clean main and Go/Node/Docker/GitHub tools. Started stage/00-delivery-scope. No app existed at baseline. No application tests are claimed for stage 00. Independent scope review approved; lead reviewed scope and git diff --check passed. GitHub reports branch protection unavailable for this private repository plan; CI/review gates remain mandatory before merges.
