@@ -386,6 +386,9 @@ func (a *API) createStudent(w http.ResponseWriter, r *http.Request, s Session) {
 		return
 	}
 	defer tx.Rollback(r.Context())
+	if !a.currentAdminAccess(w, r, s, tx) {
+		return
+	}
 	if _, err = tx.Exec(r.Context(), "INSERT INTO students(id,name,level) VALUES($1,$2,$3)", x.ID, x.Name, x.Level); err != nil {
 		internal(w, err)
 		return
@@ -425,6 +428,9 @@ func (a *API) updateStudent(w http.ResponseWriter, r *http.Request, s Session) {
 		return
 	}
 	defer tx.Rollback(r.Context())
+	if !a.currentAdminAccess(w, r, s, tx) {
+		return
+	}
 	var before Student
 	err = tx.QueryRow(r.Context(), "SELECT id,name,level,version FROM students WHERE id=$1 FOR UPDATE", x.ID).Scan(&before.ID, &before.Name, &before.Level, &before.Version)
 	if errors.Is(err, pgx.ErrNoRows) {

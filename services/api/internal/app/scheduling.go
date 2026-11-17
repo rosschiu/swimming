@@ -154,6 +154,9 @@ func (a *API) updateSchedulingSettings(w http.ResponseWriter, r *http.Request, s
 		return
 	}
 	defer tx.Rollback(r.Context())
+	if !a.currentAdminAccess(w, r, s, tx) {
+		return
+	}
 	var before SchedulingSettings
 	if err = tx.QueryRow(r.Context(), "SELECT travel_gap_minutes,version FROM scheduling_settings WHERE id").Scan(&before.TravelGapMinutes, &before.Version); err != nil {
 		internal(w, err)
@@ -249,6 +252,9 @@ func (a *API) createVenue(w http.ResponseWriter, r *http.Request, s Session) {
 		return
 	}
 	defer tx.Rollback(r.Context())
+	if !a.currentAdminAccess(w, r, s, tx) {
+		return
+	}
 	if _, err = tx.Exec(r.Context(), "INSERT INTO venues(id,name,address,region) VALUES($1,$2,$3,$4)", x.ID, x.Name, x.Address, x.Region); err != nil {
 		internal(w, err)
 		return
@@ -289,6 +295,9 @@ func (a *API) updateVenue(w http.ResponseWriter, r *http.Request, s Session) {
 		return
 	}
 	defer tx.Rollback(r.Context())
+	if !a.currentAdminAccess(w, r, s, tx) {
+		return
+	}
 	var before Venue
 	err = tx.QueryRow(r.Context(), "SELECT id,name,address,region,active,version FROM venues WHERE id=$1", x.ID).Scan(&before.ID, &before.Name, &before.Address, &before.Region, &before.Active, &before.Version)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -369,6 +378,9 @@ func (a *API) createClassType(w http.ResponseWriter, r *http.Request, s Session)
 		return
 	}
 	defer tx.Rollback(r.Context())
+	if !a.currentAdminAccess(w, r, s, tx) {
+		return
+	}
 	if _, err = tx.Exec(r.Context(), "INSERT INTO class_types(id,name,level) VALUES($1,$2,$3)", x.ID, x.Name, x.Level); err != nil {
 		internal(w, err)
 		return
@@ -409,6 +421,9 @@ func (a *API) updateClassType(w http.ResponseWriter, r *http.Request, s Session)
 		return
 	}
 	defer tx.Rollback(r.Context())
+	if !a.currentAdminAccess(w, r, s, tx) {
+		return
+	}
 	var before ClassType
 	err = tx.QueryRow(r.Context(), "SELECT id,name,level,active,version FROM class_types WHERE id=$1", x.ID).Scan(&before.ID, &before.Name, &before.Level, &before.Active, &before.Version)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -569,6 +584,9 @@ func (a *API) createClass(w http.ResponseWriter, r *http.Request, s Session) {
 		return
 	}
 	defer tx.Rollback(r.Context())
+	if !a.currentAdminAccess(w, r, s, tx) {
+		return
+	}
 	if !checkClass(w, r, tx, input, "", nil) {
 		return
 	}
@@ -608,6 +626,9 @@ func (a *API) updateClass(w http.ResponseWriter, r *http.Request, s Session) {
 		return
 	}
 	defer tx.Rollback(r.Context())
+	if !a.currentAdminAccess(w, r, s, tx) {
+		return
+	}
 	before, err := scanClass(tx.QueryRow(r.Context(), "SELECT "+classColumns+classJoin+" WHERE c.id=$1", r.PathValue("id")))
 	if errors.Is(err, pgx.ErrNoRows) {
 		fail(w, 404, "not_found", "Class not found")
@@ -723,6 +744,9 @@ func (a *API) createSeries(w http.ResponseWriter, r *http.Request, s Session) {
 		return
 	}
 	defer tx.Rollback(r.Context())
+	if !a.currentAdminAccess(w, r, s, tx) {
+		return
+	}
 	id, err := RandomToken()
 	if err != nil {
 		internal(w, err)

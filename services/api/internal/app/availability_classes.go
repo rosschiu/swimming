@@ -45,6 +45,9 @@ func (a *API) createAvailabilityClass(w http.ResponseWriter, r *http.Request, s 
 		return
 	}
 	defer tx.Rollback(r.Context())
+	if !a.currentAdminAccess(w, r, s, tx) {
+		return
+	}
 	var classID string
 	var matches bool
 	err = tx.QueryRow(r.Context(), "SELECT class_id,availability_id=$3 AND request=$4::jsonb FROM availability_classes WHERE actor_id=$1 AND request_id=$2", s.User.ID, input.RequestID, r.PathValue("id"), payload).Scan(&classID, &matches)
