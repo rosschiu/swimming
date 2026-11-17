@@ -18,10 +18,10 @@ Synthetic accounts: `admin@swim.test`, `parent@swim.test`, `coach@swim.test`, `s
 - `npm run contracts:check` regenerates frontend types and fails on tracked drift.
 - In `services/api`: `go vet ./...` and `go test -race ./...` with DATABASE_URL pointing to a dedicated development/test PostgreSQL.
 - `npm test --prefix apps/web -- --run` and `npm run build --prefix apps/web`.
-- `npx playwright install chromium`, then `npm run test:e2e` with DATABASE_URL exported. Playwright starts the API/web servers if absent and uses real PostgreSQL records.
+- `npx playwright install chromium`, then `npm run test:e2e` with DATABASE_URL exported. Playwright starts its own API/web servers and fails if the test ports are already occupied and uses real PostgreSQL records.
 - Browser failures retain screenshots and traces in ignored `test-results/` and `playwright-report/`; CI uploads them.
 
-The current foundation exposes authentication and scoped student records only. Later stages add operational features. The original HTML mockup is reference material and does not supply runtime records.
+The application includes scoped student records, account invitations/recovery, family access links, audit history and school scheduling. Administrators use School setup to maintain venues, class types and coach travel time, then Schedule to create individual classes or weekly series of up to 93 days. Dates and times use Hong Kong time. Editing a series occurrence changes only that occurrence. Archived venues/types keep existing classes readable and prevent new assignments. Coaches see assigned classes; families see the catalogue. Bookings, credits and attendance are added in subsequent stages. The original HTML mockup is reference material and does not supply runtime records.
 
 ## Demo email
 

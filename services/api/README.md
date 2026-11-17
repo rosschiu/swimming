@@ -61,3 +61,15 @@ No raw token or email message body is stored in the database, audit history or A
 The API now provides administrator user/invitation lists, invite/resend/revoke, account name/activation editing, student relationship maintenance and paginated audit history. Public invitation acceptance/reset endpoints require the allowed Origin; authenticated writes additionally require CSRF. User roles/emails remain immutable in this slice. Login throttling counts failed credentials per peer/email and per peer aggregate; successful sign-ins do not consume the limit.
 
 Tests include real local SMTP capture, failed delivery, token expiry/replay/reissue, reset non-enumeration, self-link uniqueness, relationship revocation, last-administrator concurrency, optimistic account edits, audit rollback and reset-versus-login serialization.
+
+## Stage 02b — scheduling
+
+Migration 3 adds venues, class types, sessions, bounded weekly class series and singleton scheduling settings. No enrolment or roster is invented here; guardian/student views show the class catalogue, and coaches see their own assigned sessions. Actual student bookings follow in stage03.
+
+Administrator scheduling supports Hong Kong inclusive date filters (1–93 days), five school operating regions, venue/type archive, individual session editing and atomic weekly series creation. Weekly inputs use ISO weekdays (Monday=1, Sunday=7) and HH:mm Hong Kong local time. An occurrence edit preserves its series ID without changing siblings; there is no bulk-series editing endpoint.
+
+The default different-venue travel gap is 30 minutes, configurable from 0–1440 by administrators. Same-coach overlap is always prohibited; same-venue back-to-back classes and different-coach parallel venue classes are allowed. The travel rule applies in both temporal directions and across midnight. A single transaction advisory lock serializes scheduling changes and settings changes. Row locks on reference records serialize creation with coach disabling or venue/type archival. Increasing the gap rejects conflicts among not-yet-ended classes, including ongoing lessons. Historical ended sessions are not retroactively revalidated by a settings update.
+
+Archiving a venue/type prevents new assignments but does not cancel existing sessions or hide them from the catalogue. Editing an existing session may retain unchanged archived venue/type references; assigning a different archived reference is rejected. An inactive coach must be reassigned to an active coach before any session update. Disabling a coach prevents new assignments and login; existing sessions remain for administrator reassignment in later operational flows. Mutations and their audit events commit together. Stale versions return 409.
+
+Tests cover HK date boundaries, bounded recurrence, role scope, filters, travel equality/both directions/midnight, same-venue parallelism, overlap, atomic series rollback, isolated occurrence editing, concurrent settings/session/series writes, active-reference races and audit rollback.
