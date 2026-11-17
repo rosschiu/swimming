@@ -73,6 +73,8 @@ User also confirmed configurable timing defaults: parent change requests at leas
 
 The user requires an external notification delivery channel in addition to in-app notifications. Implementation direction: email, consistent with the mockup; use local mail capture in development. The user explicitly authorised demo email notifications. Demo recipient addresses and SMTP/provider access are pending; no unrelated real-school recipients are authorised.
 
+Coach scheduling requires a 30-minute gap between classes at different venues by default, configurable by administrators. Multiple classes may run at the same venue concurrently; administrators manage venue/lane limits for this web release (confirmed 2026-11-17).
+
 ## Additional rule details
 
 - Booking reserves a credit; attended lessons consume it. Retained credits are released from the booking and remain subject to validity rules.

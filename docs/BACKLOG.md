@@ -12,7 +12,7 @@ Frontend behaviour tests, Go tests, relevant PostgreSQL integration tests, API c
 |---|---|---|---|
 | 00 | Record active goal, exclusions, stage gates and open decisions | None | Merged [PR #1](https://github.com/rosschiu/swimming/pull/1), `902016c`; independent review and diff check passed |
 | 01 | Runnable Go/Postgres/React foundation; persistent authenticated sessions; scoped parent/coach/admin home; synthetic seed; CI and real-stack Playwright login/permission journeys | 00 | Merged [PR #2](https://github.com/rosschiu/swimming/pull/2), `de7f06a`; local/CI tests and independent review passed |
-| 02 | Admin maintains families/students/coaches/venues/class types/sessions; coach roster and parent child selection read shared records; invitations/recovery and student access decision resolved | 01 | Pending |
+| 02 | Admin maintains families/students/coaches/venues/class types/sessions; coach roster and parent child selection read shared records; invitations/recovery and student access decision resolved | 01 | 02a merged PR #3 (`6c6d829`); 02b scheduling in progress |
 | 03 | Configurable packages, ledger, clearly labelled mock payment pending/success/failure/duplicates through shared entitlement services, receipts; flexible and bounded recurring bookings; concurrency/overlap/eligibility checks | 02 and credit decisions | Pending |
 | 04 | Attendance/corrections, cancellation cases, change approval/rejection, expiry, carry-forward, scoped coach recovery, substitution and school cancellation; audit all consequences | 03 and timing/recovery decisions | Pending |
 | 05 | Progress entry/history, skill milestones, notification history/reminders and email delivery, coach availability, admin action queue, search/filters; complete role journeys and language/accessibility states | 04 | Pending |
@@ -38,3 +38,5 @@ Stage 00 merged main verified clean at `902016c`. Stage 01 ownership: backend wo
 Stage 01 PR: https://github.com/rosschiu/swimming/pull/2. Local frontend8, real-stack Playwright6 and Go/Postgres race tests passed. Independent review approved after session-state and seed fixes; CI pending.
 
 2026-11-17: Stage01 merged main clean, contract check passed, implementation tree matches tested PR head. Stage02 splits into 02a identity/family administration and 02b scheduling. Actual coach rosters and student booked schedules depend on stage03 bookings, avoiding duplicate enrolment data.
+
+2026-11-17: Stage02a merged and main verified clean at `6c6d829`, identical to tested head; contracts check passed. Final frontend18, Playwright7, Go/PostgreSQL race/vet and both CI runs passed; independent review approved. See STAGE-02A-EVIDENCE.md. Stage02b implements venues/class types, bounded recurring sessions, coach schedules and family class catalogue. User approved concurrent same-venue classes and admin-configurable 30-minute different-venue travel gap.
