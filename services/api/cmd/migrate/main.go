@@ -9,6 +9,9 @@ import (
 )
 
 func main() {
+	if os.Getenv("DATABASE_URL") == "" {
+		log.Fatal("DATABASE_URL is required")
+	}
 	ctx := context.Background()
 	db, err := pgxpool.New(ctx, os.Getenv("DATABASE_URL"))
 	if err != nil {

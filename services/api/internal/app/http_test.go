@@ -220,10 +220,14 @@ func TestIntegrationSessionLifecycle(t *testing.T) {
 	}
 	expectStatus(t, request(t, h, "GET", "/api/v1/auth/me", nil, s), 401)
 	s = login(t, h, "parent@swim.test")
-	db.Exec(context.Background(), "UPDATE sessions SET expires_at=now()-interval '1 second'")
+	if _, err := db.Exec(context.Background(), "UPDATE sessions SET expires_at=now()-interval '1 second'"); err != nil {
+		t.Fatal(err)
+	}
 	expectStatus(t, request(t, h, "GET", "/api/v1/auth/me", nil, s), 401)
 	s = login(t, h, "parent@swim.test")
-	db.Exec(context.Background(), "UPDATE users SET active=false WHERE id='parent'")
+	if _, err := db.Exec(context.Background(), "UPDATE users SET active=false WHERE id='parent'"); err != nil {
+		t.Fatal(err)
+	}
 	expectStatus(t, request(t, h, "GET", "/api/v1/auth/me", nil, s), 401)
 }
 func TestIntegrationAdminWritesAndAudit(t *testing.T) {
@@ -243,12 +247,16 @@ func TestIntegrationAdminWritesAndAudit(t *testing.T) {
 	expectStatus(t, w, 200)
 	expectStatus(t, request(t, h, "PATCH", "/api/v1/students/"+x.ID, map[string]any{"name": "Stale", "level": "Beginner", "version": 1}, s), 409)
 	var count int
-	db.QueryRow(context.Background(), "SELECT count(*) FROM audit_events WHERE entity_id=$1", x.ID).Scan(&count)
+	if err := db.QueryRow(context.Background(), "SELECT count(*) FROM audit_events WHERE entity_id=$1", x.ID).Scan(&count); err != nil {
+		t.Fatal(err)
+	}
 	if count != 2 {
 		t.Fatalf("expected create+update audit, got %d", count)
 	}
 	var level string
-	db.QueryRow(context.Background(), "SELECT level FROM students WHERE id=$1", x.ID).Scan(&level)
+	if err := db.QueryRow(context.Background(), "SELECT level FROM students WHERE id=$1", x.ID).Scan(&level); err != nil {
+		t.Fatal(err)
+	}
 	if level != "Intermediate" {
 		t.Fatal("stale request overwrote value")
 	}
@@ -257,7 +265,9 @@ func TestIntegrationAdminWritesAndAudit(t *testing.T) {
 		t.Fatal(err)
 	}
 	expectStatus(t, request(t, h, "POST", "/api/v1/students", map[string]string{"name": "Must rollback", "level": "Beginner"}, s), 500)
-	db.QueryRow(context.Background(), "SELECT count(*) FROM students WHERE name='Must rollback'").Scan(&count)
+	if err := db.QueryRow(context.Background(), "SELECT count(*) FROM students WHERE name='Must rollback'").Scan(&count); err != nil {
+		t.Fatal(err)
+	}
 	if count != 0 {
 		t.Fatal("student committed despite failed audit")
 	}
@@ -268,7 +278,9 @@ func TestIntegrationSeedAndLoginValidation(t *testing.T) {
 		t.Fatal(err)
 	}
 	var count int
-	db.QueryRow(context.Background(), "SELECT count(*) FROM users").Scan(&count)
+	if err := db.QueryRow(context.Background(), "SELECT count(*) FROM users").Scan(&count); err != nil {
+		t.Fatal(err)
+	}
 	if count != 5 {
 		t.Fatal("seed duplicated users")
 	}

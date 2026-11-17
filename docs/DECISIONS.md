@@ -69,6 +69,8 @@ The user approved: booking reserves a credit; attendance consumes it; fixed enro
 
 Students have separate login access to their own schedule and progress; guardians control bookings and payments (confirmed 2026-11-17).
 
+User also confirmed configurable timing defaults: parent change requests at least 24 hours ahead; coach availability locked within 72 hours; attendance opens 15 minutes after session start; attendance corrections allowed for three days.
+
 ## Additional rule details
 
 - Booking reserves a credit; attended lessons consume it. Retained credits are released from the booking and remain subject to validity rules.
