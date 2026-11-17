@@ -1,6 +1,6 @@
 # Stage 02d evidence: lessons from availability windows
 
-Status: implementation under validation; independent review and merge pending.
+Status: draft [PR #6](https://github.com/rosschiu/swimming/pull/6), implementation commit `c792b84`; CI, independent review and merge pending.
 
 ## Behaviour
 
@@ -17,8 +17,8 @@ The UI preserves input after definitive failures and locks an uncertain submissi
 - Two new PostgreSQL integration tests passed with `-race`: lifecycle/scope and concurrent retry/rollback (12.057 seconds including race overhead).
 - Additional lock-wait cancellation test passed with PostgreSQL and `-race` (6.150 seconds).
 - Full Go/PostgreSQL race suite passed (136.540 seconds); the subsequently added lock-wait test also passed separately as recorded above. `go vet ./...` passed.
-- OpenAPI types generated successfully; final committed-drift check pending.
-- Cumulative real-stack Playwright: 11 passed in 25.7 seconds. New journey schedules two lessons and confirms coach, parent and administrator schedule visibility after window cancellation.
+- OpenAPI types generated successfully; committed-drift check passed.
+- Cumulative real-stack Playwright: 11 passed in 25.7 seconds. New journey schedules two lessons and confirms coach, parent and administrator schedule visibility after window cancellation. After the final focus improvement, both availability journeys passed again (10.1 seconds).
 - First browser run failed because the persistent local test database had not received migration 5. Applied the migration and reran the entire suite successfully. CI already migrates before E2E.
 - `git diff --check` passed.
 
