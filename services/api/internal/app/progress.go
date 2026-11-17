@@ -172,6 +172,10 @@ func (a *API) createProgressNote(w http.ResponseWriter, r *http.Request, s Sessi
 		internal(w, err)
 		return
 	}
+	if err = a.createTeachingNotifications(r.Context(), tx, s.User.ID, n.StudentID, "progress.created", n.ID, n.Version); err != nil {
+		internal(w, err)
+		return
+	}
 	if err = tx.Commit(r.Context()); err != nil {
 		internal(w, err)
 		return
@@ -230,6 +234,10 @@ func (a *API) updateProgressNote(w http.ResponseWriter, r *http.Request, s Sessi
 		return
 	}
 	if err = audit(r.Context(), tx, s.User.ID, "progress.updated", n.ID, map[string]any{"before": before, "after": n, "reason": input.Reason}); err != nil {
+		internal(w, err)
+		return
+	}
+	if err = a.createTeachingNotifications(r.Context(), tx, s.User.ID, n.StudentID, "progress.updated", n.ID, n.Version); err != nil {
 		internal(w, err)
 		return
 	}

@@ -1,9 +1,12 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"fmt"
+	"mime"
+	"mime/quotedprintable"
 	"net"
 	"net/mail"
 	"net/smtp"
@@ -27,6 +30,19 @@ func (a *API) sendAuthMail(ctx context.Context, deliveryID int64, recipient, pur
 	return status
 }
 func (a *API) smtpSend(ctx context.Context, recipient, purpose, token string) error {
+	path, subject := "/accept-invitation?token=", "SwimCoach Pro invitation"
+	if purpose == "password_reset" {
+		path = "/reset-password?token="
+		subject = "SwimCoach Pro password reset"
+	}
+	body := subject + "\r\n\r\nOpen this link to set your password:\r\n" + a.cfg.Origin + path + token + "\r\n\r\nIf you did not expect this email, ignore it. This link is temporary and can only be used once.\r\n"
+	return a.smtpSendMessage(ctx, recipient, subject, body, "")
+}
+func (a *API) sendTeachingMail(ctx context.Context, claim notificationClaim) error {
+	body := "You have a shared teaching update. Sign in to view it.\r\n您有新的教學近況。請登入查看。\r\n\r\n" + a.cfg.Origin + "/notifications\r\n"
+	return a.smtpSendMessage(ctx, claim.Recipient, "SwimCoach Pro update / 教學近況", body, "<teaching-"+claim.NotificationID+"@swimcoach.invalid>")
+}
+func (a *API) smtpSendMessage(ctx context.Context, recipient, subject, body, messageID string) error {
 	if a.cfg.SMTPAddr == "" || a.cfg.SMTPFrom == "" {
 		return fmt.Errorf("SMTP is not configured")
 	}
@@ -48,6 +64,9 @@ func (a *API) smtpSend(ctx context.Context, recipient, purpose, token string) er
 		return err
 	}
 	defer conn.Close()
+	rawConn := conn
+	stopClose := context.AfterFunc(ctx, func() { rawConn.Close() })
+	defer stopClose()
 	conn.SetDeadline(time.Now().Add(8 * time.Second))
 	security := &tls.Config{ServerName: host, MinVersion: tls.VersionTLS12}
 	if a.cfg.SMTPTLS == "tls" {
@@ -85,12 +104,25 @@ func (a *API) smtpSend(ctx context.Context, recipient, purpose, token string) er
 	if err != nil {
 		return err
 	}
-	path, subject := "/accept-invitation?token=", "SwimCoach Pro invitation"
-	if purpose == "password_reset" {
-		path = "/reset-password?token="
-		subject = "SwimCoach Pro password reset"
+	headers := ""
+	if messageID != "" {
+		headers = "Message-ID: " + messageID + "\r\n"
 	}
-	message := "From: " + from.String() + "\r\nTo: " + to.Address + "\r\nSubject: " + subject + "\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n" + subject + "\r\n\r\nOpen this link to set your password:\r\n" + a.cfg.Origin + path + token + "\r\n\r\nIf you did not expect this email, ignore it. This link is temporary and can only be used once.\r\n"
+
+	// Teaching messages contain Chinese; encode them for SMTP transports without 8BITMIME.
+	if messageID != "" {
+		var encoded bytes.Buffer
+		qp := quotedprintable.NewWriter(&encoded)
+		if _, err = qp.Write([]byte(body)); err != nil {
+			return err
+		}
+		if err = qp.Close(); err != nil {
+			return err
+		}
+		body = encoded.String()
+		headers += "Content-Transfer-Encoding: quoted-printable\r\n"
+	}
+	message := "From: " + from.String() + "\r\nTo: " + to.Address + "\r\nSubject: " + mime.QEncoding.Encode("utf-8", subject) + "\r\n" + headers + "MIME-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n" + body
 	if _, err = writer.Write([]byte(message)); err != nil {
 		return err
 	}

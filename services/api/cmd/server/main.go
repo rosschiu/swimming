@@ -27,8 +27,13 @@ func main() {
 	if err = db.Ping(ctx); err != nil {
 		log.Fatal("database unavailable")
 	}
+	workerDone := make(chan struct{})
+	go func() { defer close(workerDone); app.RunNotificationWorker(ctx, cfg, db) }()
+	defer func() { stop(); <-workerDone }()
 	server := &http.Server{Addr: cfg.Addr, Handler: app.New(cfg, db), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 15 * time.Second, IdleTimeout: 60 * time.Second}
+	shutdownDone := make(chan struct{})
 	go func() {
+		defer close(shutdownDone)
 		<-ctx.Done()
 		shutdown, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
@@ -38,4 +43,5 @@ func main() {
 	if err = server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatal(err)
 	}
+	<-shutdownDone
 }

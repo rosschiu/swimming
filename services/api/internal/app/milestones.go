@@ -76,18 +76,6 @@ func (a *API) milestoneRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/students/{id}/milestones", a.auth(a.listStudentMilestones))
 	mux.HandleFunc("POST /api/v1/students/{id}/milestones/{skillId}/events", a.auth(a.createMilestoneEvent))
 }
-func (a *API) skillAdminAccess(w http.ResponseWriter, r *http.Request, s Session, tx pgx.Tx) bool {
-	var active bool
-	if err := tx.QueryRow(r.Context(), "SELECT EXISTS(SELECT 1 FROM users WHERE id=$1 AND active AND role=$2)", s.User.ID, s.User.Role).Scan(&active); err != nil {
-		internal(w, err)
-		return false
-	}
-	if !active {
-		fail(w, 401, "unauthenticated", "Sign in again")
-		return false
-	}
-	return admin(w, s)
-}
 func (a *API) listSkills(w http.ResponseWriter, r *http.Request, s Session) {
 	tx, err := a.beginIdentity(r.Context())
 	if err != nil {
@@ -95,7 +83,7 @@ func (a *API) listSkills(w http.ResponseWriter, r *http.Request, s Session) {
 		return
 	}
 	defer tx.Rollback(r.Context())
-	if !a.skillAdminAccess(w, r, s, tx) {
+	if !a.currentAdminAccess(w, r, s, tx) {
 		return
 	}
 	rows, err := tx.Query(r.Context(), "SELECT "+skillColumns+" FROM skills ORDER BY name,id")
@@ -143,7 +131,7 @@ func (a *API) createSkill(w http.ResponseWriter, r *http.Request, s Session) {
 		return
 	}
 	defer tx.Rollback(r.Context())
-	if !a.skillAdminAccess(w, r, s, tx) {
+	if !a.currentAdminAccess(w, r, s, tx) {
 		return
 	}
 	var id, name, description string
@@ -212,7 +200,7 @@ func (a *API) updateSkill(w http.ResponseWriter, r *http.Request, s Session) {
 		return
 	}
 	defer tx.Rollback(r.Context())
-	if !a.skillAdminAccess(w, r, s, tx) {
+	if !a.currentAdminAccess(w, r, s, tx) {
 		return
 	}
 	before, err := scanSkill(tx.QueryRow(r.Context(), "SELECT "+skillColumns+" FROM skills WHERE id=$1", r.PathValue("skillId")))
@@ -420,6 +408,10 @@ func (a *API) createMilestoneEvent(w http.ResponseWriter, r *http.Request, s Ses
 		return
 	}
 	if err = audit(r.Context(), tx, s.User.ID, "milestone."+in.State, e.ID, e); err != nil {
+		internal(w, err)
+		return
+	}
+	if err = a.createTeachingNotifications(r.Context(), tx, s.User.ID, e.StudentID, "milestone."+e.State, e.ID, e.Version); err != nil {
 		internal(w, err)
 		return
 	}
