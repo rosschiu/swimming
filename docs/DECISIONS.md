@@ -67,6 +67,8 @@ Advanced marketing, marketplace features, payroll, AI-generated coaching program
 
 The user approved: booking reserves a credit; attendance consumes it; fixed enrolment requires explicit renewal; package expiry is an administrator-entered date; carry-forward transfers unused credits on renewal to the new expiry; assigned coaches recover credits with a reason and new expiry. Remaining details below are still proposals where not covered by this approval.
 
+Students have separate login access to their own schedule and progress; guardians control bookings and payments (confirmed 2026-11-17).
+
 ## Additional rule details
 
 - Booking reserves a credit; attended lessons consume it. Retained credits are released from the booking and remain subject to validity rules.

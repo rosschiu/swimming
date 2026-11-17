@@ -24,7 +24,7 @@ Stage scope may be split into smaller reviewed PRs when useful, but requirements
 ## Open decisions and external dependencies
 
 - User approved credit reservation/consumption, explicit recurring renewal, administrator-entered package expiry, renewal carry-forward and assigned-coach recovery with reasons/new expiry on 2026-11-17.
-- Asked whether students need their own read-only login or parent-only accounts. Awaiting answer.
+- User confirmed separate student login with own schedule/progress access; guardians control booking/payment.
 - Timing, eligibility, notifications and other unresolved questions remain in DECISIONS.md; resolve before dependent work.
 - Actual language-model and STT/TTS credentials/provider access must be established before claiming stage 06 complete. Do not expose credentials in logs or repository.
 - Use synthetic seed/test records only; no external messages or public deployment authorised.
