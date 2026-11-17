@@ -1,6 +1,6 @@
 # Stage 02c: coach availability
 
-In progress. This independent slice brings forward availability management while package/booking policy answers are pending. It does not finish the overall goal or claim that availability automatically creates classes.
+Merged [PR #5](https://github.com/rosschiu/swimming/pull/5) as `a11fc76`. This independent slice brings forward availability management while package/booking policy answers are pending. It does not finish the overall goal or claim that availability automatically creates classes.
 
 Scope reaches migration 4, Go routes and tests, OpenAPI/generated types, coach/admin React availability screens, school settings, frontend tests and real-stack Playwright. Existing scheduling/session records remain authoritative for actual classes.
 
@@ -15,3 +15,5 @@ Acceptance:
 The user has been asked whether an availability slot is a scheduling window or an exact proposed session. Publication into classes is dependent on that answer and excluded from this slice, not removed from further planning.
 
 Validation before PR: 37 frontend tests, production build and 10 cumulative real-stack Playwright journeys passed. Migration4 applied to existing data. Independent reviewer approved fixes for cutoff after eligibility locks and archived-venue selection, conditional on final backend race/CI. Focused backend availability tests passed, including deterministic delayed-row cutoffs and settings rereads; final race suite running.
+
+Final Go/PostgreSQL race suite passed in112.688s and vet passed. Both push and PR CI passed on `a2dbf43`; independent reviewer approved corrected implementation. Main `a11fc76` verified clean, identical to tested tree, with generated contract check passing. User subsequently confirmed availability windows for shorter lessons; scheduling from windows is stage02d.
