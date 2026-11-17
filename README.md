@@ -8,3 +8,5 @@ Development workspace for a swimming-school operations application.
 - [Original interactive mockup](SwimCoach-Pro-zh-HK-review.admin.html): fictional review data, not a production application.
 
 Current status: active staged web development; see [delivery backlog](docs/BACKLOG.md). Payments are mock-only for this goal. Real payment integration, native clients, hosting selection and public deployment remain outside scope.
+
+Run the current application using [local development instructions](docs/DEVELOPMENT.md). Stage 01 validation is recorded in [foundation evidence](docs/STAGE-01-EVIDENCE.md).
