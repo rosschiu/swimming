@@ -26,3 +26,7 @@ The application includes scoped student records, account invitations/recovery, f
 ## Demo email
 
 Local SMTP capture listens on `127.0.0.1:11025`; inspect messages at `http://127.0.0.1:18025`. Set SMTP_ADDR, SMTP_FROM and SMTP_TLS from .env.example. These messages do not leave the machine. The user authorised demo email notifications; external demo recipients and provider credentials are still pending. Do not substitute arbitrary real recipients.
+
+## Coach availability
+
+Coaches use Availability to submit venue/time/capacity proposals and edit or cancel their own entries. Administrators review proposals and configure the editing cutoff in School setup (72 hours by default). The server checks the old and new start times when editing. Cancelled records remain visible in history. Availability is planning information: it does not create classes, reserve places or guarantee travel feasibility. Scheduled classes remain managed through Schedule. Automatic publication awaits clarification of whether proposals represent windows or exact sessions.
