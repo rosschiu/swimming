@@ -553,6 +553,75 @@ export interface paths {
         patch: operations["updateProgressNote"];
         trace?: never;
     };
+    "/api/v1/skills": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Administrator only; includes archived definitions, sorted by name then ID. */
+        get: operations["listSkills"];
+        put?: never;
+        /** @description Administrator only. Exact actor-scoped request replay returns current definition with200; different original normalized inputs return409. */
+        post: operations["createSkill"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/skills/{skillId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** @description Administrator only; current version and reason required. Stale version returns409. No hard deletion. */
+        patch: operations["updateSkill"];
+        trace?: never;
+    };
+    "/api/v1/students/{id}/milestones": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Currently scoped student only. Active definitions plus recorded archived definitions; history newest version first. No replay inputs exposed. */
+        get: operations["listStudentMilestones"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/students/{id}/milestones/{skillId}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Assigned coach or administrator. Achievements require reviewed current skillVersion and optional comment; revocations require reason and current achievement author or administrator. Version0 initially. Revocation snapshots reversed achievement, independently of submitted skillVersion. Exact replay returns original event before transition checks after current access checks; changed normalized payload returns409. Archive blocks achievements only. */
+        post: operations["createMilestoneEvent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -824,6 +893,61 @@ export interface components {
             body: string;
             version: number;
             reason: string;
+        };
+        Skill: {
+            id: string;
+            name: string;
+            description: string;
+            active: boolean;
+            version: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        SkillInput: {
+            requestId: string;
+            name: string;
+            description: string;
+        };
+        SkillUpdate: {
+            name: string;
+            description: string;
+            active: boolean;
+            version: number;
+            reason: string;
+        };
+        MilestoneEvent: {
+            id: string;
+            studentId: string;
+            skillId: string;
+            /** @enum {string} */
+            state: "achieved" | "revoked";
+            reason: string;
+            version: number;
+            skillVersion: number;
+            skillName: string;
+            skillDescription: string;
+            actorId: string;
+            actorName: string;
+            /** Format: date-time */
+            recordedAt: string;
+            reversesEventId: string | null;
+        };
+        MilestoneEventInput: {
+            requestId: string;
+            /** @enum {string} */
+            state: "achieved" | "revoked";
+            version: number;
+            skillVersion: number;
+            reason: string;
+        };
+        StudentMilestone: {
+            skill: components["schemas"]["Skill"];
+            current: components["schemas"]["MilestoneEvent"] | (never | null);
+            history: components["schemas"]["MilestoneEvent"][];
+            canAchieve: boolean;
+            canRevoke: boolean;
         };
     };
     responses: never;
@@ -2531,6 +2655,198 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProgressNote"];
+                };
+            };
+            /** @description Request failed */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    listSkills: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["Skill"][];
+                    };
+                };
+            };
+            /** @description Request failed */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    createSkill: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-Token": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SkillInput"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Skill"];
+                };
+            };
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Skill"];
+                };
+            };
+            /** @description Request failed */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    updateSkill: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-Token": string;
+            };
+            path: {
+                skillId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SkillUpdate"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Skill"];
+                };
+            };
+            /** @description Request failed */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    listStudentMilestones: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["StudentMilestone"][];
+                    };
+                };
+            };
+            /** @description Request failed */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    createMilestoneEvent: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-Token": string;
+            };
+            path: {
+                id: string;
+                skillId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MilestoneEventInput"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MilestoneEvent"];
+                };
+            };
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MilestoneEvent"];
                 };
             };
             /** @description Request failed */

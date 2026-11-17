@@ -36,3 +36,11 @@ Coaches use Availability to submit venue/time/capacity proposals and edit or can
 After applying migration 6, open a student profile to view shared progress notes. Assigned coaches and administrators can add feedback; guardians and students can read only records within their current access. The author coach (while still assigned) or an administrator can correct a note with a reason. Corrections retain the original author and are audited; stale versions require reloading and reviewing before retrying.
 
 Notes are immediately shared with the student and linked family; there is no private/draft-note storage. The editor preserves text during recoverable request failures, but switching student/account views clears local drafts. A failed creation with an uncertain outcome offers the same submission again to prevent duplicate notes. Progress notes do not imply attendance, a completed skill milestone or a credit change.
+
+## Skill milestones
+
+Apply migration 7. Administrators define skills in School setup, including a name and optional assessment description. Editing or archiving requires a reason; archive preserves all history and prevents new achievements. The application supplies no curriculum or automatic swimming-level promotion.
+
+Open a student profile to view skills and milestone history. Assigned coaches and administrators can record an achievement against the displayed definition. The current achievement's author, while still assigned, or an administrator can revoke it with a reason. Revocation keeps the assessed definition and history; a later achievement uses the newly reviewed definition. Guardians and students have scoped read-only access.
+
+Achievements and revocations are shared immediately. If another user changes the milestone or definition, reload and explicitly review before submitting again. An uncertain result offers an exact retry; the screen then reloads authoritative state because a retried historical event may no longer be the current state. Times describe when records were written in Hong Kong time, not an inferred lesson or assessment date.
