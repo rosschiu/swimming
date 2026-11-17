@@ -17,7 +17,7 @@ function mockAPI(role: 'parent' | 'coach' | 'student' | 'admin', saveStatus = 20
   });
   vi.stubGlobal('fetch', fetchMock); return fetchMock;
 }
-beforeEach(() => { window.localStorage.clear(); vi.unstubAllGlobals(); });
+beforeEach(() => { window.history.replaceState(null, '', '/'); window.localStorage.clear(); vi.unstubAllGlobals(); });
 
 it('reports sign-in failure and keeps credentials available for correction', async () => {
   vi.stubGlobal('fetch', vi.fn(async () => response({ error: { message: 'No access' } }, 401)));
@@ -31,7 +31,7 @@ it('reports sign-in failure and keeps credentials available for correction', asy
 
 it.each(['parent', 'coach', 'student'] as const)('shows scoped read-only navigation for %s', async role => {
   mockAPI(role); const user = userEvent.setup(); render(<App />);
-  await user.click(await screen.findByRole('button', { name: /Amy Chan/ }));
+  await user.click(await screen.findByRole('link', { name: /Amy Chan/ }));
   expect(await screen.findByRole('heading', { name: 'Amy Chan' })).toBeVisible();
   expect(screen.queryByRole('button', { name: 'Add student' })).not.toBeInTheDocument();
   expect(screen.queryByRole('button', { name: 'Edit student' })).not.toBeInTheDocument();
@@ -51,7 +51,7 @@ it('keeps administrator form input after failed save and sends CSRF token', asyn
 
 it('explains stale edits without discarding entered changes', async () => {
   mockAPI('admin', 409); const user = userEvent.setup(); render(<App />);
-  await user.click(await screen.findByRole('button', { name: /Amy Chan/ }));
+  await user.click(await screen.findByRole('link', { name: /Amy Chan/ }));
   await user.click(await screen.findByRole('button', { name: 'Edit student' }));
   await user.clear(screen.getByLabelText('Swimming level'));
   await user.type(screen.getByLabelText('Swimming level'), 'Advanced');
@@ -62,7 +62,7 @@ it('explains stale edits without discarding entered changes', async () => {
 
 it('switches language and clears protected records on logout', async () => {
   mockAPI('parent'); const user = userEvent.setup(); render(<App />);
-  await screen.findByRole('button', { name: /Amy Chan/ });
+  await screen.findByRole('link', { name: /Amy Chan/ });
   await user.click(screen.getByRole('button', { name: '繁體中文' }));
   expect(document.documentElement.lang).toBe('zh-Hant-HK');
   await user.click(screen.getByRole('button', { name: '登出' }));
@@ -77,12 +77,12 @@ it('clears a private edit after expiry before a different account signs in', asy
     if (input.endsWith('/auth/login')) { role = 'parent'; expired = false; return response({ user: { id: 'parent', name: 'Parent', role }, csrfToken: 'new-token' }); }
     if (expired) return response({ error: { message: 'Expired' } }, 401);
     if (input.endsWith('/auth/me')) return response({ user: { id: 'admin', name: 'Admin', role }, csrfToken: 'token' });
-    if (input.endsWith('/students/amy')) return response(amy);
+    if (input.endsWith('/students/amy')) return role === 'admin' ? response(amy) : response({}, 404);
     if (input.endsWith('/students')) return response({ items: role === 'admin' ? [amy] : [] });
     throw new Error(`Unexpected request ${input} ${options?.method}`);
   }));
   const user = userEvent.setup(); render(<App />);
-  await user.click(await screen.findByRole('button', { name: /Amy Chan/ }));
+  await user.click(await screen.findByRole('link', { name: /Amy Chan/ }));
   await user.click(await screen.findByRole('button', { name: 'Edit student' }));
   await user.type(screen.getByLabelText('Student name'), ' Private');
   expired = true;
@@ -93,21 +93,21 @@ it('clears a private edit after expiry before a different account signs in', asy
   await screen.findByRole('heading', { name: 'Your swimmers' });
   expect(screen.queryByLabelText('Student name')).not.toBeInTheDocument();
   expect(screen.queryByText('Amy Chan')).not.toBeInTheDocument();
-  expect(await screen.findByRole('heading', { name: 'No students to display' })).toBeVisible();
+  expect(window.location.pathname).toBe('/students/amy');
 });
 
 it('searches all 500 registered students by name and level including the last record', async () => {
   const students = Array.from({ length: 500 }, (_, i) => ({ id: `scale-${i}`, name: `Swimmer ${String(i).padStart(3, '0')}`, level: i === 499 ? 'Advanced' : 'Beginner', version: 1 }));
   vi.stubGlobal('fetch', vi.fn(async (path: string) => { if (path.endsWith('/auth/me')) return response({ user: { id: 'admin', name: 'Admin', role: 'admin' }, csrfToken: 'csrf' }); if (path.endsWith('/students')) return response({ items: students }); if (path.includes('/notifications?')) return response({ items: [], nextCursor: null, unreadCount: 0 }); throw new Error(`Unexpected ${path}`); }));
   const user = userEvent.setup(); render(<App />);
-  await screen.findByRole('button', { name: /Swimmer 499/ });
-  expect(screen.getAllByRole('button', { name: /Swimmer \d/ })).toHaveLength(500);
+  await screen.findByRole('link', { name: /Swimmer 499/ });
+  expect(screen.getAllByRole('link', { name: /Swimmer \d/ })).toHaveLength(500);
   const search = screen.getByLabelText('Search students');
   await user.type(search, '499');
-  expect(screen.getAllByRole('button', { name: /Swimmer \d/ })).toHaveLength(1);
-  expect(screen.getByRole('button', { name: /Swimmer 499/ })).toBeVisible();
+  expect(screen.getAllByRole('link', { name: /Swimmer \d/ })).toHaveLength(1);
+  expect(screen.getByRole('link', { name: /Swimmer 499/ })).toBeVisible();
   await user.clear(search); await user.type(search, 'advanced');
-  expect(screen.getAllByRole('button', { name: /Swimmer \d/ })).toHaveLength(1);
+  expect(screen.getAllByRole('link', { name: /Swimmer \d/ })).toHaveLength(1);
   await user.clear(search); await user.type(search, 'no such swimmer');
   expect(screen.getByText('No students to display')).toBeVisible();
 });

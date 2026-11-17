@@ -59,7 +59,7 @@ test('administrator creates a weekly schedule shared with coach and family catal
   const suffix = Date.now();
   const pool = `UI pool ${suffix}`;
   const lesson = `UI swim ${suffix}`;
-  await page.getByRole('button', { name: 'School setup', exact: true }).click();
+  await page.getByRole('link', { name: 'School setup', exact: true }).click();
   await page.getByRole('button', { name: 'Add venue', exact: true }).click();
   await page.getByLabel('Venue name', { exact: true }).fill(pool);
   await page.getByLabel('Address', { exact: true }).fill('Synthetic swimming pool');
@@ -70,7 +70,7 @@ test('administrator creates a weekly schedule shared with coach and family catal
   await page.getByLabel('Class level', { exact: true }).fill('Beginner');
   await page.getByRole('button', { name: 'Save class type', exact: true }).click();
   await expect(page.getByRole('heading', { name: lesson, exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Schedule', exact: true }).click();
+  await page.getByRole('link', { name: 'Schedule', exact: true }).click();
   await page.getByRole('button', { name: 'Add weekly series', exact: true }).click();
   const date = new Date(Date.UTC(2040, 0, 1) + ((suffix % 100000) + 110000) * 86400000).toISOString().slice(0, 10);
   const endDate = new Date(Date.parse(`${date}T00:00:00Z`) + 7 * 86400000).toISOString().slice(0, 10);
@@ -106,7 +106,7 @@ test('administrator creates a weekly schedule shared with coach and family catal
   for (const role of ['coach', 'parent', 'student']) {
     await page.getByRole('button', { name: 'Sign out' }).click();
     await login(page, role);
-    await page.getByRole('button', { name: 'Schedule', exact: true }).click();
+    await page.getByRole('link', { name: 'Schedule', exact: true }).click();
     await filterSchedule();
     await expect(page.getByRole('button', { name: 'Add class', exact: true })).toHaveCount(0);
     await expect(page.getByText('Capacity 8', { exact: false })).toBeVisible();

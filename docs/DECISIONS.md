@@ -25,7 +25,7 @@ Web is first. The eventual product also includes iOS, Android and a WeChat mini 
 | Recovery | Coach can manually recover credits for a parent |
 | Payments | Manual verification today; fully integrated before the end game is complete |
 
-The user has not yet specified expiry duration, carry-forward mechanics, recovery limits, recurrence renewal or all timing rules.
+Later approvals below establish administrator-entered expiry, renewal carry-forward, explicit renewal and configurable timing defaults. Expiry placement, recovery limits and the detailed interaction with existing reservations remain unresolved.
 
 ### Technology direction
 
@@ -37,7 +37,7 @@ The user has not yet specified expiry duration, carry-forward mechanics, recover
 - Future mobile direction: Expo + React Native.
 - Future WeChat direction: Taro + React, with compatibility validated before that phase.
 - No promise of automatic UI conversion. Reuse the backend, contracts, translations, design tokens and platform-independent client logic. Go domain logic stays on the server; it is not a shared TypeScript package.
-- Exact Go routing/database libraries, authentication implementation and provider choices remain unselected.
+- The implemented backend uses Go's standard HTTP router and pgx/PostgreSQL, with database-backed cookie sessions. AI/speech provider selection remains unresolved.
 
 ### AI-native requirement
 
@@ -71,7 +71,7 @@ Students have separate login access to their own schedule and progress; guardian
 
 User also confirmed configurable timing defaults: parent change requests at least 24 hours ahead; coach availability locked within 72 hours; attendance opens 15 minutes after session start; attendance corrections allowed for three days.
 
-The user requires an external notification delivery channel in addition to in-app notifications. Implementation direction: email, consistent with the mockup; use local mail capture in development. The user explicitly authorised demo email notifications. Demo recipient addresses and SMTP/provider access are pending; no unrelated real-school recipients are authorised.
+The user requires an external notification delivery channel in addition to in-app notifications. Email is implemented with local mail capture, durable teaching notification delivery and administrator retry. The user explicitly authorised demo email notifications. External demo recipient addresses and SMTP/provider access are pending; no unrelated real-school recipients are authorised. Local capture verifies SMTP delivery, not receipt by an external inbox.
 
 Coach scheduling requires a 30-minute gap between classes at different venues by default, configurable by administrators. Multiple classes may run at the same venue concurrently; administrators manage venue/lane limits for this web release (confirmed 2026-11-17).
 
@@ -88,17 +88,17 @@ Coach scheduling requires a 30-minute gap between classes at different venues by
 
 ## Questions to resolve before dependent implementation
 
-1. Fixed enrolment: automatic renewal or explicit parent renewal? Can unpaid future sessions be provisionally held, and until when?
-2. Package validity: duration and start event (purchase, first booking, first attendance or term date)?
-3. Carry-forward: automatic or conditional on renewal, maximum quantity, destination package and new validity? What happens without renewal?
-4. Recovery: allowed quantities, expiry extension, authorised coach/student relationship and whether any cases require administrator review?
-5. Timing rules: retain or replace the mockup's 24-hour parent cutoff, 72-hour availability restriction, attendance opening after 15 minutes and three-day correction window?
-6. Class eligibility: age, skill level, class type, venue restrictions, capacity and coach travel/conflict rules?
+1. Fixed enrolment: explicit renewal is approved. Confirm all-or-nothing allocation and whether unpaid future sessions may ever be provisionally held.
+2. Package validity: administrator-entered expiry is approved. Confirm whether purchases inherit the offer's expiry or receive individually entered dates, and whether validity must cover the lesson end.
+3. Carry-forward: transfer unused credits on renewal to the new expiry is approved. Confirm treatment of reserved credits, matching package eligibility and any quantity limits.
+4. Recovery: assigned coaches, a reason and a new expiry are approved. Confirm whether recovery is limited to actual expired unused credits or needs administrator approval in some cases.
+5. Timing defaults are approved and admin-configurable:24-hour parent cutoff,72-hour availability restriction, attendance opening15 minutes after start and three-day corrections. No new timing decision is required before implementing those defaults.
+6. Class eligibility: confirm enforced swimming-level eligibility versus guidance, and any package/class-type restrictions. Coach travel defaults30 minutes, configurable; concurrent classes at a venue are allowed with venue/lane limits managed by administrators.
 7. Are 500 students registered or active weekly? Confirm capacity planning.
-8. Payments: methods, verification roles, cash collection permissions, partial payment/refund rules and provider account availability?
+8. Payments: this goal is mock-only. Real provider selection and actual transactions are excluded. Any partial refund or financial exception policy must be agreed before implementing it.
 9. Language: Traditional Chinese and English as proposed; Simplified Chinese requirement? Supported voice languages and acceptable recognition quality?
 10. Connectivity: online-only initially or an actual offline attendance requirement?
-11. Notifications: required delivery channels and escalation when delivery fails?
+11. Notifications: in-app plus email is approved; external demo delivery needs configured SMTP access and named recipients. Booking reminders depend on bookings/lifecycle implementation.
 
 Ask questions at the relevant phase; continue independent work. Do not infer consent or policy answers from silence.
 

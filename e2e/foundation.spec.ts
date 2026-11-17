@@ -21,8 +21,8 @@ test('invalid login stays signed out and reports a useful error', async ({ page 
 for (const role of ['parent', 'coach', 'student']) {
   test(`${role} sees only assigned records and cannot write`, async ({ page }) => {
     await login(page, role);
-    await expect(page.getByRole('button', { name: /Amy/ })).toBeVisible();
-    await expect(page.getByRole('button', { name: /Ben/ })).toHaveCount(0);
+    await expect(page.getByRole('link', { name: /Amy/ })).toBeVisible();
+    await expect(page.getByRole('link', { name: /Ben/ })).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Add student' })).toHaveCount(0);
     expect((await page.request.get('/api/v1/students/ben')).status()).toBe(404);
     const session = await (await page.request.get('/api/v1/auth/me')).json();
@@ -30,7 +30,7 @@ for (const role of ['parent', 'coach', 'student']) {
     const denied = await page.request.post('/api/v1/students', { headers: { Origin: 'http://localhost:18573', 'X-CSRF-Token': session.csrfToken }, data: { name: 'Forbidden', level: 'Beginner' } });
     expect(denied.status()).toBe(403);
     await page.reload();
-    await expect(page.getByRole('button', { name: /Amy/ })).toBeVisible();
+    await expect(page.getByRole('link', { name: /Amy/ })).toBeVisible();
     await page.getByRole('button', { name: 'Sign out' }).click();
     await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeVisible();
     expect((await page.request.get('/api/v1/students')).status()).toBe(401);
@@ -57,15 +57,14 @@ test('administrator creates and edits a persistent student with stale-write prot
   const stale = await page.request.patch(`/api/v1/students/${saved.id}`, { headers: { Origin: 'http://localhost:18573', 'X-CSRF-Token': session.csrfToken }, data: { name, level: 'Stale', version: saved.version } });
   expect(stale.status()).toBe(409);
   await page.reload();
-  await page.getByRole('button', { name: new RegExp(name) }).click();
   await expect(page.getByText('Intermediate', { exact: true })).toBeVisible();
 });
 
 test('second guardian sees their own child and mobile language switching works', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await login(page, 'other-parent');
-  await expect(page.getByRole('button', { name: /Ben/ })).toBeVisible();
-  await expect(page.getByRole('button', { name: /Amy/ })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: /Ben/ })).toBeVisible();
+  await expect(page.getByRole('link', { name: /Amy/ })).toHaveCount(0);
   await page.getByRole('button', { name: '繁體中文' }).click();
   await expect(page.locator('html')).toHaveAttribute('lang', 'zh-Hant-HK');
   await expect(page.getByRole('button', { name: '登出' })).toBeVisible();
