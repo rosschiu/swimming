@@ -2,7 +2,7 @@
 
 ## Status and authorisation
 
-The user intends to provide a development goal and wants the lead agent to drive development with subagents afterward. This planning task does not itself start development or create an active goal. Do not infer that the entire end-game roadmap is the next goal.
+The user has activated the web development goal and authorised subagent coordination, branch creation, pushes, PR creation and merges after passing checks and independent review. The goal excludes real payment integration, native clients and deployment. Every stage requires a PR and evidence; see BACKLOG.md.
 
 ## Lead responsibilities
 

@@ -2,6 +2,10 @@
 
 Recorded 2026-11-17. This document preserves the discussion; proposals are not silently promoted to approved business rules.
 
+## Active development goal
+
+The user has authorised staged implementation and reviewed PR merges. Deliver all agreed web features for coach, student/parent and administrator, including actual typed/voice AI integration. Payments are mock-only in this goal: pending, success, failure and duplicate outcomes must exercise persistent entitlement/receipt services. Real payment integration remains future end-game scope. Native clients, hosting selection and public deployment are excluded. See BACKLOG.md for acceptance gates.
+
 ## Confirmed direction
 
 Build one reliable operating system for one swimming school with multiple venues and coaches. Parents manage lessons and payments, coaches run classes and record progress, administrators handle operations and exceptions. One action must update all affected records consistently, without manual reconciliation across role-specific screens.

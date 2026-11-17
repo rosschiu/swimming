@@ -1,5 +1,9 @@
 # Holistic development plan
 
+## Current execution scope
+
+The active goal delivers the complete web application with mock payments only. BACKLOG.md is the execution sequence and gate record. The longer-term roadmap below retains real payment integration and native clients for context, but those are explicitly excluded from current completion. Provider-backed AI/STT/TTS remains in scope; fixtures alone do not satisfy it.
+
 ## Outcome and completion boundaries
 
 Deliver a dependable school operations product: a verified payment creates the correct entitlement, booking reserves a place and credit, the coach sees the correct roster, attendance resolves the entitlement, and changes/cancellations update all affected records together. Parents can understand their balance; administrators can explain and correct it.
