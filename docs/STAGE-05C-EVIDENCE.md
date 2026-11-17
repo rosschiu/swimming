@@ -1,0 +1,17 @@
+# Stage 05c teaching notifications: evidence in progress
+
+Branch stage/05c-teaching-notifications begins at verified main48a2c9b. No PR, acceptance or merge is claimed yet.
+
+Sol prepared the API contract and implements backend/frontend. Astra independently reviewed the design and owns tests/final review. Lead accepted short transactional worker claims with SMTP outside database locks, explicit authorization at claim commit, permanent suppression of queued deliveries on opt-out/unlink/disable, and bounded lease/retry recovery. No guarantee of exactly-once email or recall after SMTP handoff is made.
+
+Lead added fixed synthetic parent/student addresses to the Playwright API process's teaching-email allowlist, so tests can demonstrate real local Mailpit delivery after opt-in without enabling arbitrary recipients. External demo recipients/provider access remain absent. Contract schemas include nullable read/delivery timestamps and opaque paging cursors.
+
+Initial cumulative frontend suite passed62 tests. Independent targeted backend tests and eight new frontend tests passed; final browser work is in progress. Lead review prompted Hong Kong timezone display, unread badge request cancellation, Unicode retry-reason validation and quoted-printable MIME encoding for Chinese teaching emails. Existing authentication email wire bodies remain unchanged.
+
+Backend/reviewer resolved two retry edges: missing SMTP is retryable for opted-in allowlisted accounts, and withdrawal while a lease is active prevents any later attempt even if access is restored before failure/expiry processing. The originally authorized handoff may still complete. These are now covered by independent tests. Final source review, cumulative checks, CI and merge remain pending. Booking reminders still depend on actual booking/lifecycle work; no full notification-domain completion is claimed by this slice.
+
+Lead identified and Astra reproduced a pre-existing stale-admin race in identity mutations touched by notification suppression: a request authenticated before waiting for the identity lock could still change users/relationships after the administrator was disabled. Sol extracted currentAdminAccess and rechecks after locking in user update, invitation create/resend/revoke and relationship put/delete. Astra adds deterministic coverage for all six. This fixes the shared cause rather than only the new suppression side effect.
+
+Targeted real-stack Playwright passed1/1 in8.2s, including actual Mailpit bilingual message/link, signed-out /notifications navigation, read/scope behaviour and administrator queue. An initial browser checkbox assertion raced the asynchronous controlled save; it now clicks then awaits the saved state. Final cumulative frontend62/build passed. Full browser suite is in progress; final backend/CI/review/merge evidence remains pending.
+
+Final cumulative Playwright passed14/14 in45.2s, including invitation/reset SMTP regression. Go vet and diffcheck passed. Astra approved the integrated production source after all six disabled-administrator lock races passed4.170s with source/audit/outbox unchanged. Targeted notification tests cover claims, retry budgets, stale tokens, atomic source rollback, permanent leased withdrawal and transport failures; real socket SMTP tests verify no identity lock is held across network I/O. The full cumulative Go/PostgreSQL race suite is running; committed contract check, CI, PR/merge/main verification remain pending.

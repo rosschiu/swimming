@@ -85,6 +85,18 @@ func identityError(w http.ResponseWriter, err error) {
 	}
 	internal(w, err)
 }
+func (a *API) currentAdminAccess(w http.ResponseWriter, r *http.Request, s Session, tx pgx.Tx) bool {
+	var active bool
+	if err := tx.QueryRow(r.Context(), "SELECT EXISTS(SELECT 1 FROM users WHERE id=$1 AND active AND role=$2)", s.User.ID, s.User.Role).Scan(&active); err != nil {
+		internal(w, err)
+		return false
+	}
+	if !active {
+		fail(w, 401, "unauthenticated", "Sign in again")
+		return false
+	}
+	return admin(w, s)
+}
 func (a *API) beginIdentity(ctx context.Context) (pgx.Tx, error) {
 	tx, err := a.db.Begin(ctx)
 	if err != nil {
@@ -177,6 +189,9 @@ func (a *API) updateUser(w http.ResponseWriter, r *http.Request, s Session) {
 		return
 	}
 	defer tx.Rollback(r.Context())
+	if !a.currentAdminAccess(w, r, s, tx) {
+		return
+	}
 	var x AdminUser
 	var hasPassword bool
 	err = tx.QueryRow(r.Context(), "SELECT "+adminUserColumns+",u.password_hash IS NOT NULL FROM users u WHERE u.id=$1 FOR UPDATE", r.PathValue("id")).Scan(&x.ID, &x.Email, &x.Name, &x.Role, &x.Active, &x.Version, &x.InvitationPending, &hasPassword)
@@ -216,6 +231,10 @@ func (a *API) updateUser(w http.ResponseWriter, r *http.Request, s Session) {
 		return
 	}
 	if !x.Active {
+		if err = suppressTeachingDeliveries(r.Context(), tx, x.ID, "", "access_revoked"); err != nil {
+			internal(w, err)
+			return
+		}
 		if _, err = tx.Exec(r.Context(), "DELETE FROM sessions WHERE user_id=$1", x.ID); err != nil {
 			internal(w, err)
 			return
@@ -305,6 +324,9 @@ func (a *API) createInvitation(w http.ResponseWriter, r *http.Request, s Session
 		return
 	}
 	defer tx.Rollback(r.Context())
+	if !a.currentAdminAccess(w, r, s, tx) {
+		return
+	}
 	if _, err = tx.Exec(r.Context(), "INSERT INTO users(id,email,name,role,password_hash,active) VALUES($1,$2,$3,$4,NULL,false)", uid, input.Email, input.Name, input.Role); err != nil {
 		identityError(w, err)
 		return
@@ -360,6 +382,9 @@ func (a *API) resendInvitation(w http.ResponseWriter, r *http.Request, s Session
 		return
 	}
 	defer tx.Rollback(r.Context())
+	if !a.currentAdminAccess(w, r, s, tx) {
+		return
+	}
 	var x Invitation
 	err = tx.QueryRow(r.Context(), "SELECT "+inviteColumns+" FROM invitations i JOIN users u ON u.id=i.user_id WHERE i.id=$1 FOR UPDATE OF i", r.PathValue("id")).Scan(&x.ID, &x.UserID, &x.Email, &x.Role, &x.Status, &x.DeliveryStatus, &x.ExpiresAt)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -411,6 +436,9 @@ func (a *API) revokeInvitation(w http.ResponseWriter, r *http.Request, s Session
 		return
 	}
 	defer tx.Rollback(r.Context())
+	if !a.currentAdminAccess(w, r, s, tx) {
+		return
+	}
 	var uid, status string
 	err = tx.QueryRow(r.Context(), "SELECT user_id,status FROM invitations WHERE id=$1 FOR UPDATE", r.PathValue("id")).Scan(&uid, &status)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -652,6 +680,9 @@ func (a *API) putRelationship(w http.ResponseWriter, r *http.Request, s Session)
 		return
 	}
 	defer tx.Rollback(r.Context())
+	if !a.currentAdminAccess(w, r, s, tx) {
+		return
+	}
 	var x Relationship
 	x.Kind = input.Kind
 	err = tx.QueryRow(r.Context(), "SELECT id,name,role FROM users WHERE id=$1", r.PathValue("userId")).Scan(&x.UserID, &x.Name, &x.Role)
@@ -694,6 +725,9 @@ func (a *API) deleteRelationship(w http.ResponseWriter, r *http.Request, s Sessi
 		return
 	}
 	defer tx.Rollback(r.Context())
+	if !a.currentAdminAccess(w, r, s, tx) {
+		return
+	}
 	var exists bool
 	if err = tx.QueryRow(r.Context(), "SELECT EXISTS(SELECT 1 FROM students WHERE id=$1)", r.PathValue("id")).Scan(&exists); err != nil {
 		internal(w, err)
@@ -708,6 +742,12 @@ func (a *API) deleteRelationship(w http.ResponseWriter, r *http.Request, s Sessi
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		internal(w, err)
 		return
+	}
+	if err == nil {
+		if err = suppressTeachingDeliveries(r.Context(), tx, r.PathValue("userId"), r.PathValue("id"), "access_revoked"); err != nil {
+			internal(w, err)
+			return
+		}
 	}
 	if err == nil {
 		if err = audit(r.Context(), tx, s.User.ID, "relationship.deleted", r.PathValue("id"), map[string]string{"userId": r.PathValue("userId"), "kind": kind}); err != nil {

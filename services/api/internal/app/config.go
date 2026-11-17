@@ -2,15 +2,18 @@ package app
 
 import (
 	"fmt"
+	"net/mail"
 	"net/url"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
 type Config struct {
 	DatabaseURL, Addr, Origin                           string
 	SMTPAddr, SMTPFrom, SMTPTLS, SMTPUser, SMTPPassword string
+	TeachingEmailAllowlist                              []string
 	CookieSecure                                        bool
 	SessionTTL                                          time.Duration
 }
@@ -49,6 +52,18 @@ func LoadConfig() (Config, error) {
 	}
 	if c.SMTPTLS == "none" && (c.SMTPUser != "" || c.SMTPPassword != "") {
 		return c, fmt.Errorf("SMTP authentication requires TLS")
+	}
+
+	for _, value := range strings.Split(os.Getenv("TEACHING_EMAIL_ALLOWLIST"), ",") {
+		value = strings.ToLower(strings.TrimSpace(value))
+		if value == "" {
+			continue
+		}
+		addr, err := mail.ParseAddress(value)
+		if err != nil || addr.Address != value || strings.ContainsAny(value, "\r\n") {
+			return c, fmt.Errorf("TEACHING_EMAIL_ALLOWLIST requires exact email addresses")
+		}
+		c.TeachingEmailAllowlist = append(c.TeachingEmailAllowlist, value)
 	}
 	return c, nil
 }

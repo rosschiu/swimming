@@ -93,3 +93,43 @@ Submitted slots cannot overlap the coach's other submitted slots or assigned
 classes (touching endpoints are allowed). They are planning data, not reservations:
 there is no travel-gap enforcement across slots, automatic class creation, or
 publication flow in this stage. Class scheduling does not consume or modify slots.
+
+
+## Stage 05c — teaching notifications
+
+Migration 8 adds per-recipient teaching notification history, an opt-in user email
+preference and durable delivery jobs. New/corrected progress notes and milestone
+transitions create notifications in the same transaction as their source and audit.
+Only currently active guardian/self-linked recipients can list, count or mark their
+notifications read; source endpoints recheck access again when opened.
+
+Teaching email defaults off. `TEACHING_EMAIL_ALLOWLIST` is a comma-separated list
+of exact login addresses (normalized to lowercase); empty disables teaching email.
+It is an additional demo boundary, not a substitute for individual opt-in. Missing
+SMTP configuration is a retryable transport failure for eligible opted-in addresses;
+it does not permanently suppress their delivery. Configure
+only named authorized demo recipients. Invitation/reset delivery is unaffected.
+Local Mailpit captures SMTP handoff; external inbox delivery requires separately
+provided recipients and SMTP access.
+
+The server explicitly runs one cancellable worker; constructing a handler does not
+start jobs. Claim transactions authorize current account/link/preference/address,
+lease for 60 seconds, then release all locks before bounded SMTP work. Generic
+bilingual messages contain only the configured `APP_ORIGIN` plus `/notifications`,
+no student identifiers or teaching text. Authorization occurs at claim commit:
+a previously authorized generic email may arrive after access is revoked. Pending
+and retry deliveries are permanently suppressed on unlink, disable or email opt-out.
+Re-link/re-enable does not revive them. Already leased attempts retain a suppression
+marker: successful handoff may finish sent, but failure or lease expiry becomes
+suppressed and never authorizes another attempt. Roles and login email have no mutation API;
+claims still validate their current values. Any future role-changing transaction
+must perform the same suppression hook.
+
+SMTP acceptance means `sent`, not inbox receipt. A crash after handoff can duplicate
+a delivery; stable Message-ID correlates it but does not promise deduplication.
+Expired leases are reclaimed, with five attempts per retry cycle; delays are 30,
+60, 120 and 240 seconds. A fifth expired lease becomes failed. Administrators can
+review status and retry a failed eligible delivery with current version and reason;
+retry resets cycle count, retains lifetime count and is audited atomically. Failure
+categories are sanitized; raw provider responses and teaching content are not stored.
+Booking reminders and external real-demo delivery remain separate acceptance work.
