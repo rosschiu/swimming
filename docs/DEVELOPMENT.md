@@ -58,3 +58,13 @@ Local Mailpit proves actual SMTP handoff and captured message contents. External
 ## Synthetic recovery verification
 
 After the cumulative browser suite finishes and its application servers stop, follow [the restore runbook](RESTORE.md) to dump and verify restoration of the dedicated synthetic database. The opt-in check creates and removes its own temporary database, compares schema/data/sequences, and exercises restored account permissions. CI runs it after Playwright. It does not establish production backup retention or recovery objectives.
+
+## Representative scale verification
+
+With DATABASE_URL pointing to the dedicated synthetic test PostgreSQL, run from `services/api`:
+
+```bash
+SCALE_VERIFY_SYNTHETIC=true go test -race ./internal/app -run '^TestScaleVerification$' -count=1 -v
+```
+
+The test uses an isolated temporary schema and removes it afterward. It represents 10 coaches, 500 registered students, 20 venues and 50 classes per week across 13 weeks. It checks currently implemented API results, permissions, pagination and bounded concurrent operations; it starts no email worker and leaves public application data unchanged. CI runs this check separately from the ordinary suite. Logged durations and response sizes are observations from the test environment, not a production SLA or proof of future booking/payment/attendance performance. See [the stage plan](STAGE-07B-PLAN.md) for fixture assumptions and coverage.

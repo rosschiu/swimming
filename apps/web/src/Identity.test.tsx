@@ -139,3 +139,17 @@ it('allows reissuing a revoked invitation without offering another revoke', asyn
   expect(api).toHaveBeenCalledWith('/api/v1/invitations/invite-1/resend', expect.objectContaining({ method: 'POST' }));
   expect(screen.queryByRole('button', { name: 'Revoke invitation new@swim.test' })).not.toBeInTheDocument();
 });
+
+it('exhausts audit pages using the last numeric ID and clears paging on a new filter', async () => {
+  const paths: string[] = [];
+  vi.stubGlobal('fetch', vi.fn(async (path: string) => { paths.push(path); const q = new URL(path, 'http://test').searchParams; const after = Number(q.get('afterId') || 0); return response({ items: q.has('entityId') || after >= 125 ? [] : Array.from({ length: 25 }, (_, i) => ({ id: after + i + 1, actorId: 'admin', action: `Recorded ${after + i + 1}`, entityId: 'amy', details: {}, createdAt: '2030-01-01T00:00:00Z' })) }); }));
+  const user = userEvent.setup(); render(<AuditViewer csrfToken="csrf" expired={() => false} t={t}/>);
+  await screen.findByRole('heading', { name: 'Recorded 25' });
+  for (let page = 1; page < 5; page++) { await user.click(screen.getByRole('button', { name: 'Load more' })); await screen.findByRole('heading', { name: `Recorded ${page * 25 + 25}` }); }
+  expect(screen.getAllByRole('article')).toHaveLength(125);
+  await user.click(screen.getByRole('button', { name: 'Load more' }));
+  await waitFor(() => expect(screen.queryByRole('button', { name: 'Load more' })).not.toBeInTheDocument());
+  await user.type(screen.getByLabelText('Filter by record ID'), 'ben'); await user.click(screen.getByRole('button', { name: 'Apply filter' }));
+  await screen.findByText('No recorded changes match this filter.');
+  expect(new URL(paths.at(-1)!, 'http://test').searchParams.has('afterId')).toBe(false);
+});

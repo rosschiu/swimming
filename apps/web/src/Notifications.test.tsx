@@ -24,3 +24,13 @@ it('account-keyed remount aborts stale lists and preferences without updating th
  const pending:((value:Response)=>void)[]=[];const signals:AbortSignal[]=[];let old=true;const oldCount=vi.fn(),newCount=vi.fn();vi.stubGlobal('fetch',vi.fn((path:string,options:RequestInit)=>{if(old){signals.push(options.signal as AbortSignal);return new Promise<Response>(resolve=>pending.push(resolve));}return Promise.resolve(response(path.endsWith('/notification-preferences')?{...preference,emailAddress:'other-parent@swim.test'}:{items:[],nextCursor:null,unreadCount:0}));}));
  const {rerender}=render(<Notifications key="parent" csrfToken="one" expired={expired} t={t} onUnreadCount={oldCount} onOpenStudent={()=>{}}/>);old=false;rerender(<Notifications key="other" csrfToken="two" expired={expired} t={t} onUnreadCount={newCount} onOpenStudent={()=>{}}/>);await screen.findByText('No teaching notifications yet.');expect(signals.every(signal=>signal.aborted)).toBe(true);await act(async()=>{pending[0](response({items:[note],nextCursor:null,unreadCount:9}));pending[1](response(preference));});expect(screen.queryByText('Amy')).not.toBeInTheDocument();expect(oldCount).not.toHaveBeenCalled();expect(newCount).toHaveBeenLastCalledWith(0);expect(within(screen.getByText(/Your login email:/)).queryByText('parent@swim.test')).not.toBeInTheDocument();
 });
+it('loads 125 tied-time notifications across five pages without dropping or duplicating records',async()=>{
+ const items=Array.from({length:125},(_,i)=>({...note,id:`n-${i}`,studentName:`Swimmer ${i}`}));
+ const cursors:string[]=[];
+ vi.stubGlobal('fetch',vi.fn(async(path:string)=>{if(path.endsWith('/notification-preferences'))return response(preference);const q=new URL(path,'http://test').searchParams;const cursor=q.get('cursor')||'0';cursors.push(cursor);const offset=Number(cursor);return response({items:items.slice(offset,offset+25),nextCursor:offset+25<items.length?String(offset+25):null,unreadCount:125});}));
+ const user=userEvent.setup();render(<Notifications csrfToken="csrf" expired={expired} t={t} onUnreadCount={()=>{}} onOpenStudent={()=>{}}/>);
+ await screen.findByText('Swimmer 24');
+ for(let page=1;page<5;page++){await user.click(screen.getByRole('button',{name:'Load more'}));await screen.findByText(`Swimmer ${page*25+24}`);}
+ expect(screen.getAllByRole('article')).toHaveLength(125);expect(cursors).toEqual(['0','25','50','75','100']);expect(screen.queryByRole('button',{name:'Load more'})).not.toBeInTheDocument();
+ for(let i=0;i<125;i++)expect(screen.getAllByText(`Swimmer ${i}`,{exact:true})).toHaveLength(1);
+});

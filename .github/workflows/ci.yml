@@ -48,6 +48,11 @@ jobs:
           test -z "$(gofmt -l .)"
           go vet ./...
           go test -race ./...
+      - name: Verify representative current-feature scale
+        working-directory: services/api
+        env:
+          SCALE_VERIFY_SYNTHETIC: 'true'
+        run: go test -race ./internal/app -run '^TestScaleVerification$' -count=1 -v
       - run: npm test --prefix apps/web -- --run
       - run: npm run build --prefix apps/web
       - run: npx playwright install --with-deps chromium

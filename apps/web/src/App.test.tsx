@@ -95,3 +95,19 @@ it('clears a private edit after expiry before a different account signs in', asy
   expect(screen.queryByText('Amy Chan')).not.toBeInTheDocument();
   expect(await screen.findByRole('heading', { name: 'No students to display' })).toBeVisible();
 });
+
+it('searches all 500 registered students by name and level including the last record', async () => {
+  const students = Array.from({ length: 500 }, (_, i) => ({ id: `scale-${i}`, name: `Swimmer ${String(i).padStart(3, '0')}`, level: i === 499 ? 'Advanced' : 'Beginner', version: 1 }));
+  vi.stubGlobal('fetch', vi.fn(async (path: string) => { if (path.endsWith('/auth/me')) return response({ user: { id: 'admin', name: 'Admin', role: 'admin' }, csrfToken: 'csrf' }); if (path.endsWith('/students')) return response({ items: students }); if (path.includes('/notifications?')) return response({ items: [], nextCursor: null, unreadCount: 0 }); throw new Error(`Unexpected ${path}`); }));
+  const user = userEvent.setup(); render(<App />);
+  await screen.findByRole('button', { name: /Swimmer 499/ });
+  expect(screen.getAllByRole('button', { name: /Swimmer \d/ })).toHaveLength(500);
+  const search = screen.getByLabelText('Search students');
+  await user.type(search, '499');
+  expect(screen.getAllByRole('button', { name: /Swimmer \d/ })).toHaveLength(1);
+  expect(screen.getByRole('button', { name: /Swimmer 499/ })).toBeVisible();
+  await user.clear(search); await user.type(search, 'advanced');
+  expect(screen.getAllByRole('button', { name: /Swimmer \d/ })).toHaveLength(1);
+  await user.clear(search); await user.type(search, 'no such swimmer');
+  expect(screen.getByText('No students to display')).toBeVisible();
+});
