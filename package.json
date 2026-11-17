@@ -1,0 +1,13 @@
+{
+  "name": "swimming-workspace",
+  "private": true,
+  "scripts": {
+    "test:e2e": "playwright test",
+    "contracts:generate": "openapi-typescript contracts/openapi.json -o apps/web/src/generated/api.ts",
+    "contracts:check": "npm run contracts:generate && git diff --exit-code -- apps/web/src/generated/api.ts"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.0",
+    "openapi-typescript": "^7.10.1"
+  }
+}

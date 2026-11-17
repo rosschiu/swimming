@@ -1,0 +1,60 @@
+name: Application checks
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: swimming
+          POSTGRES_PASSWORD: swimming-test
+          POSTGRES_DB: swimming
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U swimming"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://swimming:swimming-test@localhost:5432/swimming?sslmode=disable
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.x'
+          cache-dependency-path: services/api/go.sum
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            apps/web/package-lock.json
+      - run: npm ci
+      - run: npm ci --prefix apps/web
+      - run: npm run contracts:check
+      - name: Go formatting, static checks and tests
+        working-directory: services/api
+        run: |
+          test -z "$(gofmt -l .)"
+          go vet ./...
+          go test -race ./...
+      - run: npm test --prefix apps/web -- --run
+      - run: npm run build --prefix apps/web
+      - run: npx playwright install --with-deps chromium
+      - name: Seed synthetic E2E records
+        working-directory: services/api
+        run: |
+          go run ./cmd/migrate
+          ALLOW_DEMO_SEED=true go run ./cmd/seed
+      - run: npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: browser-failure-evidence
+          path: |
+            playwright-report/
+            test-results/
