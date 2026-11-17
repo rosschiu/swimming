@@ -21,7 +21,7 @@ async function savePassword(page: Page, value: string) {
 test('invitation delivered over SMTP activates a scoped parent; reset revokes old sessions', async ({ page, browser }) => {
   const email = `guardian-${Date.now()}@swim.test`;
   await signIn(page, 'admin@swim.test');
-  await page.getByRole('button', { name: 'Accounts', exact: true }).click();
+  await page.getByRole('link', { name: 'Accounts', exact: true }).click();
   await page.getByLabel('Member name', { exact: true }).fill('Invited guardian');
   await page.getByLabel('Member email', { exact: true }).fill(email);
   await page.getByLabel('Role', { exact: true }).selectOption('parent');
@@ -47,8 +47,8 @@ test('invitation delivered over SMTP activates a scoped parent; reset revokes ol
 
   await parent.getByRole('button', { name: 'Back to sign in' }).click();
   await signIn(parent, email, password);
-  await expect(parent.getByRole('button', { name: /Amy/ })).toBeVisible();
-  await expect(parent.getByRole('button', { name: /Ben/ })).toHaveCount(0);
+  await expect(parent.getByRole('link', { name: /Amy/ })).toBeVisible();
+  await expect(parent.getByRole('link', { name: /Ben/ })).toHaveCount(0);
 
   const resetContext = await browser.newContext({ baseURL: origin });
   const reset = await resetContext.newPage();
@@ -63,10 +63,10 @@ test('invitation delivered over SMTP activates a scoped parent; reset revokes ol
   expect((await parent.request.get('/api/v1/auth/me')).status()).toBe(401);
   await reset.getByRole('button', { name: 'Back to sign in' }).click();
   await signIn(reset, email, 'Swim-reset-account-2026!');
-  await expect(reset.getByRole('button', { name: /Amy/ })).toBeVisible();
+  await expect(reset.getByRole('link', { name: /Amy/ })).toBeVisible();
 
-  await page.getByRole('button', { name: 'Students', exact: true }).click();
-  await page.getByRole('button', { name: /Amy/ }).click();
+  await page.getByRole('link', { name: 'Students', exact: true }).click();
+  await page.getByRole('link', { name: /Amy/ }).click();
   await page.getByRole('button', { name: 'Unlink Invited guardian', exact: true }).click();
   await expect(page.getByText('Account unlinked. Its access to this student has been removed.', { exact: true })).toBeVisible();
   expect((await reset.request.get('/api/v1/students/amy')).status()).toBe(404);

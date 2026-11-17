@@ -19,7 +19,7 @@ test('coach availability is persisted, reviewed by admin and cancellable without
   const date = new Date(Date.UTC(2040, 0, 1) + ((suffix % 100000) + 220000) * 86400000).toISOString().slice(0, 10);
   await page.getByRole('button', { name: 'Sign out' }).click();
   const coachHeaders = await login(page, 'coach');
-  await page.getByRole('button', { name: 'Availability', exact: true }).click();
+  await page.getByRole('link', { name: 'Availability', exact: true }).click();
   await page.getByRole('button', { name: 'Add availability', exact: true }).click();
   await page.getByLabel('Availability venue', { exact: true }).selectOption(venue.id);
   await page.getByLabel('Start date', { exact: true }).fill(date);
@@ -50,7 +50,7 @@ test('coach availability is persisted, reviewed by admin and cancellable without
   expect((await page.request.post('/api/v1/availability', { headers: coachHeaders, data: { venueId: venue.id, startsAt: nearStart, endsAt: nearEnd, capacity: 4 } })).status()).toBe(409);
   await page.getByRole('button', { name: 'Sign out' }).click();
   await login(page, 'admin');
-  await page.getByRole('button', { name: 'Availability', exact: true }).click();
+  await page.getByRole('link', { name: 'Availability', exact: true }).click();
   await filter();
   const reviewed = await (await page.request.get(`/api/v1/availability/${slot.id}`)).json();
   expectContract('AvailabilitySlot', reviewed);
@@ -60,10 +60,10 @@ test('coach availability is persisted, reviewed by admin and cancellable without
   await page.getByRole('button', { name: 'Sign out' }).click();
   await login(page, 'parent');
   expect((await page.request.get(`/api/v1/availability/${slot.id}`)).status()).toBe(403);
-  await expect(page.getByRole('button', { name: 'Availability', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Availability', exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'Sign out' }).click();
   await login(page, 'coach');
-  await page.getByRole('button', { name: 'Availability', exact: true }).click();
+  await page.getByRole('link', { name: 'Availability', exact: true }).click();
   await filter();
   await page.getByRole('button', { name: `Cancel availability ${date} 13:00`, exact: true }).click();
   await page.getByRole('button', { name: 'Confirm cancellation', exact: true }).click();
@@ -84,7 +84,7 @@ test('admin schedules two shorter lessons from a coach window and cancellation p
   expect(created.status()).toBe(201); const slot = await created.json();
   await page.getByRole('button', { name: 'Sign out' }).click();
   await login(page, 'admin');
-  await page.getByRole('button', { name: 'Availability', exact: true }).click();
+  await page.getByRole('link', { name: 'Availability', exact: true }).click();
   await page.getByLabel('From date', { exact: true }).fill(date);
   await page.getByLabel('To date', { exact: true }).fill(date);
   await page.getByRole('button', { name: 'Apply filters', exact: true }).click();
@@ -106,7 +106,7 @@ test('admin schedules two shorter lessons from a coach window and cancellation p
   expect((await page.request.post(`/api/v1/availability/${slot.id}/cancel`, { headers, data: { version: slot.version } })).status()).toBe(200);
   for (const role of ['coach', 'parent', 'admin']) {
     if (role !== 'coach') { await page.getByRole('button', { name: 'Sign out' }).click(); await login(page, role); }
-    await page.getByRole('button', { name: 'Schedule', exact: true }).click();
+    await page.getByRole('link', { name: 'Schedule', exact: true }).click();
     await page.getByLabel('From date', { exact: true }).fill(date);
     await page.getByLabel('To date', { exact: true }).fill(date);
     await page.getByRole('button', { name: 'Apply filters', exact: true }).click();

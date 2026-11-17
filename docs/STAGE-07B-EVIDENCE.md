@@ -1,5 +1,7 @@
 # Stage 07b evidence in progress
 
+Completed: PR12 merged as `c70ab026617b33ea51a859728f78502164d180e2`. Final cumulative Go/PostgreSQL race passed in306.720s; both exact-head CI runs passed (44163216512:7m26s;44163253993:7m0s). Frontend67/build, contracts, vet, Playwright14 and independent Astra approval passed. Merged main was clean, identical to tested head98fe47e, with passing contracts. The cumulative security finding discovered alongside this stage was subsequently corrected in PR13; see STAGE-07C-EVIDENCE.md. Earlier progress entries below are historical.
+
 Branch stage/07b-scale-verification starts from verified main `6958079`. Sol prepared the fixture design; Astra reviewed and approved the bounded test plan before implementation. This stage tests currently implemented features with 500 registered students, not assumed weekly attendance. No scale acceptance, PR or merge is claimed yet.
 
 Local contract check passed; cumulative real-stack Playwright 14 passed in 43.6s. No production code changed in this stage. Initial measurement environment: Go 1.26.0 linux/amd64, Node 26.1.0, PostgreSQL 17.12, 8 visible CPUs and about 31 GiB host memory on a shared machine. Cgroup-v2 quota files were unavailable; no dedicated-resource or production-capacity claim is made. Fixture and acceptance tests are still being completed and independently reviewed.
