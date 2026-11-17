@@ -2665,6 +2665,308 @@
         ],
         "description": "Author coach while still assigned, or administrator. Requires current version and correction reason; stale updates return409. Preserves original author and creation time, audits before/after/reason."
       }
+    },
+    "/api/v1/skills": {
+      "get": {
+        "operationId": "listSkills",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "description": "Administrator only; includes archived definitions, sorted by name then ID.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "items"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Skill"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createSkill",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "description": "Administrator only. Exact actor-scoped request replay returns current definition with200; different original normalized inputs return409.",
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Skill"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Skill"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SkillInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/skills/{skillId}": {
+      "patch": {
+        "operationId": "updateSkill",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "description": "Administrator only; current version and reason required. Stale version returns409. No hard deletion.",
+        "parameters": [
+          {
+            "name": "skillId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Skill"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SkillUpdate"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/students/{id}/milestones": {
+      "get": {
+        "operationId": "listStudentMilestones",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "description": "Currently scoped student only. Active definitions plus recorded archived definitions; history newest version first. No replay inputs exposed.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "items"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/StudentMilestone"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/students/{id}/milestones/{skillId}/events": {
+      "post": {
+        "operationId": "createMilestoneEvent",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "description": "Assigned coach or administrator. Achievements require reviewed current skillVersion and optional comment; revocations require reason and current achievement author or administrator. Version0 initially. Revocation snapshots reversed achievement, independently of submitted skillVersion. Exact replay returns original event before transition checks after current access checks; changed normalized payload returns409. Archive blocks achievements only.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "skillId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MilestoneEvent"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MilestoneEvent"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MilestoneEventInput"
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -3714,6 +4016,272 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 500
+          }
+        }
+      },
+      "Skill": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "description",
+          "active",
+          "version",
+          "createdAt",
+          "updatedAt"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 0
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "description": {
+            "type": "string",
+            "minLength": 0,
+            "maxLength": 1000
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "SkillInput": {
+        "type": "object",
+        "required": [
+          "requestId",
+          "name",
+          "description"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "requestId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[!-~]+$"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "description": {
+            "type": "string",
+            "minLength": 0,
+            "maxLength": 1000
+          }
+        }
+      },
+      "SkillUpdate": {
+        "type": "object",
+        "required": [
+          "name",
+          "description",
+          "active",
+          "version",
+          "reason"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "description": {
+            "type": "string",
+            "minLength": 0,
+            "maxLength": 1000
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          }
+        }
+      },
+      "MilestoneEvent": {
+        "type": "object",
+        "required": [
+          "id",
+          "studentId",
+          "skillId",
+          "state",
+          "reason",
+          "version",
+          "skillVersion",
+          "skillName",
+          "skillDescription",
+          "actorId",
+          "actorName",
+          "recordedAt",
+          "reversesEventId"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 0
+          },
+          "studentId": {
+            "type": "string",
+            "minLength": 0
+          },
+          "skillId": {
+            "type": "string",
+            "minLength": 0
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "achieved",
+              "revoked"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 0,
+            "maxLength": 500
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "skillVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "skillName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "skillDescription": {
+            "type": "string",
+            "minLength": 0,
+            "maxLength": 1000
+          },
+          "actorId": {
+            "type": "string",
+            "minLength": 0
+          },
+          "actorName": {
+            "type": "string",
+            "minLength": 0
+          },
+          "recordedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reversesEventId": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "MilestoneEventInput": {
+        "type": "object",
+        "required": [
+          "requestId",
+          "state",
+          "version",
+          "skillVersion",
+          "reason"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "requestId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[!-~]+$"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "achieved",
+              "revoked"
+            ]
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "skillVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 0,
+            "maxLength": 500
+          }
+        }
+      },
+      "StudentMilestone": {
+        "type": "object",
+        "required": [
+          "skill",
+          "current",
+          "history",
+          "canAchieve",
+          "canRevoke"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "skill": {
+            "$ref": "#/components/schemas/Skill"
+          },
+          "current": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MilestoneEvent"
+              },
+              {
+                "type": "object",
+                "nullable": true,
+                "enum": [
+                  null
+                ]
+              }
+            ]
+          },
+          "history": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MilestoneEvent"
+            }
+          },
+          "canAchieve": {
+            "type": "boolean"
+          },
+          "canRevoke": {
+            "type": "boolean"
           }
         }
       }

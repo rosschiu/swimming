@@ -18,6 +18,7 @@ function mockAPI(status = 200) {
       if (path.endsWith('/class-series')) return response({ id: 's1', ...JSON.parse(options.body as string), sessions: [session] });
       return response(path.endsWith('/settings/scheduling') ? { travelGapMinutes: 45, version: 2 } : session);
     }
+    if (path.endsWith('/skills')) return response({ items: [] });
     if (path.endsWith('/venues')) return response({ items: [venue] });
     if (path.endsWith('/class-types')) return response({ items: [classType] });
     if (path.includes('/users')) return response({ items: [coach] });
