@@ -4,7 +4,7 @@ Requirements: Go 1.26, Node.js 24 or newer, npm and PostgreSQL 17 (or Docker Com
 
 ## Start
 
-1. `docker compose up -d db` starts only this project's database. If a dedicated local PostgreSQL already runs on port 55439, use it instead; do not stop unrelated services.
+1. `docker compose up -d db mail` starts only this project's database and local email capture. If a dedicated local PostgreSQL already runs on port 55439, use it instead; do not stop unrelated services.
 2. Copy `.env.example` to `.env`. Export its values into the shells running Go and Playwright. These sample credentials are exclusively for synthetic local data.
 3. `npm ci` and `npm ci --prefix apps/web` install dependencies.
 4. In `services/api`, run `go run ./cmd/migrate` then `ALLOW_DEMO_SEED=true go run ./cmd/seed`.
@@ -22,3 +22,7 @@ Synthetic accounts: `admin@swim.test`, `parent@swim.test`, `coach@swim.test`, `s
 - Browser failures retain screenshots and traces in ignored `test-results/` and `playwright-report/`; CI uploads them.
 
 The current foundation exposes authentication and scoped student records only. Later stages add operational features. The original HTML mockup is reference material and does not supply runtime records.
+
+## Demo email
+
+Local SMTP capture listens on `127.0.0.1:11025`; inspect messages at `http://127.0.0.1:18025`. Set SMTP_ADDR, SMTP_FROM and SMTP_TLS from .env.example. These messages do not leave the machine. The user authorised demo email notifications; external demo recipients and provider credentials are still pending. Do not substitute arbitrary real recipients.

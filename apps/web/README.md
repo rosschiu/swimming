@@ -13,4 +13,4 @@ Open http://localhost:18573. Vite proxies `/api` to the Go server at `127.0.0.1:
 
 Tests use HTTP fixtures to verify frontend behaviour; the root Playwright suite verifies actual backend/database integration. The test command disables Node's experimental Web Storage in worker processes so jsdom provides browser storage consistently.
 
-Stage 01 supports sign-in/out, scoped student directory/profiles and administrator student creation/editing. Later stages deliver booking, payment and assistant screens.
+The web client supports sign-in/out, scoped student profiles, administrator student editing, account invitations and recovery, role-matched student links, and audit history. Invitation/reset tokens are removed from the URL after reading and are never persisted in browser storage. Later stages deliver booking, payment and assistant screens.

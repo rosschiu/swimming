@@ -66,6 +66,7 @@ func New(cfg Config, db *pgxpool.Pool) http.Handler {
 		}
 		respond(w, 200, map[string]string{"status": "ok"})
 	})
+	a.identityRoutes(mux)
 	mux.HandleFunc("POST /api/v1/auth/login", a.login)
 	mux.HandleFunc("GET /api/v1/auth/me", a.auth(func(w http.ResponseWriter, r *http.Request, s Session) { respond(w, 200, s) }))
 	mux.HandleFunc("POST /api/v1/auth/logout", a.auth(a.logout))
@@ -148,6 +149,40 @@ func (a *API) allowLogin(r *http.Request, email string) bool {
 	a.attempts[key] = x
 	return true
 }
+
+// Login throttles count failures, so a shared network does not penalise normal sign-ins.
+func (a *API) loginAttempt(r *http.Request, email string, failed bool) bool {
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		host = r.RemoteAddr
+	}
+	now := a.now()
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	for key, x := range a.attempts {
+		if !now.Before(x.until) {
+			delete(a.attempts, key)
+		}
+	}
+	keys := []string{host + ":login:" + hashToken(email), host + ":failed-logins"}
+	limits := []int{10, 60}
+	for i, key := range keys {
+		if a.attempts[key].count >= limits[i] {
+			return false
+		}
+	}
+	if failed {
+		for _, key := range keys {
+			x := a.attempts[key]
+			if x.count == 0 {
+				x.until = now.Add(time.Minute)
+			}
+			x.count++
+			a.attempts[key] = x
+		}
+	}
+	return true
+}
 func (a *API) login(w http.ResponseWriter, r *http.Request) {
 	if !a.validOrigin(w, r) {
 		return
@@ -160,12 +195,13 @@ func (a *API) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	input.Email = strings.ToLower(strings.TrimSpace(input.Email))
-	if !a.allowLogin(r, input.Email) {
+	if !a.loginAttempt(r, input.Email, false) {
 		w.Header().Set("Retry-After", "60")
 		fail(w, 429, "rate_limited", "Too many login attempts; try again shortly")
 		return
 	}
 	if input.Email == "" || len(input.Email) > 254 || len(input.Password) < 1 || len(input.Password) > 72 {
+		a.loginAttempt(r, input.Email, true)
 		fail(w, 401, "invalid_credentials", "Email or password is incorrect")
 		return
 	}
@@ -178,10 +214,12 @@ func (a *API) login(w http.ResponseWriter, r *http.Request) {
 	}
 	if errors.Is(err, pgx.ErrNoRows) {
 		bcrypt.CompareHashAndPassword(a.dummyHash, []byte(input.Password))
+		a.loginAttempt(r, input.Email, true)
 		fail(w, 401, "invalid_credentials", "Email or password is incorrect")
 		return
 	}
 	if bcrypt.CompareHashAndPassword([]byte(hash), []byte(input.Password)) != nil {
+		a.loginAttempt(r, input.Email, true)
 		fail(w, 401, "invalid_credentials", "Email or password is incorrect")
 		return
 	}
@@ -201,6 +239,18 @@ func (a *API) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer tx.Rollback(r.Context())
+	// Serialize session creation with password resets and account disabling.
+	var currentHash string
+	var active bool
+	err = tx.QueryRow(r.Context(), "SELECT password_hash,active,name,role FROM users WHERE id=$1 FOR UPDATE", s.User.ID).Scan(&currentHash, &active, &s.User.Name, &s.User.Role)
+	if err != nil {
+		internal(w, err)
+		return
+	}
+	if !active || currentHash != hash {
+		fail(w, 401, "invalid_credentials", "Email or password is incorrect")
+		return
+	}
 	if old, err := r.Cookie(cookieName); err == nil {
 		if _, err = tx.Exec(r.Context(), "DELETE FROM sessions WHERE token_hash=$1", hashToken(old.Value)); err != nil {
 			internal(w, err)
@@ -258,7 +308,7 @@ func (a *API) logout(w http.ResponseWriter, r *http.Request, s Session) {
 	w.WriteHeader(204)
 }
 
-const studentScope = "($1='admin' OR EXISTS(SELECT 1 FROM student_access sa WHERE sa.student_id=st.id AND sa.user_id=$2))"
+const studentScope = "($1='admin' OR EXISTS(SELECT 1 FROM student_access sa WHERE sa.student_id=st.id AND sa.user_id=$2 AND sa.kind=CASE $1 WHEN 'parent' THEN 'guardian' WHEN 'coach' THEN 'coach' WHEN 'student' THEN 'self' END))"
 
 func (a *API) listStudents(w http.ResponseWriter, r *http.Request, s Session) {
 	rows, err := a.db.Query(r.Context(), "SELECT st.id,st.name,st.level,st.version FROM students st WHERE "+studentScope+" ORDER BY st.name,st.id", s.User.Role, s.User.ID)
