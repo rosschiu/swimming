@@ -25,6 +25,19 @@ function mockAPI(editable = true, status = 200) {
 }
 beforeEach(() => vi.unstubAllGlobals());
 
+it.each([
+  { language: 'English', translate: (en: string, _zh: string) => en, edit: 'Edit availability', add: 'Add availability', cancel: 'Cancel', notice: 'Editing this availability does not change scheduled classes. Ask an administrator to update classes separately.' },
+  { language: 'Traditional Chinese', translate: (_en: string, zh: string) => zh, edit: '編輯可授課時間', add: '新增可授課時間', cancel: '取消', notice: '更改此可授課時間不會更改已排定課堂。如需調整課堂，請聯絡管理員另行處理。' },
+])('explains unchanged scheduled classes only while editing in $language', async ({ translate, edit, add, cancel, notice }) => {
+  mockAPI(); const user = userEvent.setup();
+  render(<Availability role="coach" csrfToken="csrf" expired={() => false} t={translate}/>);
+  await user.click(await screen.findByRole('button', { name: `${edit} 2030-01-07 09:00` }));
+  expect(screen.getByText(notice)).toBeVisible();
+  await user.click(screen.getByRole('button', { name: cancel }));
+  await user.click(screen.getByRole('button', { name: add }));
+  expect(screen.queryByText(notice)).not.toBeInTheDocument();
+});
+
 it('shows an assigned coach planning list without coach impersonation or publishing', async () => {
   const api = mockAPI(); render(<Availability role="coach" csrfToken="csrf" expired={() => false} t={t}/>);
   await screen.findByRole('heading', { name: 'Harbour Pool' });
