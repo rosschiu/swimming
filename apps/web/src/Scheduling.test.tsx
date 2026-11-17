@@ -138,3 +138,24 @@ it('clears old schedule results when a filter reload fails', async () => {
   expect(await screen.findByRole('alert')).toHaveTextContent('Could not load the schedule');
   expect(screen.queryByRole('heading', { name: 'Youth beginners' })).not.toBeInTheDocument();
 });
+
+it('offers all 20 venues and 10 coaches and submits the selected date and catalogue filters', async () => {
+  const venues = Array.from({ length: 20 }, (_, i) => ({ ...venue, id: `v${i}`, name: `Pool ${i}` }));
+  const coaches = Array.from({ length: 10 }, (_, i) => ({ ...coach, id: `coach${i}`, name: `Coach ${i}` }));
+  const week = Array.from({ length: 50 }, (_, i) => ({ ...session, id: `class-${i}`, classTypeName: `Weekly class ${i}`, coachId: coaches[i % 10].id, venueId: venues[i % 20].id }));
+  const api = vi.fn(async (path: string) => response({ items: path.endsWith('/venues') ? venues : path.includes('/users') ? coaches : path.endsWith('/class-types') ? [classType] : path.includes('/classes?') ? week : [] }));
+  vi.stubGlobal('fetch', api); const user = userEvent.setup();
+  render(<Schedule role="admin" csrfToken="csrf" expired={() => false} t={t}/>);
+  await screen.findByRole('option', { name: 'Pool 19' });
+  await screen.findByRole('heading', { name: 'Weekly class 49' });
+  expect(screen.getAllByRole('heading', { name: /Weekly class \d/ })).toHaveLength(50);
+  expect(screen.getByRole('heading', { name: 'Weekly class 0' })).toBeVisible();
+  const venueFilter = screen.getByLabelText('Filter venue'), coachFilter = screen.getByLabelText('Filter coach');
+  expect(venueFilter.querySelectorAll('option')).toHaveLength(21);
+  expect(coachFilter.querySelectorAll('option')).toHaveLength(11);
+  await user.selectOptions(venueFilter, 'v19'); await user.selectOptions(coachFilter, 'coach9');
+  await user.clear(screen.getByLabelText('From date')); await user.type(screen.getByLabelText('From date'), '2030-01-07');
+  await user.clear(screen.getByLabelText('To date')); await user.type(screen.getByLabelText('To date'), '2030-04-09');
+  await user.click(screen.getByRole('button', { name: 'Apply filters' }));
+  await waitFor(() => expect(api.mock.calls.some(([path]) => { const q = new URL(path, 'http://test').searchParams; return path.includes('/classes?') && q.get('from') === '2030-01-07' && q.get('to') === '2030-04-09' && q.get('venueId') === 'v19' && q.get('coachId') === 'coach9'; })).toBe(true));
+});
