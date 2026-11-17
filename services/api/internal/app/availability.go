@@ -30,6 +30,8 @@ type AvailabilitySettings struct {
 }
 
 func (a *API) availabilityRoutes(mux *http.ServeMux) {
+	mux.HandleFunc("GET /api/v1/availability/{id}/classes", a.auth(a.listAvailabilityClasses))
+	mux.HandleFunc("POST /api/v1/availability/{id}/classes", a.auth(a.createAvailabilityClass))
 	mux.HandleFunc("GET /api/v1/availability", a.auth(a.listAvailability))
 	mux.HandleFunc("GET /api/v1/availability/{id}", a.auth(a.getAvailability))
 	mux.HandleFunc("POST /api/v1/availability", a.auth(a.createAvailability))
@@ -213,7 +215,7 @@ func availabilityEligibility(ctx context.Context, tx pgx.Tx, coachID, venueID, p
 }
 func availabilityConflict(ctx context.Context, tx pgx.Tx, coachID, id string, x AvailabilityInput) (bool, error) {
 	var conflict bool
-	err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM coach_availability WHERE coach_id=$1 AND id<>$2 AND status='submitted' AND starts_at<$4 AND ends_at>$3) OR EXISTS(SELECT 1 FROM class_sessions WHERE coach_id=$1 AND starts_at<$4 AND ends_at>$3)`, coachID, id, x.StartsAt, x.EndsAt).Scan(&conflict)
+	err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM coach_availability WHERE coach_id=$1 AND id<>$2 AND status='submitted' AND starts_at<$4 AND ends_at>$3) OR EXISTS(SELECT 1 FROM class_sessions c WHERE coach_id=$1 AND starts_at<$4 AND ends_at>$3 AND NOT EXISTS(SELECT 1 FROM availability_classes ac WHERE ac.class_id=c.id AND ac.availability_id=$2))`, coachID, id, x.StartsAt, x.EndsAt).Scan(&conflict)
 	return conflict, err
 }
 func checkAvailability(w http.ResponseWriter, r *http.Request, tx pgx.Tx, coachID, id, previousVenue string, input AvailabilityInput) bool {

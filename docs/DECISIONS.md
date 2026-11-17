@@ -109,3 +109,9 @@ The workspace initially contained only a single standalone HTML mockup. It inclu
 Known source-level gaps: parent requests do not enter the coach's actual approval queue; approvals do not move actual bookings; attendance and balances are disconnected; next-term allowance is unenforced; timing rules are not enforced; coach rosters are fixed; availability does not produce bookable classes; progress is static; digital payments are simulated. No backend, real authentication, persistent storage or operational payment integration exists in the supplied workspace.
 
 The initial assessment inspected source, not browser/device behaviour. It was not a security audit. The mockup is a reference, not the authoritative specification.
+
+## Availability windows (confirmed 2026-11-17)
+
+Coach availability represents a window in which administrators may schedule shorter lessons, not an exact proposed class. One window may therefore support multiple lessons. Availability management is implemented in stage02c; linking shorter scheduled classes is the next slice.
+
+The user also confirmed that later availability edits or cancellation leave scheduled classes unchanged. Administrators manage changes to scheduled classes separately. Source-window links record how a class was originally scheduled; they do not constrain subsequent class corrections.

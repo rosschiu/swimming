@@ -2350,6 +2350,129 @@
           }
         ]
       }
+    },
+    "/api/v1/availability/{id}/classes": {
+      "get": {
+        "operationId": "listAvailabilityClasses",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "items"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ClassSession"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "description": "Admin or source-window owner. Returns current class details, scoped to the current assigned coach for coach callers. Source links survive window cancellation and class corrections."
+      },
+      "post": {
+        "operationId": "createAvailabilityClass",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClassSession"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClassSession"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AvailabilityClassInput"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "description": "Admin only. Creates a future lesson within the current submitted window using its coach and venue. requestId is stable across retries and unique per administrator. Matching retries return the current class (200), including after window changes; different payload reuse returns 409. New creation returns 201. Window edits/cancellation never change scheduled classes."
+      }
     }
   },
   "components": {
@@ -3258,6 +3381,46 @@
           "version"
         ],
         "additionalProperties": false
+      },
+      "AvailabilityClassInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "requestId",
+          "availabilityVersion",
+          "classTypeId",
+          "startsAt",
+          "endsAt",
+          "capacity"
+        ],
+        "properties": {
+          "requestId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "availabilityVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "classTypeId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "startsAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "endsAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "capacity": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          }
+        }
       }
     },
     "securitySchemes": {
