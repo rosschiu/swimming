@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { APIError } from './api';
 import type { components, operations } from './generated/api';
 import { hkDate, hkTime } from './scheduling';
@@ -13,6 +13,7 @@ export default function ClassRoster({ classId, csrfToken, expired, t }: Protecte
   const [result, setResult] = useState<Roster | 'unavailable' | 'error' | null>(null);
   const [revision, setRevision] = useState(0);
   const [reviewing, setReviewing] = useState<RosterEntry | null>(null);
+  const reviewTrigger = useRef<HTMLButtonElement>(null);
   const [saving, setSaving] = useState(false);
   const [failure, setFailure] = useState('');
   const [notice, setNotice] = useState('');
@@ -96,14 +97,23 @@ export default function ClassRoster({ classId, csrfToken, expired, t }: Protecte
             <span className="tag">{entry.attendance ? t('Present', '已出席') : t('Reserved', '已預約')}</span>
             {!entry.attendance && <button
               className="outline" disabled={!isOpen || saving} aria-expanded={reviewing?.bookingId === entry.bookingId} aria-label={t(`Mark present ${entry.studentName}`, `標記 ${entry.studentName} 出席`)}
-              onClick={() => { setReviewing(reviewing?.bookingId === entry.bookingId ? null : entry); setFailure(''); setNotice(''); }}>
+              onClick={event => {
+                reviewTrigger.current = event.currentTarget;
+                setReviewing(reviewing?.bookingId === entry.bookingId ? null : entry);
+                setFailure('');
+                setNotice('');
+              }}>
               {t('Mark present', '標記出席')}
             </button>}
             {reviewing?.bookingId === entry.bookingId && <div>
               <p>{t(`Mark ${entry.studentName} present and use one reserved lesson credit?`, `標記 ${entry.studentName} 出席並使用一個預留的課堂點數？`)}</p>
               <div className="form-actions">
                 <button disabled={saving} onClick={() => void markPresent(entry)}>{t('Confirm present', '確認出席')}</button>
-                <button className="outline" disabled={saving} onClick={() => { setReviewing(null); setFailure(''); }}>{t('Cancel', '取消')}</button>
+                <button className="outline" disabled={saving} onClick={() => {
+                  setReviewing(null);
+                  setFailure('');
+                  reviewTrigger.current?.focus();
+                }}>{t('Cancel', '取消')}</button>
               </div>
             </div>}
           </div>

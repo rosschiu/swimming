@@ -44,6 +44,7 @@ it('reviews the credit use, handles a rejected mark, and displays a recorded res
   await user.click(mark);
   expect(screen.getByText(/use one reserved lesson credit/)).toBeVisible();
   await user.click(screen.getByRole('button', { name: 'Cancel' }));
+  expect(mark).toHaveFocus();
   expect(api).toHaveBeenCalledTimes(1);
   await user.click(mark);
   const confirm = screen.getByRole('button', { name: 'Confirm present' });
