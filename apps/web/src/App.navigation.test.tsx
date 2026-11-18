@@ -18,7 +18,7 @@ function api(role: Role, override?: Override) {
   if (path.endsWith('/auth/me') || path.endsWith('/auth/login')) return response(session(role));
   if (path.endsWith('/auth/logout')) return response(null, 204);
   if (path.endsWith('/credit-history')) return response({ items: [], recoveries: [], bookingValidity });
-  if (path.endsWith('/admin/action-queue')) return response({ purchasesAwaitingExpiry: 0, failedEmailDeliveries: 0 });
+  if (path.endsWith('/admin/action-queue')) return response({ purchasesAwaitingExpiry: 0, failedEmailDeliveries: 0, pendingLessonChanges: 0 });
  if (path.endsWith('/students/amy')) return response(amy);
   if (path.endsWith('/students/ben')) return response(ben);
   if (path.endsWith('/students')) return response({ items: [amy, ben] });
@@ -398,7 +398,7 @@ it('opens both current work queues from the administrator landing summary', asyn
   at('/');
   const delivery = { id: 'd1', recipientName: 'Amy’s guardian', status: 'failed', version: 2, createdAt: '2030-01-01T00:00:00Z' };
   const mock = api('admin', path => {
-    if (path.endsWith('/admin/action-queue')) return response({ purchasesAwaitingExpiry: 7, failedEmailDeliveries: 3 });
+    if (path.endsWith('/admin/action-queue')) return response({ purchasesAwaitingExpiry: 7, failedEmailDeliveries: 3, pendingLessonChanges: 0 });
     if (path.endsWith('status=failed')) return response({ items: [delivery], nextCursor: null });
   });
   render(<App />);
@@ -448,7 +448,7 @@ it('restores the failed delivery filter directly and through browser history', a
 it('retries a failed administrator summary and shows a translated empty queue', async () => {
   const failed = deferred();
   let attempts = 0;
-  api('admin', path => path.endsWith('/admin/action-queue') ? ++attempts === 1 ? failed.promise : response({ purchasesAwaitingExpiry: 0, failedEmailDeliveries: 0 }) : undefined);
+  api('admin', path => path.endsWith('/admin/action-queue') ? ++attempts === 1 ? failed.promise : response({ purchasesAwaitingExpiry: 0, failedEmailDeliveries: 0, pendingLessonChanges: 0 }) : undefined);
   window.localStorage.setItem('language', 'zh');
   render(<App />);
   expect(await screen.findByText('正在載入待辦事項…')).toHaveAttribute('role', 'status');
@@ -468,4 +468,31 @@ it.each([
   else await screen.findByRole('link', { name: /Amy Chan/ });
   expect(screen.queryByRole('heading', { name: 'Action queue' })).not.toBeInTheDocument();
   expect(mock.mock.calls.some(([url]) => String(url).endsWith('/admin/action-queue'))).toBe(false);
+});
+
+it('opens the pending lesson change queue and restores it without stale history', async () => {
+  at('/');
+  const first = deferred();
+  let pendingLoads = 0;
+  const mock = api('admin', path => {
+    if (path.endsWith('/admin/action-queue')) return response({ purchasesAwaitingExpiry: 0, failedEmailDeliveries: 0, pendingLessonChanges: 31 });
+    if (path.endsWith('/lesson-changes?status=pending')) return ++pendingLoads === 1 ? first.promise : response({ items: [], nextCursor: null });
+    if (path.endsWith('/lesson-changes')) return response({ items: [], nextCursor: null });
+  });
+  render(<App />);
+  const user = userEvent.setup();
+  const pending = await screen.findByRole('link', { name: 'Pending lesson change requests' });
+  expect(pending.closest('li')).toHaveTextContent('31');
+  expect(pending).toHaveAttribute('href', '/lesson-changes?status=pending');
+  expect(screen.queryByText('No items need attention.')).not.toBeInTheDocument();
+  await user.click(pending);
+  await user.click(screen.getByRole('link', { name: 'View all lesson changes' }));
+  await screen.findByText('No lesson change requests for this view.');
+  await act(async () => first.resolve(response({}, 500)));
+  expect(screen.queryByText('Could not load lesson changes.')).not.toBeInTheDocument();
+  act(() => window.history.back());
+  await screen.findByText('No pending lesson change requests.');
+  expect(mock).toHaveBeenCalledWith('/api/v1/lesson-changes?status=pending', expect.anything());
+  await user.click(screen.getByRole('button', { name: '繁體中文' }));
+  expect(screen.getByText('沒有待處理的調課申請。')).toBeVisible();
 });
