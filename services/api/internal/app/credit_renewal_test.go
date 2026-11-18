@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
@@ -142,6 +143,26 @@ func TestIntegrationEnrolmentRenewal(t *testing.T) {
 	}
 	assertBalance(source, 0, 1, 0, "2030-01-07")
 	assertBalance(destination, 17, 2, 0, "2030-01-28")
+	attendanceAPI := &API{db: db, cfg: Config{Origin: testOrigin}, now: func() time.Time {
+		return nextTerm.Sessions[1].StartsAt.Add(time.Hour)
+	}}
+	attendanceRoutes := http.NewServeMux()
+	attendanceAPI.bookingRoutes(attendanceRoutes)
+	if _, err := db.Exec(ctx, "UPDATE sessions SET expires_at='2030-02-01' WHERE user_id IN ('coach','parent')"); err != nil {
+		t.Fatal(err)
+	}
+	for _, booking := range []StudentBooking{original.Bookings[0], renewed.Bookings[0]} {
+		markPath := "/api/v1/classes/" + booking.Class.ID + "/roster/" + booking.ID + "/attendance"
+		expectStatus(t, request(t, attendanceRoutes, "PUT", markPath, nil, coach), 200)
+		expectStatus(t, request(t, attendanceRoutes, "PUT", markPath, nil, coach), 200)
+	}
+	w = request(t, attendanceRoutes, "POST", path, in, parent)
+	expectStatus(t, w, 200)
+	if replay := decodeBody[Enrolment](t, w); replay.Bookings[0].Attendance == nil || replay.Bookings[1].Attendance != nil {
+		t.Fatalf("attendance missing from renewal replay: %+v", replay.Bookings)
+	}
+	assertBalance(source, 0, 0, 0, "2030-01-07")
+	assertBalance(destination, 17, 1, 0, "2030-01-28")
 	if got := readReceipts(); receipts != got {
 		t.Fatalf("renewal changed receipt snapshots: %s", got)
 	}
@@ -167,7 +188,7 @@ func TestIntegrationEnrolmentRenewal(t *testing.T) {
 	if latest.CarriedForwardCredits == nil || *latest.CarriedForwardCredits != 17 {
 		t.Fatalf("cross-offer renewal %+v", latest)
 	}
-	assertBalance(destination, 0, 2, 0, "2030-01-28")
+	assertBalance(destination, 0, 1, 0, "2030-01-28")
 	assertBalance(nextDestination, 26, 1, 0, "2030-02-04")
 	fourthTerm := makeSeries("2030-02-11", "2030-02-11")
 	_, fourthDestination := buy(offer, "disabled-next", "2030-02-11")

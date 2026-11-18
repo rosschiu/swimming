@@ -97,7 +97,7 @@ INSERT INTO bookings(id,student_id,class_id,credit_package_id,actor_id,idempoten
 	w = request(t, h, "GET", roster, nil, coach)
 	expectStatus(t, w, 200)
 	got := decodeBody[ClassRoster](t, w)
-	expected := RosterEntry{"booked-lesson", "amy", "Amy", "Beginner", "reserved"}
+	expected := RosterEntry{BookingID: "booked-lesson", StudentID: "amy", StudentName: "Amy", Level: "Beginner", Status: "reserved"}
 	if got.ClassID != class.ID || len(got.Items) != 1 || got.Items[0] != expected {
 		t.Fatalf("wrong roster: %+v", got)
 	}

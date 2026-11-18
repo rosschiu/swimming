@@ -107,7 +107,7 @@ export default function Schedule({ csrfToken, expired, t, role }: ProtectedProps
                 onClick={() => setRosterClassId(rosterOpen ? null : c.id)}>{t('View roster', '查看名單')}</button>
             </div>}
           </article>
-          {rosterOpen && <ClassRoster classId={c.id} expired={expired} t={t}/>}
+          {rosterOpen && <ClassRoster classId={c.id} csrfToken={csrfToken} expired={expired} t={t}/>}
         </Fragment>;
       })}</div>
       {!classes.length && <p className="panel empty">{t('No classes match these filters. Try another date range or location.', '沒有符合篩選的課堂，請嘗試其他日期或地點。')}</p>}
