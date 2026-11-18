@@ -110,6 +110,7 @@ type CreditPackage struct {
 	SourcePackageID *string          `json:"sourcePackageId"`
 	ID              string           `json:"id"`
 	PurchaseID      string           `json:"purchaseId"`
+	OfferID         string           `json:"offerId"`
 	Credits         int              `json:"credits"`
 	ExpiresOn       *string          `json:"expiresOn"`
 	Policy          CreditPolicy     `json:"policy"`
@@ -800,7 +801,8 @@ func (a *API) loadStudentCredits(ctx context.Context, tx pgx.Tx, studentID strin
 	if err := expireStudentCredits(ctx, tx, studentID, a.now()); err != nil {
 		return nil, err
 	}
-	rows, err := tx.Query(ctx, "SELECT id,purchase_id,credits,expires_on::text,policy,source_package_id FROM credit_packages WHERE student_id=$1 ORDER BY created_at,id", studentID)
+	rows, err := tx.Query(ctx, `SELECT cp.id,cp.purchase_id,COALESCE(p.terms->>'offerId',''),cp.credits,cp.expires_on::text,cp.policy,cp.source_package_id
+		FROM credit_packages cp JOIN purchases p ON p.id=cp.purchase_id WHERE cp.student_id=$1 ORDER BY cp.created_at,cp.id`, studentID)
 	if err != nil {
 		return nil, err
 	}
@@ -808,7 +810,7 @@ func (a *API) loadStudentCredits(ctx context.Context, tx pgx.Tx, studentID strin
 	for rows.Next() {
 		var x CreditPackage
 		var data []byte
-		if err = rows.Scan(&x.ID, &x.PurchaseID, &x.Credits, &x.ExpiresOn, &data, &x.SourcePackageID); err != nil {
+		if err = rows.Scan(&x.ID, &x.PurchaseID, &x.OfferID, &x.Credits, &x.ExpiresOn, &data, &x.SourcePackageID); err != nil {
 			rows.Close()
 			return nil, err
 		}

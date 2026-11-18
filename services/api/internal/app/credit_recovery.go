@@ -24,6 +24,8 @@ type CreditRecovery struct {
 }
 type CreditHistoryPackage struct {
 	ID              string           `json:"id"`
+	PurchaseID      string           `json:"purchaseId"`
+	OfferID         string           `json:"offerId"`
 	SourcePackageID *string          `json:"sourcePackageId"`
 	Credits         int              `json:"credits"`
 	ExpiresOn       *string          `json:"expiresOn"`
@@ -88,7 +90,7 @@ func (a *API) creditHistory(w http.ResponseWriter, r *http.Request, s Session) {
 	}
 	items := []CreditHistoryPackage{}
 	for _, p := range packages {
-		items = append(items, CreditHistoryPackage{p.ID, p.SourcePackageID, p.Credits, p.ExpiresOn, p.Available, p.Reserved, p.Consumed, p.Expired, p.Movements})
+		items = append(items, CreditHistoryPackage{p.ID, p.PurchaseID, p.OfferID, p.SourcePackageID, p.Credits, p.ExpiresOn, p.Available, p.Reserved, p.Consumed, p.Expired, p.Movements})
 	}
 	recoveries := []CreditRecovery{}
 	rows, err := tx.Query(r.Context(), "SELECT "+recoveryColumns+" FROM credit_recoveries WHERE student_id=$1 ORDER BY created_at,id", r.PathValue("id"))
