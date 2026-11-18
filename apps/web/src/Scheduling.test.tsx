@@ -28,6 +28,7 @@ function mockAPI(status = 200, roster?: () => Response) {
     if (path.endsWith('/settings/lessons')) return response({ parentChangeCutoffHours: 24, attendanceOpenMinutes: 15, correctionWindowDays: 3, version: 1 });
     if (path.endsWith('/settings/availability')) return response({ lockHours: 72, version: 1 });
     if (path.endsWith('/settings/booking-validity')) return response({ validityRule: 'lesson_end', version: 1 });
+    if (path.endsWith('/settings/fixed-enrolment')) return response({ allocationPolicy: 'all_or_none', renewalPolicy: 'same_offer', version: 1 });
     if (path.endsWith('/settings/scheduling')) return response({ travelGapMinutes: 30, version: 1 });
     throw new Error(`Unexpected ${path}`);
   }); vi.stubGlobal('fetch', mock); return mock;

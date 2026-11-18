@@ -23,6 +23,19 @@ func effectiveBookingValidity(ctx context.Context, tx pgx.Tx) (BookingValiditySe
 	return settings, err
 }
 
+func confirmedBookingValidity(ctx context.Context, tx pgx.Tx, w http.ResponseWriter, version *int) (string, bool) {
+	settings, err := effectiveBookingValidity(ctx, tx)
+	if err != nil {
+		internal(w, err)
+		return "", false
+	}
+	if version != nil && *version != settings.Version {
+		fail(w, 409, "booking_validity_changed", "Credit validity settings changed; reload booking options")
+		return "", false
+	}
+	return settings.ValidityRule, true
+}
+
 func (a *API) bookingValiditySettings(w http.ResponseWriter, r *http.Request, s Session) {
 	if !admin(w, s) {
 		return
