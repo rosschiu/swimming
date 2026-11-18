@@ -116,6 +116,24 @@ export interface paths {
         patch: operations["updateStudent"];
         trace?: never;
     };
+    "/api/v1/students/{id}/bookings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Administrators, current guardians and self-linked students may list bookings by the class start date. */
+        get: operations["listStudentBookings"];
+        put?: never;
+        /** @description Administrators and current guardians may reserve one place and one credit for a future class. Only administrators may override a level mismatch, which requires a reason. An identical idempotent replay rechecks current student access. */
+        post: operations["createBooking"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/users": {
         parameters: {
             query?: never;
@@ -385,7 +403,25 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
+        /** @description A class with reservations must retain its venue, class type, and start and end times. Capacity cannot fall below the current reservation count. Conflicting edits return 409 booked_class_conflict. */
         patch: operations["updateClass"];
+        trace?: never;
+    };
+    "/api/v1/classes/{id}/roster": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Administrators and the class's currently assigned coach may read its roster. */
+        get: operations["getClassRoster"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/class-series": {
@@ -1062,7 +1098,33 @@ export interface components {
             level: string;
             coachName: string;
             seriesId: string | null;
+            classTypeVersion: number;
             version: number;
+        };
+        BookingInput: {
+            classId: string;
+            classVersion: number;
+            classTypeVersion: number;
+            creditPackageId: string;
+            idempotencyKey: string;
+            overrideReason?: string;
+        };
+        StudentBooking: {
+            id: string;
+            studentId: string;
+            /** @enum {string} */
+            status: "reserved";
+            /** Format: date-time */
+            createdAt: string;
+            class: components["schemas"]["ClassSession"];
+        };
+        RosterEntry: {
+            bookingId: string;
+            studentId: string;
+            studentName: string;
+            level: string;
+            /** @enum {string} */
+            status: "reserved";
         };
         SeriesInput: {
             venueId: string;
@@ -1787,6 +1849,90 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Student"];
+                };
+            };
+            /** @description Request failed */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    listStudentBookings: {
+        parameters: {
+            query: {
+                /** @description Inclusive Asia/Hong_Kong calendar date; range must span at most 93 days. */
+                from: string;
+                /** @description Inclusive Asia/Hong_Kong calendar date; range must span at most 93 days. */
+                to: string;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["StudentBooking"][];
+                    };
+                };
+            };
+            /** @description Request failed */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    createBooking: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-Token": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookingInput"];
+            };
+        };
+        responses: {
+            /** @description Idempotent replay */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentBooking"];
+                };
+            };
+            /** @description Booking created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentBooking"];
                 };
             };
             /** @description Request failed */
@@ -2602,6 +2748,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ClassSession"];
+                };
+            };
+            /** @description Request failed */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getClassRoster: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        classId: string;
+                        items: components["schemas"]["RosterEntry"][];
+                    };
                 };
             };
             /** @description Request failed */

@@ -41,6 +41,9 @@ var schema9 string
 //go:embed schema10.sql
 var schema10 string
 
+//go:embed schema11.sql
+var schema11 string
+
 func RandomToken() (string, error) {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
@@ -61,7 +64,7 @@ func Migrate(ctx context.Context, db *pgxpool.Pool) error {
 	if _, err = tx.Exec(ctx, "CREATE TABLE IF NOT EXISTS schema_migrations (version integer PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())"); err != nil {
 		return err
 	}
-	for i, sql := range []string{schema, schema2, schema3, schema4, schema5, schema6, schema7, schema8, schema9, schema10} {
+	for i, sql := range []string{schema, schema2, schema3, schema4, schema5, schema6, schema7, schema8, schema9, schema10, schema11} {
 		version := i + 1
 		var exists bool
 		if err = tx.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM schema_migrations WHERE version=$1)", version).Scan(&exists); err != nil {

@@ -43,13 +43,14 @@ type ClassInput struct {
 type ClassSession struct {
 	ID string `json:"id"`
 	ClassInput
-	VenueName     string  `json:"venueName"`
-	Region        string  `json:"region"`
-	ClassTypeName string  `json:"classTypeName"`
-	Level         string  `json:"level"`
-	CoachName     string  `json:"coachName"`
-	SeriesID      *string `json:"seriesId"`
-	Version       int     `json:"version"`
+	VenueName        string  `json:"venueName"`
+	Region           string  `json:"region"`
+	ClassTypeName    string  `json:"classTypeName"`
+	Level            string  `json:"level"`
+	CoachName        string  `json:"coachName"`
+	SeriesID         *string `json:"seriesId"`
+	Version          int     `json:"version"`
+	ClassTypeVersion int     `json:"classTypeVersion"`
 }
 type SeriesInput struct {
 	VenueID     string `json:"venueId"`
@@ -454,12 +455,12 @@ func (a *API) updateClassType(w http.ResponseWriter, r *http.Request, s Session)
 	respond(w, 200, x)
 }
 
-const classColumns = "c.id,c.venue_id,c.class_type_id,c.coach_id,c.starts_at,c.ends_at,c.capacity,v.name,v.region,t.name,t.level,u.name,c.series_id,c.version"
+const classColumns = "c.id,c.venue_id,c.class_type_id,c.coach_id,c.starts_at,c.ends_at,c.capacity,v.name,v.region,t.name,t.level,u.name,c.series_id,c.version,t.version"
 const classJoin = " FROM class_sessions c JOIN venues v ON v.id=c.venue_id JOIN class_types t ON t.id=c.class_type_id JOIN users u ON u.id=c.coach_id "
 
 func scanClass(row pgx.Row) (ClassSession, error) {
 	var x ClassSession
-	err := row.Scan(&x.ID, &x.VenueID, &x.ClassTypeID, &x.CoachID, &x.StartsAt, &x.EndsAt, &x.Capacity, &x.VenueName, &x.Region, &x.ClassTypeName, &x.Level, &x.CoachName, &x.SeriesID, &x.Version)
+	err := row.Scan(&x.ID, &x.VenueID, &x.ClassTypeID, &x.CoachID, &x.StartsAt, &x.EndsAt, &x.Capacity, &x.VenueName, &x.Region, &x.ClassTypeName, &x.Level, &x.CoachName, &x.SeriesID, &x.Version, &x.ClassTypeVersion)
 	return x, err
 }
 func (a *API) listClasses(w http.ResponseWriter, r *http.Request, s Session) {
@@ -640,6 +641,21 @@ func (a *API) updateClass(w http.ResponseWriter, r *http.Request, s Session) {
 	}
 	if before.Version != input.Version {
 		fail(w, 409, "version_conflict", "Class changed; reload before saving")
+		return
+	}
+	var reservations int
+	err = tx.QueryRow(r.Context(), "SELECT count(*) FROM bookings WHERE class_id=$1 AND status='reserved'", before.ID).Scan(&reservations)
+	if err != nil {
+		internal(w, err)
+		return
+	}
+	if reservations > 0 && (before.VenueID != input.VenueID || before.ClassTypeID != input.ClassTypeID ||
+		!before.StartsAt.Equal(input.StartsAt) || !before.EndsAt.Equal(input.EndsAt)) {
+		fail(w, 409, "booked_class_conflict", "A class with reservations must keep its venue, class type and times")
+		return
+	}
+	if input.Capacity < reservations {
+		fail(w, 409, "booked_class_conflict", "Capacity cannot be lower than the current reservation count")
 		return
 	}
 	if !checkClass(w, r, tx, input.ClassInput, before.ID, &before.ClassInput) {

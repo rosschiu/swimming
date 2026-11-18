@@ -12,7 +12,7 @@ Acquire scheduling advisory lock829417003 before identity829417002, then relevan
 
 Roster permission follows current class coach assignment, independently of general teaching relationships. Return only roster identities/levels/status, not financial details. Self-linked students can read their own bookings but cannot create them. Availability provenance edits never cancel booked sessions.
 
-Eligibility must retain the compared student/class levels and any administrator override reason/actor. Class and class-type edits must not silently invalidate existing reservations; capacity cannot fall below reservations. The next contract must define explicit edit guards or snapshot-based preservation before implementation, including later student progression.
+Eligibility must retain the compared student/class levels and any administrator override reason/actor. A class with reservations keeps its venue, class type and start and end times. Administrators can reassign the coach and adjust capacity as long as it covers every reservation. Later changes to swimming levels leave the eligibility recorded at booking intact.
 
 ## Pending configuration
 

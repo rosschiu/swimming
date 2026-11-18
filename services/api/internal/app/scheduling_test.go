@@ -117,6 +117,12 @@ func TestIntegrationScheduleTravelScopeAndArchive(t *testing.T) {
 	expectStatus(t, request(t, h, "GET", "/api/v1/classes/"+first.ID, nil, parent), 200)
 	expectStatus(t, request(t, h, "POST", "/api/v1/classes", f.input(f.venue.ID, "2030-01-08", "10:00", "11:00"), f.admin), 422)
 	expectStatus(t, request(t, h, "PATCH", "/api/v1/class-types/"+f.kind.ID, map[string]any{"name": f.kind.Name, "level": f.kind.Level, "active": false, "version": 1}, f.admin), 200)
+	w = request(t, h, "GET", "/api/v1/classes/"+first.ID, nil, parent)
+	expectStatus(t, w, 200)
+	current := decodeBody[ClassSession](t, w)
+	if first.ClassTypeVersion != 1 || current.ClassTypeVersion != 2 || current.Version != first.Version {
+		t.Fatalf("class type version did not advance independently: before=%+v after=%+v", first, current)
+	}
 	edit := struct {
 		ClassInput
 		Version int `json:"version"`
