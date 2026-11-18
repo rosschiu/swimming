@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"fmt"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -118,6 +119,14 @@ func Seed(ctx context.Context, db *pgxpool.Pool) error {
 		return err
 	}
 	defer tx.Rollback(ctx)
+	if err = seedDemoAccounts(ctx, tx, hash); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+func seedDemoAccounts(ctx context.Context, tx pgx.Tx, hash []byte) error {
+	var err error
 	for _, u := range []struct{ id, name, role string }{{"admin", "School Administrator", "admin"}, {"parent", "Amy's Parent", "parent"}, {"coach", "Coach Alex", "coach"}, {"student", "Amy", "student"}, {"other-parent", "Ben's Parent", "parent"}} {
 		if _, err = tx.Exec(ctx, "INSERT INTO users(id,email,name,role,password_hash) VALUES($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING", u.id, u.id+"@swim.test", u.name, u.role, string(hash)); err != nil {
 			return err
@@ -129,5 +138,5 @@ func Seed(ctx context.Context, db *pgxpool.Pool) error {
 	if _, err = tx.Exec(ctx, "INSERT INTO student_access(student_id,user_id,kind) VALUES('amy','parent','guardian'),('amy','coach','coach'),('amy','student','self'),('ben','other-parent','guardian') ON CONFLICT DO NOTHING"); err != nil {
 		return err
 	}
-	return tx.Commit(ctx)
+	return nil
 }
