@@ -105,6 +105,8 @@ test('coach records attendance once and administrator, guardian and student see 
   expect(attendance).toMatchObject({ status: 'present', markedAt: expect.any(String) });
   await expect(roster.getByText('Present', { exact: true })).toBeVisible();
 
+  await expect(roster.getByText(/Recorded by/)).toHaveCount(0);
+  await expect(roster.getByRole('link', { name: 'View attendance audit' })).toHaveCount(0);
   await switchRole('admin');
   await expect(missingQueue).toHaveAccessibleDescription('0');
   await missingQueue.click();
@@ -122,6 +124,19 @@ test('coach records attendance once and administrator, guardian and student see 
   await expect(page.getByText('No classes with missing attendance.', { exact: true })).toBeVisible();
   const adminRoster = await openRoster();
   await expect(adminRoster.getByText('Present', { exact: true })).toBeVisible();
+  await expect(adminRoster).toContainText('Recorded by');
+  await expect(adminRoster).toContainText('Coach Alex');
+  const auditLink = adminRoster.getByRole('link', { name: 'View attendance audit' });
+  const auditPath = '/audit?entityId=' + booking.id;
+  await expect(auditLink).toHaveAttribute('href', auditPath);
+  await auditLink.click();
+  await page.reload();
+  await expect(page).toHaveURL(url => url.pathname + url.search === auditPath);
+  await expect(page.getByLabel('Filter by record ID')).toHaveValue(booking.id);
+  const event = page.getByRole('article').filter({ has: page.getByRole('heading', { name: 'attendance.present' }) });
+  await expect(event).toHaveCount(1);
+  await expect(event.getByText('coach', { exact: true })).toBeVisible();
+  await expect(event.getByText(booking.id, { exact: true })).toBeVisible();
   const replay = await page.request.put(path, { headers });
   expect(replay.status()).toBe(200);
   expect(await replay.json()).toEqual(attendance);
@@ -143,5 +158,18 @@ test('coach records attendance once and administrator, guardian and student see 
     const item = (await list.json()).items.find((entry: { id: string }) => entry.id === booking.id);
     expectContract('StudentBooking', item);
     expect(item.attendance).toEqual(attendance);
+    await expect(row.getByText(/Recorded by/)).toHaveCount(0);
+    await expect(row.getByRole('link', { name: 'View attendance audit' })).toHaveCount(0);
   }
+
+  // Recreate an earlier mark without a corresponding audit event in the synthetic database.
+  const removed = execFileSync('psql', [dsn!, '-XqtA', '-v', 'ON_ERROR_STOP=1', '-v', 'booking=' + booking.id], {
+    encoding: 'utf8', input: "DELETE FROM audit_events WHERE action='attendance.present' AND entity_id=:'booking' AND actor_id='coach' RETURNING entity_id;",
+  });
+  expect(removed.trim()).toBe(booking.id);
+  await switchRole('admin');
+  const legacyRoster = await openRoster();
+  await expect(legacyRoster.getByText('Present', { exact: true })).toBeVisible();
+  await expect(legacyRoster).toContainText('Coach Alex');
+  await expect(legacyRoster.getByRole('link', { name: 'View attendance audit' })).toHaveCount(0);
 });
