@@ -18,6 +18,7 @@ function api(role: Role, override?: Override) {
   if (path.endsWith('/students/amy')) return response(amy);
   if (path.endsWith('/students/ben')) return response(ben);
   if (path.endsWith('/students')) return response({ items: [amy, ben] });
+  if (path.endsWith('/settings/credits')) return response({ policy: {expiryEnabled:true,carryForwardEnabled:true,earlyCancellationRetainsCredit:true,lateCancellationRetainsCredit:true,absenceRetainsCredit:true,illnessRetainsCredit:true}, version:1 });
   if (path.endsWith('/settings/scheduling')) return response({ travelGapMinutes: 30, version: 1 });
   if (path.endsWith('/settings/availability')) return response({ lockHours: 24, version: 1 });
   if (path.endsWith('/notification-preferences')) return response({ emailEnabled: false, emailAddress: 'parent@swim.test', emailDeliveryAvailable: false });
@@ -33,6 +34,7 @@ const routes: [string, Role[], (role: Role) => string][] = [
  ['/students/amy', ['admin','coach','parent','student'], () => 'Amy Chan'],
  ['/schedule', ['admin','coach','parent','student'], r => r === 'admin' ? 'Class schedule' : r === 'coach' ? 'Your teaching schedule' : 'Class catalogue'],
  ['/availability', ['admin','coach'], () => 'Available time slots'],
+ ['/packages', ['admin','parent'], () => 'Packages and payments'],
  ['/accounts', ['admin'], () => 'Accounts & invitations'], ['/setup', ['admin'], () => 'School setup'], ['/audit', ['admin'], () => 'Audit history'],
  ['/notification-deliveries', ['admin'], () => 'Notification deliveries'], ['/notifications', ['parent','student'], () => 'Notifications'],
 ];

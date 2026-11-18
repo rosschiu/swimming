@@ -1,6 +1,6 @@
 # Web delivery backlog
 
-Active goal: complete web functionality with mock payments, actual AI/voice integrations and reviewed stage PRs. No real payments, native apps, hosting selection or public deployment.
+Active goal: complete web functionality with mock payments and reviewed stage PRs. AI/voice is deferred beyond first delivery (user decision, 2026-11-18). No real payments, native apps, hosting selection or public deployment.
 
 ## Gates for every implementation stage
 
@@ -13,11 +13,11 @@ Frontend behaviour tests, Go tests, relevant PostgreSQL integration tests, API c
 | 00 | Record active goal, exclusions, stage gates and open decisions | None | Merged [PR #1](https://github.com/rosschiu/swimming/pull/1), `902016c`; independent review and diff check passed |
 | 01 | Runnable Go/Postgres/React foundation; persistent authenticated sessions; scoped parent/coach/admin home; synthetic seed; CI and real-stack Playwright login/permission journeys | 00 | Merged [PR #2](https://github.com/rosschiu/swimming/pull/2), `de7f06a`; local/CI tests and independent review passed |
 | 02 | Admin maintains families/students/coaches/venues/class types/sessions; coach roster and parent child selection read shared records; invitations/recovery and student access decision resolved | 01 | 02a merged PR #3 (`6c6d829`); 02b merged [PR #4](https://github.com/rosschiu/swimming/pull/4) (`04fa641`); rosters depend on03 bookings |
-| 03 | Configurable packages, ledger, clearly labelled mock payment pending/success/failure/duplicates through shared entitlement services, receipts; flexible and bounded recurring bookings; concurrency/overlap/eligibility checks | 02 and credit decisions | Pending |
+| 03 | Configurable packages, ledger, clearly labelled mock payment pending/success/failure/duplicates through shared entitlement services, receipts; flexible and bounded recurring bookings; concurrency/overlap/eligibility checks | 02 and credit decisions | 03a implementation/testing underway; individual purchase expiry approved |
 | 04 | Attendance/corrections, cancellation cases, change approval/rejection, expiry, carry-forward, scoped coach recovery, substitution and school cancellation; audit all consequences | 03 and timing/recovery decisions | Pending |
 | 05 | Progress entry/history, skill milestones, notification history/reminders and email delivery, coach availability, admin action queue, search/filters; complete role journeys and language/accessibility states | 04 | Pending |
-| 06 | Provider-backed typed assistant, STT and optional TTS; scoped reads and confirmed mutations; ambiguity/stale confirmation/idempotency/failure tests; actual provider validation | Stable domain tools; provider credentials | Pending |
-| 07 | Cumulative end-to-end coverage, operational documentation, import/export needs review, backup/restore proof, permission/security review, representative scale/concurrency checks and final gap closure | 01–06 | Pending |
+| 06 | Provider-backed typed assistant, STT and optional TTS; scoped reads and confirmed mutations; ambiguity/stale confirmation/idempotency/failure tests; actual provider validation | Stable domain tools; provider credentials | Deferred beyond first delivery by user |
+| 07 | Cumulative end-to-end coverage, operational documentation, import/export needs review, backup/restore proof, permission/security review, representative scale/concurrency checks and final gap closure | First-delivery stages01–05 | Pending |
 
 Stage scope may be split into smaller reviewed PRs when useful, but requirements cannot disappear. Each implementation PR must include a complete useful slice and its tests. Stage 00 is explicitly preparatory, not application delivery.
 
@@ -26,7 +26,7 @@ Stage scope may be split into smaller reviewed PRs when useful, but requirements
 - User approved credit reservation/consumption, explicit recurring renewal, administrator-entered package expiry, renewal carry-forward and assigned-coach recovery with reasons/new expiry on 2026-11-17.
 - User confirmed separate student login with own schedule/progress access; guardians control booking/payment.
 - Timing, eligibility, notifications and other unresolved questions remain in DECISIONS.md; resolve before dependent work.
-- Actual language-model and STT/TTS credentials/provider access must be established before claiming stage 06 complete. Do not expose credentials in logs or repository.
+- AI/voice is deferred from first delivery. Actual language-model and STT/TTS credentials/provider access must be established before claiming that later stage complete. Do not expose credentials in logs or repository.
 - Use synthetic seed/test records only; no external messages or public deployment authorised.
 
 ## Evidence log
@@ -66,3 +66,5 @@ Stage07a merged [PR #11](https://github.com/rosschiu/swimming/pull/11) as `69580
 Stage07b merged [PR #12](https://github.com/rosschiu/swimming/pull/12) as `c70ab02`: representative500-student/10-coach/20-venue/50-weekly-class correctness and contention checks. Stage07c merged [PR #13](https://github.com/rosschiu/swimming/pull/13) as `7c028a4`: closes the cumulative audit's administrator-revocation race across twelve mutations and retry replay. Sol implemented; Astra independently reproduced the original failures, tested and approved. Both stages passed cumulative local/CI gates and merged-main tree/contract checks. See STAGE-07B-EVIDENCE.md and STAGE-07C-EVIDENCE.md.
 
 Stage05d makes existing role screens and student progress profiles bookmarkable, refreshable and usable through browser history. Sol owns implementation; Astra owns independent tests/review. See STAGE-05D-PLAN.md. This is independent of the still-unanswered package expiry placement and AI-provider decisions; booking, mock finance, lesson lifecycle and actual AI/voice remain required.
+
+Stage05d merged [PR #14](https://github.com/rosschiu/swimming/pull/14) as `2d1fca1`. Sol implemented; Astra approved independently. Frontend129/build, Playwright17, Go/PostgreSQL race390.116s, contracts/vet and both CI runs passed. Clean main matched the tested tree. On2026-11-18 the user chose individual purchase expiry and deferred AI/voice from first delivery. Stage03a design now proceeds on that basis.

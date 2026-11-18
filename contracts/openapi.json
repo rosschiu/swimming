@@ -3282,6 +3282,745 @@
           }
         }
       }
+    },
+    "/api/v1/settings/credits": {
+      "get": {
+        "operationId": "getCreditSettings",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreditSettings"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "description": "Administrators and guardians may read defaults; only administrators may update them."
+      },
+      "patch": {
+        "operationId": "updateCreditSettings",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreditSettings"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreditSettings"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/package-offers": {
+      "get": {
+        "operationId": "listPackageOffers",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageOfferList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ]
+      },
+      "post": {
+        "operationId": "createPackageOffer",
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageOffer"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Idempotent replay",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageOffer"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PackageOfferInput"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/package-offers/{id}": {
+      "patch": {
+        "operationId": "updatePackageOffer",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageOffer"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PackageOfferUpdate"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/students/{id}/purchases": {
+      "post": {
+        "operationId": "createPurchase",
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Purchase"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Idempotent replay",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Purchase"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PurchaseInput"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ]
+      },
+      "get": {
+        "operationId": "listStudentPurchases",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PurchaseList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "awaiting_expiry",
+                "pending_payment",
+                "paid"
+              ]
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/purchases": {
+      "get": {
+        "operationId": "listPurchases",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PurchaseList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "awaiting_expiry",
+                "pending_payment",
+                "paid"
+              ]
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/purchases/{id}": {
+      "get": {
+        "operationId": "getPurchase",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Purchase"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/purchases/{id}/expiry": {
+      "post": {
+        "operationId": "assignPurchaseExpiry",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Purchase"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PurchaseExpiryInput"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/purchases/{id}/payment-attempts": {
+      "post": {
+        "operationId": "createPaymentAttempt",
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentAttempt"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Idempotent replay",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentAttempt"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PaymentAttemptInput"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/payment-attempts/{id}/mock-outcome": {
+      "post": {
+        "operationId": "mockPaymentOutcome",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Purchase"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MockOutcomeInput"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/receipts/{id}": {
+      "get": {
+        "operationId": "getReceipt",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Receipt"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/students/{id}/credits": {
+      "get": {
+        "operationId": "listStudentCredits",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreditPackageList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -4814,6 +5553,784 @@
             "nullable": true
           }
         },
+        "additionalProperties": false
+      },
+      "CreditPolicy": {
+        "type": "object",
+        "properties": {
+          "expiryEnabled": {
+            "type": "boolean"
+          },
+          "carryForwardEnabled": {
+            "type": "boolean"
+          },
+          "earlyCancellationRetainsCredit": {
+            "type": "boolean"
+          },
+          "lateCancellationRetainsCredit": {
+            "type": "boolean"
+          },
+          "absenceRetainsCredit": {
+            "type": "boolean"
+          },
+          "illnessRetainsCredit": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "expiryEnabled",
+          "carryForwardEnabled",
+          "earlyCancellationRetainsCredit",
+          "lateCancellationRetainsCredit",
+          "absenceRetainsCredit",
+          "illnessRetainsCredit"
+        ],
+        "additionalProperties": false
+      },
+      "CreditSettings": {
+        "type": "object",
+        "properties": {
+          "policy": {
+            "$ref": "#/components/schemas/CreditPolicy"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          }
+        },
+        "required": [
+          "policy",
+          "version"
+        ],
+        "additionalProperties": false
+      },
+      "PackageOfferInput": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "credits": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10000
+          },
+          "priceMinor": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100000000
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "HKD"
+            ]
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "policyOverride": {
+            "type": "object",
+            "properties": {
+              "expiryEnabled": {
+                "type": "boolean"
+              },
+              "carryForwardEnabled": {
+                "type": "boolean"
+              },
+              "earlyCancellationRetainsCredit": {
+                "type": "boolean"
+              },
+              "lateCancellationRetainsCredit": {
+                "type": "boolean"
+              },
+              "absenceRetainsCredit": {
+                "type": "boolean"
+              },
+              "illnessRetainsCredit": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "expiryEnabled",
+              "carryForwardEnabled",
+              "earlyCancellationRetainsCredit",
+              "lateCancellationRetainsCredit",
+              "absenceRetainsCredit",
+              "illnessRetainsCredit"
+            ],
+            "additionalProperties": false,
+            "nullable": true
+          }
+        },
+        "required": [
+          "name",
+          "credits",
+          "priceMinor",
+          "currency",
+          "active",
+          "policyOverride"
+        ],
+        "additionalProperties": false,
+        "description": "Complete terms; nullable complete policyOverride replaces school defaults for new purchases. Prices are simulated HKD minor units."
+      },
+      "PackageOfferUpdate": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "credits": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10000
+          },
+          "priceMinor": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100000000
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "HKD"
+            ]
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "policyOverride": {
+            "type": "object",
+            "properties": {
+              "expiryEnabled": {
+                "type": "boolean"
+              },
+              "carryForwardEnabled": {
+                "type": "boolean"
+              },
+              "earlyCancellationRetainsCredit": {
+                "type": "boolean"
+              },
+              "lateCancellationRetainsCredit": {
+                "type": "boolean"
+              },
+              "absenceRetainsCredit": {
+                "type": "boolean"
+              },
+              "illnessRetainsCredit": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "expiryEnabled",
+              "carryForwardEnabled",
+              "earlyCancellationRetainsCredit",
+              "lateCancellationRetainsCredit",
+              "absenceRetainsCredit",
+              "illnessRetainsCredit"
+            ],
+            "additionalProperties": false,
+            "nullable": true
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          }
+        },
+        "required": [
+          "name",
+          "credits",
+          "priceMinor",
+          "currency",
+          "active",
+          "policyOverride",
+          "version"
+        ],
+        "additionalProperties": false
+      },
+      "PackageOffer": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "credits": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10000
+          },
+          "priceMinor": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100000000
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "HKD"
+            ]
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "policyOverride": {
+            "type": "object",
+            "properties": {
+              "expiryEnabled": {
+                "type": "boolean"
+              },
+              "carryForwardEnabled": {
+                "type": "boolean"
+              },
+              "earlyCancellationRetainsCredit": {
+                "type": "boolean"
+              },
+              "lateCancellationRetainsCredit": {
+                "type": "boolean"
+              },
+              "absenceRetainsCredit": {
+                "type": "boolean"
+              },
+              "illnessRetainsCredit": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "expiryEnabled",
+              "carryForwardEnabled",
+              "earlyCancellationRetainsCredit",
+              "lateCancellationRetainsCredit",
+              "absenceRetainsCredit",
+              "illnessRetainsCredit"
+            ],
+            "additionalProperties": false,
+            "nullable": true
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "credits",
+          "priceMinor",
+          "currency",
+          "active",
+          "policyOverride",
+          "version"
+        ],
+        "additionalProperties": false
+      },
+      "PaymentAttempt": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "purchaseId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "failed",
+              "succeeded"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "purchaseId",
+          "status",
+          "createdAt"
+        ],
+        "additionalProperties": false
+      },
+      "Purchase": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "studentId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "createdBy": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "offerId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "offerVersion": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          },
+          "offerName": {
+            "type": "string"
+          },
+          "credits": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10000
+          },
+          "priceMinor": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100000000
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "HKD"
+            ]
+          },
+          "policy": {
+            "$ref": "#/components/schemas/CreditPolicy"
+          },
+          "policyVersion": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "awaiting_expiry",
+              "pending_payment",
+              "paid"
+            ]
+          },
+          "expiresOn": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "expiryAssignedBy": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "nullable": true
+          },
+          "expiryAssignedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "attempts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PaymentAttempt"
+            }
+          },
+          "receiptId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "studentId",
+          "createdBy",
+          "offerId",
+          "offerVersion",
+          "offerName",
+          "credits",
+          "priceMinor",
+          "currency",
+          "policy",
+          "policyVersion",
+          "status",
+          "expiresOn",
+          "expiryAssignedBy",
+          "expiryAssignedAt",
+          "version",
+          "createdAt",
+          "attempts",
+          "receiptId"
+        ],
+        "additionalProperties": false,
+        "description": "Trusted purchase snapshot. Expiry is inclusive in Asia/Hong_Kong, assigned individually once before payment. Null means expiry disabled."
+      },
+      "PurchaseInput": {
+        "type": "object",
+        "properties": {
+          "offerId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "offerVersion": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          },
+          "idempotencyKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "pattern": "^[!-~]{1,100}$"
+          }
+        },
+        "required": [
+          "offerId",
+          "offerVersion",
+          "idempotencyKey"
+        ],
+        "additionalProperties": false
+      },
+      "PurchaseExpiryInput": {
+        "type": "object",
+        "properties": {
+          "expiresOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          }
+        },
+        "required": [
+          "expiresOn",
+          "version"
+        ],
+        "additionalProperties": false
+      },
+      "PaymentAttemptInput": {
+        "type": "object",
+        "properties": {
+          "idempotencyKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "pattern": "^[!-~]{1,100}$"
+          }
+        },
+        "required": [
+          "idempotencyKey"
+        ],
+        "additionalProperties": false
+      },
+      "MockOutcomeInput": {
+        "type": "object",
+        "properties": {
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "failed",
+              "succeeded"
+            ]
+          }
+        },
+        "required": [
+          "outcome"
+        ],
+        "additionalProperties": false
+      },
+      "Receipt": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "purchaseId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "studentId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "studentName": {
+            "type": "string"
+          },
+          "offerId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "offerVersion": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          },
+          "offerName": {
+            "type": "string"
+          },
+          "credits": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10000
+          },
+          "priceMinor": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100000000
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "HKD"
+            ]
+          },
+          "policy": {
+            "$ref": "#/components/schemas/CreditPolicy"
+          },
+          "policyVersion": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          },
+          "expiresOn": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "simulated": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "purchaseId",
+          "studentId",
+          "studentName",
+          "offerId",
+          "offerVersion",
+          "offerName",
+          "credits",
+          "priceMinor",
+          "currency",
+          "policy",
+          "policyVersion",
+          "expiresOn",
+          "simulated",
+          "createdAt"
+        ],
+        "additionalProperties": false
+      },
+      "CreditMovement": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "available": {
+            "type": "integer",
+            "minimum": -2147483647,
+            "maximum": 2147483647
+          },
+          "reserved": {
+            "type": "integer",
+            "minimum": -2147483647,
+            "maximum": 2147483647
+          },
+          "consumed": {
+            "type": "integer",
+            "minimum": -2147483647,
+            "maximum": 2147483647
+          },
+          "expired": {
+            "type": "integer",
+            "minimum": -2147483647,
+            "maximum": 2147483647
+          },
+          "actorId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "reason": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "available",
+          "reserved",
+          "consumed",
+          "expired",
+          "actorId",
+          "reason",
+          "createdAt"
+        ],
+        "additionalProperties": false
+      },
+      "CreditPackage": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "purchaseId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "credits": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10000
+          },
+          "expiresOn": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "policy": {
+            "$ref": "#/components/schemas/CreditPolicy"
+          },
+          "available": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2147483647
+          },
+          "reserved": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2147483647
+          },
+          "consumed": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2147483647
+          },
+          "expired": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2147483647
+          },
+          "movements": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CreditMovement"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "purchaseId",
+          "credits",
+          "expiresOn",
+          "policy",
+          "available",
+          "reserved",
+          "consumed",
+          "expired",
+          "movements"
+        ],
+        "additionalProperties": false,
+        "description": "Balances are a read projection: expired unused available credits appear as expired without claiming an expiry job or ledger mutation."
+      },
+      "PackageOfferList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PackageOffer"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "additionalProperties": false
+      },
+      "PurchaseList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Purchase"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "additionalProperties": false
+      },
+      "CreditPackageList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CreditPackage"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ],
         "additionalProperties": false
       }
     },
