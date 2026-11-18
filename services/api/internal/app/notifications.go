@@ -190,6 +190,12 @@ func encodeTimestampCursor(at time.Time, id string) string {
 	return base64.RawURLEncoding.EncodeToString(b)
 }
 func timestampPaging(w http.ResponseWriter, r *http.Request) (int, timestampCursor, bool) {
+	return timestampPagingFor(w, r, func(id string) bool {
+		return len(id) == 64 && strings.Trim(id, "0123456789abcdef") == ""
+	})
+}
+
+func timestampPagingFor(w http.ResponseWriter, r *http.Request, validID func(string) bool) (int, timestampCursor, bool) {
 	limit := 25
 	var c timestampCursor
 	if v := r.URL.Query().Get("limit"); v != "" {
@@ -202,7 +208,7 @@ func timestampPaging(w http.ResponseWriter, r *http.Request) (int, timestampCurs
 	}
 	if v := r.URL.Query().Get("cursor"); v != "" {
 		b, err := base64.RawURLEncoding.DecodeString(v)
-		if len(v) > 512 || err != nil || json.Unmarshal(b, &c) != nil || c.CreatedAt.IsZero() || len(c.ID) != 64 || strings.Trim(c.ID, "0123456789abcdef") != "" {
+		if len(v) > 512 || err != nil || json.Unmarshal(b, &c) != nil || c.CreatedAt.IsZero() || !validID(c.ID) {
 			fail(w, 422, "validation_error", "Invalid page cursor")
 			return 0, c, false
 		}

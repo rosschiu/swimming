@@ -51,11 +51,12 @@ test('coach records attendance once and administrator, guardian and student see 
     classTypeVersion: lesson.classTypeVersion, creditPackageId: pack.id, idempotencyKey: 'booking-' + suffix });
   expect(await credit()).toMatchObject({ available: 1, reserved: 1, consumed: 0 });
 
-  // Move only this synthetic lesson past the opening window after a real reservation.
+  // Move this synthetic booking to an ended lesson spanning Hong Kong midnight.
   const dsn = process.env.DATABASE_URL;
   expect(dsn, 'dedicated synthetic database required').toBeTruthy();
   const pastDate = execFileSync('psql', [dsn!, '-XqtA', '-v', 'ON_ERROR_STOP=1', '-v', 'lesson=' + lesson.id, '-v', 'venue=' + venue.id], {
-    encoding: 'utf8', input: `UPDATE class_sessions SET starts_at=now()-interval '2 days', ends_at=now()-interval '2 days'+interval '1 hour'
+    encoding: 'utf8', input: `WITH slot AS (SELECT ((now() AT TIME ZONE 'Asia/Hong_Kong')::date - 2 + time '23:30') AT TIME ZONE 'Asia/Hong_Kong' AS start)
+      UPDATE class_sessions SET starts_at=slot.start, ends_at=slot.start+interval '1 hour' FROM slot
       WHERE id=:'lesson' AND venue_id=:'venue' RETURNING (starts_at AT TIME ZONE 'Asia/Hong_Kong')::date;`,
   }).trim();
   expect(pastDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
@@ -68,6 +69,29 @@ test('coach records attendance once and administrator, guardian and student see 
     await page.getByRole('button', { name: new RegExp('View roster ' + kind.name) }).click();
     return page.getByRole('region', { name: 'Class roster' });
   }
+  await switchRole('admin');
+  const missingQueue = page.getByRole('link', { name: 'Classes with missing attendance', exact: true });
+  await expect(missingQueue).toHaveAccessibleDescription('1');
+  await missingQueue.click();
+  const reportURL = page.url();
+  const report = await page.request.get('/api/v1/admin/missing-attendance');
+  expect(report.status()).toBe(200);
+  const missing = await report.json();
+  expectContract('MissingAttendanceList', missing);
+  expect(missing.items).toMatchObject([{ id: lesson.id, unmarkedBookings: 1 }]);
+  const missingRow = page.getByRole('listitem').filter({ hasText: kind.name });
+  await expect(missingRow).toContainText(pastDate + ' 23:30');
+  await expect(missingRow).toContainText('00:30');
+  await expect(missingRow).toContainText('Unmarked bookings · 1');
+  const rosterLink = page.getByRole('link', { name: 'Open roster' });
+  await expect(rosterLink).toHaveAttribute('href', '/schedule/' + lesson.id + '/roster');
+  await rosterLink.click();
+  await page.reload();
+  await expect(page.getByRole('region', { name: 'Class roster' }).getByText('Amy', { exact: true })).toBeVisible();
+  await page.goBack();
+  await expect(page).toHaveURL(reportURL);
+  await expect(rosterLink).toBeVisible();
+
   await switchRole('coach');
   const roster = await openRoster();
   await expect(roster.getByText('Amy', { exact: true })).toBeVisible();
@@ -82,6 +106,20 @@ test('coach records attendance once and administrator, guardian and student see 
   await expect(roster.getByText('Present', { exact: true })).toBeVisible();
 
   await switchRole('admin');
+  await expect(missingQueue).toHaveAccessibleDescription('0');
+  await missingQueue.click();
+  await expect(page.getByText('No classes with missing attendance.', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '繁體中文' }).click();
+  await expect(page.getByText('沒有缺少出席記錄的課堂。', { exact: true })).toBeVisible();
+  const reportAPI = '**/api/v1/admin/missing-attendance*';
+  await page.route(reportAPI, route => route.fulfill({ status: 503, json: {} }));
+  await page.reload();
+  await expect(page.getByRole('alert')).toHaveText('未能載入缺少的出席記錄。');
+  await page.getByRole('button', { name: 'English' }).click();
+  await expect(page.getByRole('alert')).toHaveText('Could not load missing attendance.');
+  await page.unroute(reportAPI);
+  await page.getByRole('button', { name: 'Retry report' }).click();
+  await expect(page.getByText('No classes with missing attendance.', { exact: true })).toBeVisible();
   const adminRoster = await openRoster();
   await expect(adminRoster.getByText('Present', { exact: true })).toBeVisible();
   const replay = await page.request.put(path, { headers });

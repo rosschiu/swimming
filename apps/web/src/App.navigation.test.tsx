@@ -18,7 +18,7 @@ function api(role: Role, override?: Override) {
   if (path.endsWith('/auth/me') || path.endsWith('/auth/login')) return response(session(role));
   if (path.endsWith('/auth/logout')) return response(null, 204);
   if (path.endsWith('/credit-history')) return response({ items: [], recoveries: [], bookingValidity });
-  if (path.endsWith('/admin/action-queue')) return response({ purchasesAwaitingExpiry: 0, failedEmailDeliveries: 0, pendingLessonChanges: 0 });
+  if (path.endsWith('/admin/action-queue')) return response({ purchasesAwaitingExpiry: 0, failedEmailDeliveries: 0, pendingLessonChanges: 0, classesMissingAttendance: 0 });
  if (path.endsWith('/students/amy')) return response(amy);
   if (path.endsWith('/students/ben')) return response(ben);
   if (path.endsWith('/students')) return response({ items: [amy, ben] });
@@ -398,7 +398,7 @@ it('opens both current work queues from the administrator landing summary', asyn
   at('/');
   const delivery = { id: 'd1', recipientName: 'Amy’s guardian', status: 'failed', version: 2, createdAt: '2030-01-01T00:00:00Z' };
   const mock = api('admin', path => {
-    if (path.endsWith('/admin/action-queue')) return response({ purchasesAwaitingExpiry: 7, failedEmailDeliveries: 3, pendingLessonChanges: 0 });
+    if (path.endsWith('/admin/action-queue')) return response({ purchasesAwaitingExpiry: 7, failedEmailDeliveries: 3, pendingLessonChanges: 0, classesMissingAttendance: 0 });
     if (path.endsWith('status=failed')) return response({ items: [delivery], nextCursor: null });
   });
   render(<App />);
@@ -448,7 +448,7 @@ it('restores the failed delivery filter directly and through browser history', a
 it('retries a failed administrator summary and shows a translated empty queue', async () => {
   const failed = deferred();
   let attempts = 0;
-  api('admin', path => path.endsWith('/admin/action-queue') ? ++attempts === 1 ? failed.promise : response({ purchasesAwaitingExpiry: 0, failedEmailDeliveries: 0, pendingLessonChanges: 0 }) : undefined);
+  api('admin', path => path.endsWith('/admin/action-queue') ? ++attempts === 1 ? failed.promise : response({ purchasesAwaitingExpiry: 0, failedEmailDeliveries: 0, pendingLessonChanges: 0, classesMissingAttendance: 0 }) : undefined);
   window.localStorage.setItem('language', 'zh');
   render(<App />);
   expect(await screen.findByText('正在載入待辦事項…')).toHaveAttribute('role', 'status');
@@ -475,7 +475,7 @@ it('opens the pending lesson change queue and restores it without stale history'
   const first = deferred();
   let pendingLoads = 0;
   const mock = api('admin', path => {
-    if (path.endsWith('/admin/action-queue')) return response({ purchasesAwaitingExpiry: 0, failedEmailDeliveries: 0, pendingLessonChanges: 31 });
+    if (path.endsWith('/admin/action-queue')) return response({ purchasesAwaitingExpiry: 0, failedEmailDeliveries: 0, pendingLessonChanges: 31, classesMissingAttendance: 0 });
     if (path.endsWith('/lesson-changes?status=pending')) return ++pendingLoads === 1 ? first.promise : response({ items: [], nextCursor: null });
     if (path.endsWith('/lesson-changes')) return response({ items: [], nextCursor: null });
   });
@@ -495,4 +495,46 @@ it('opens the pending lesson change queue and restores it without stale history'
   expect(mock).toHaveBeenCalledWith('/api/v1/lesson-changes?status=pending', expect.anything());
   await user.click(screen.getByRole('button', { name: '繁體中文' }));
   expect(screen.getByText('沒有待處理的調課申請。')).toBeVisible();
+});
+
+it('loads paged missing attendance and opens the exact roster with browser history', async () => {
+  const first = { id: 'night-class', startsAt: '2026-10-02T15:30:00Z', endsAt: '2026-10-02T17:00:00Z',
+    classTypeName: 'Night group', venueName: 'Kowloon pool', coachName: 'Coach Chan', unmarkedBookings: 2 };
+  const older = { ...first, id: 'older', classTypeName: 'Older group' };
+  let attempts = 0;
+  const mock = api('admin', path => {
+    if (path.endsWith('/admin/action-queue')) return response({
+      purchasesAwaitingExpiry: 0, failedEmailDeliveries: 0, pendingLessonChanges: 0, classesMissingAttendance: 2,
+    });
+    if (path.endsWith('/admin/missing-attendance')) return ++attempts === 1
+      ? response({}, 500) : response({ items: [first], nextCursor: 'opaque+cursor' });
+    if (path.endsWith('cursor=opaque%2Bcursor')) return response({ items: [older], nextCursor: null });
+    if (path.endsWith('/classes/night-class')) return response(first);
+    if (path.endsWith('/classes/night-class/roster')) return response({ classId: first.id, items: [] });
+  });
+  render(<App />);
+  const user = userEvent.setup();
+  const link = await screen.findByRole('link', { name: 'Classes with missing attendance' });
+  expect(link).toHaveAccessibleDescription('2');
+  await user.click(link);
+  expect(await screen.findByRole('alert')).toHaveTextContent('Could not load missing attendance.');
+  await user.click(screen.getByRole('button', { name: 'Retry report' }));
+  expect(await screen.findByText(/2026-10-02 23:30–2026-10-03 01:00/)).toBeVisible();
+  await user.click(screen.getByRole('button', { name: 'Load more classes' }));
+  expect(await screen.findByText(/Older group/)).toBeVisible();
+  expect(screen.getAllByRole('link', { name: 'Open roster' })).toHaveLength(2);
+  await user.click(screen.getAllByRole('link', { name: 'Open roster' })[0]);
+  expect(window.location.pathname).toBe('/schedule/night-class/roster');
+  expect(await screen.findByRole('region', { name: 'Class roster' })).toBeVisible();
+  expect(mock).toHaveBeenCalledWith('/api/v1/classes/night-class/roster', expect.anything());
+  pop('/missing-attendance');
+  expect(await screen.findByRole('heading', { name: 'Classes with missing attendance' })).toBeVisible();
+});
+
+it.each(['parent', 'student', 'coach'] as const)('guards the missing attendance report for %s', async role => {
+  at('/missing-attendance');
+  const mock = api(role);
+  render(<App />);
+  expect(await screen.findByRole('heading', { name: 'Page unavailable' })).toBeVisible();
+  expect(mock.mock.calls.some(([path]) => String(path).includes('/admin/missing-attendance'))).toBe(false);
 });

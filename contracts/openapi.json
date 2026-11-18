@@ -5401,6 +5401,60 @@
           }
         ]
       }
+    },
+    "/api/v1/admin/missing-attendance": {
+      "get": {
+        "operationId": "listMissingAttendance",
+        "summary": "List ended classes with unmarked reserved bookings",
+        "description": "Administrator only. This report does not record an attendance outcome.",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 25,
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Opaque cursor from the previous page."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Page of classes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MissingAttendanceList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -5476,7 +5530,8 @@
         "required": [
           "purchasesAwaitingExpiry",
           "failedEmailDeliveries",
-          "pendingLessonChanges"
+          "pendingLessonChanges",
+          "classesMissingAttendance"
         ],
         "properties": {
           "purchasesAwaitingExpiry": {
@@ -5488,6 +5543,10 @@
             "minimum": 0
           },
           "failedEmailDeliveries": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "classesMissingAttendance": {
             "type": "integer",
             "minimum": 0
           }
@@ -8661,6 +8720,63 @@
           "decision"
         ],
         "additionalProperties": false
+      },
+      "MissingAttendanceClass": {
+        "type": "object",
+        "required": [
+          "id",
+          "classTypeName",
+          "coachName",
+          "venueName",
+          "startsAt",
+          "endsAt",
+          "unmarkedBookings"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "classTypeName": {
+            "type": "string"
+          },
+          "coachName": {
+            "type": "string"
+          },
+          "venueName": {
+            "type": "string"
+          },
+          "startsAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "endsAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "unmarkedBookings": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "MissingAttendanceList": {
+        "type": "object",
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MissingAttendanceClass"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true
+          }
+        }
       }
     },
     "securitySchemes": {

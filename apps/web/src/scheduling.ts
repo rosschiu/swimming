@@ -11,7 +11,7 @@ export function hkDate(value = new Date()) { return new Intl.DateTimeFormat('en-
 export function hkTime(value: string) { return new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Hong_Kong', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(value)); }
 export function rangeEnd(from: string) { const day = new Date(`${from}T12:00:00+08:00`); day.setUTCDate(day.getUTCDate() + 6); return hkDate(day); }
 
-export function classLabel(value: ClassSession) {
+export function classLabel(value: Pick<ClassSession, 'startsAt' | 'endsAt' | 'classTypeName' | 'venueName' | 'coachName'>) {
   const day = hkDate(new Date(value.startsAt));
   const endDay = hkDate(new Date(value.endsAt));
   const end = day === endDay ? hkTime(value.endsAt) : `${endDay} ${hkTime(value.endsAt)}`;
