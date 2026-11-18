@@ -388,6 +388,77 @@
         ]
       }
     },
+    "/api/v1/students/{id}/enrolments": {
+      "post": {
+        "operationId": "createEnrolment",
+        "description": "Administrators and current guardians may reserve all selected future lessons from one weekly class series with one credit per lesson from the selected paid package. A failed reservation rolls back the entire enrolment. Only administrators can override level mismatches with a reason. Identical retries return the existing enrolment after checking current access.",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Idempotent replay",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Enrolment"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Enrolment created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Enrolment"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnrolmentInput"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
     "/api/v1/students/{id}/bookings": {
       "get": {
         "operationId": "listStudentBookings",
@@ -5108,6 +5179,97 @@
           "idempotencyKey"
         ],
         "additionalProperties": false
+      },
+      "EnrolmentInput": {
+        "type": "object",
+        "required": [
+          "seriesId",
+          "sessions",
+          "creditPackageId",
+          "idempotencyKey"
+        ],
+        "properties": {
+          "seriesId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "sessions": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 14,
+            "description": "Select distinct class IDs. Input order does not affect idempotent replay.",
+            "items": {
+              "type": "object",
+              "required": [
+                "classId",
+                "classVersion",
+                "classTypeVersion"
+              ],
+              "properties": {
+                "classId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 100
+                },
+                "classVersion": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "classTypeVersion": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            }
+          },
+          "creditPackageId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "idempotencyKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "pattern": "^[!-~]{1,100}$"
+          },
+          "overrideReason": {
+            "type": "string",
+            "maxLength": 500
+          }
+        }
+      },
+      "Enrolment": {
+        "type": "object",
+        "required": [
+          "id",
+          "studentId",
+          "seriesId",
+          "bookings",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "studentId": {
+            "type": "string"
+          },
+          "seriesId": {
+            "type": "string"
+          },
+          "bookings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StudentBooking"
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
       },
       "StudentBooking": {
         "type": "object",
