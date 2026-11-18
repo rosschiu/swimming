@@ -15,3 +15,5 @@ The school-wide credit validity decision applies to every selected session. The 
 Use an original package with four credits, two already reserved, and a new paid package with three credits for the same student. With carry-forward enabled, renewing into two next lessons leaves two reserved credits on the original package and three available plus two reserved on the new one. Replaying the renewal preserves those balances, the expiry dates of the original reservations and both purchase receipts.
 
 With carry-forward disabled, the original package keeps its two available credits. Verify that changing the school setting between review and confirmation requires a new review, and that a conflict on the final selected lesson rolls back the entire renewal, including any transfer. Exercise both package-type settings. A recovered package that funded the original enrolment can be a source; the destination must come from a separate paid purchase.
+
+Test renewal after the last occurrence of a bounded weekly series. A family must be able to select the next term's published series, review the dates, and reserve eligible lessons while retaining the original enrolment history.
