@@ -287,11 +287,17 @@ function ChangeOptions({ studentId, bookingId, csrfToken, expired, t }: Protecte
     {options && (options.items.length === 0
       ? <p role="status">{t('No replacement lessons are available for these dates or this booking.', '這段日期或此預約沒有可替換的課堂。')}</p>
       : <form onSubmit={event => { event.preventDefault(); void submit(); }}>
-        <label htmlFor={`${id}-target`}>{t('Replacement lesson', '替換課堂')}</label>
-        <select id={`${id}-target`} required value={target} disabled={!!busy} onChange={event => { setTarget(event.target.value); setError(''); }}>
-          <option value="">{t('Choose a lesson', '選擇課堂')}</option>
-          {options.items.map(item => <option key={item.id} value={item.id}>{classLabel(item)}</option>)}
-        </select>
+        <fieldset className="choice-group">
+          <legend>{t('Replacement lesson', '替換課堂')}</legend>
+          {[...new Set(options.items.map(item => hkDate(new Date(item.startsAt))))].map(day => <div key={day} role="group" aria-label={day}>
+            <p className="eyebrow choice-day">{day}</p>
+            {options.items.filter(item => hkDate(new Date(item.startsAt)) === day).map(item => <label key={item.id} className={target === item.id ? 'choice-card choice-selected' : 'choice-card'}>
+              <input type="radio" name={`${id}-target`} value={item.id} checked={target === item.id} disabled={!!busy} onChange={() => { setTarget(item.id); setError(''); }}/>
+              <span className="choice-time">{hkTime(item.startsAt)}–{hkTime(item.endsAt)}</span>
+              <span className="choice-body"><strong>{item.classTypeName}</strong><span className="muted">{item.venueName} · {item.coachName}</span></span>
+            </label>)}
+          </div>)}
+        </fieldset>
         <p>{t('Your original booking stays in place until a coach approves the request.', '教練批准申請前，原有預約將會保留。')}</p>
         <button disabled={!target || !!busy}>{busy === 'submit' ? t('Sending request…', '正在送出申請…') : t('Send change request', '送出調課申請')}</button>
       </form>)}

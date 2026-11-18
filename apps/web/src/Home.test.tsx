@@ -113,3 +113,31 @@ it('keeps the full sidebar with Home first on wide screens', async () => {
   expect(within(nav).getAllByRole('link').map(link => link.textContent)).toEqual(['Home', 'Notifications (2)', 'Students', 'Lesson changes', 'Schedule', 'Availability']);
   expect(screen.getByRole('button', { name: 'Sign out' })).toBeVisible();
 });
+
+it('splits a swimmer profile into lessons, credits and progress on phones', async () => {
+  phone(true);
+  window.history.replaceState(null, '', '/students/amy');
+  vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request) => {
+    const path = String(input);
+    if (path.endsWith('/auth/me')) return response({ user: { id: 'parent', name: 'Sam', role: 'parent' }, csrfToken: 'csrf' });
+    if (path.endsWith('/students/amy')) return response({ id: 'amy', name: 'Amy', level: 'Beginner', version: 1 });
+    if (path.endsWith('/credit-history')) return response({ items: [], recoveries: [], bookingValidity: { validityRule: 'lesson_end', version: 1 } });
+    return response({ items: [], nextCursor: null, unreadCount: 0 });
+  }));
+  render(<App />);
+  const user = userEvent.setup();
+  const tabs = await screen.findByRole('tablist', { name: 'Profile sections' });
+  expect(within(tabs).getAllByRole('tab').map(tab => tab.textContent)).toEqual(['Lessons', 'Credits', 'Progress']);
+  expect(screen.getByRole('tab', { name: 'Lessons' })).toHaveAttribute('aria-selected', 'true');
+  expect(screen.getByRole('region', { name: 'Booked lessons' })).toBeVisible();
+  expect(screen.queryByRole('heading', { name: 'Progress notes' })).not.toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: 'Change dates' }));
+  await user.click(screen.getByRole('tab', { name: 'Progress' }));
+  expect(await screen.findByRole('heading', { name: 'Progress notes' })).toBeVisible();
+  screen.getByRole('tab', { name: 'Progress' }).focus();
+  await user.keyboard('{ArrowRight}');
+  expect(screen.getByRole('tab', { name: 'Lessons' })).toHaveFocus();
+  expect(screen.getByRole('tab', { name: 'Lessons' })).toHaveAttribute('aria-selected', 'true');
+  // The hidden section kept its state while another section was shown.
+  expect(screen.getByLabelText('Bookings from date')).toBeVisible();
+});

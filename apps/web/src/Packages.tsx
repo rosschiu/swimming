@@ -24,7 +24,8 @@ export default function Packages({ role, csrfToken, expired, t }: ProtectedProps
       ]);
       if (current !== sequence.current) return;
       setOffers(catalogue.items); setSettings(policy); setStudents(directory.items); setPurchases(orders.items); setRevision(value => value + 1);
-      setStudentId(id => directory.items.some(student => student.id === id) ? id : '');
+      // A guardian with a single linked child starts on that child's checkout.
+      setStudentId(id => directory.items.some(student => student.id === id) ? id : !admin && directory.items.length === 1 ? directory.items[0].id : '');
     } catch (e) { if (current === sequence.current && !isAborted(e)) {if (e instanceof APIError && (e.status === 403 || e.status === 404)) {setOffers([]); setSettings(null); setStudents([]); setPurchases([]); setStudentId('');} setError(true);} }
     finally {if (current === sequence.current) setLoading(false);}
   }

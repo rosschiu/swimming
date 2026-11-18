@@ -139,7 +139,9 @@ Confirmed by the user:
 - **Import.** The import's primary purpose is migrating an existing school's records into the system, and it must accept Excel (.xlsx) files.
 - **Pending from the user:** approved demo email recipients with SMTP access, and a read-only GitHub token for VM delivery.
 
-Proposed defaults awaiting confirmation (not yet approved):
+Confirmed by the user later on 2026-11-18: the attendance, family cancellation, school cancellation, substitution and extra-grant defaults below are approved as written. Migrated credit balances are imported as one "Migrated balance" package per student with the imported credits and expiry, an audit entry, and no receipt or payment record. The UI and feedback rows remain proposals.
+
+Proposed defaults (attendance, cancellation, substitution and grant rows approved; UI and feedback rows still proposals):
 
 | Area | Proposed default |
 |---|---|

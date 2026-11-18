@@ -94,7 +94,7 @@ test('fixed booking stays reserved on a full replacement and follows coach appro
       const choices = page.waitForResponse(res => res.url().includes('/change-options?'));
       await page.getByRole('button', { name: 'Find replacement lessons' }).click();
       expectContract('LessonChangeOptions', await (await choices).json());
-      await page.getByLabel('Replacement lesson', { exact: true }).selectOption(target.id);
+      await page.locator(`input[type=radio][value="${target.id}"]`).check();
     }
     await selectTarget();
     const shifted = { ...targetInput, startsAt: day(1) + 'T12:00:00+08:00', endsAt: day(1) + 'T13:00:00+08:00' };
