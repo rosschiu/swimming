@@ -122,3 +122,9 @@ Stage 05e merged in [PR #19](https://github.com/rosschiu/swimming/pull/19) at `1
 The first deployment serves reviewed main commit 17a83e2 at swimmer.bsoltest.com. PostgreSQL, the Go API and static web server listen on loopback. Traefik terminates TLS and accepts optional PROXY headers from 10.70.2.10 on both public ports. Checks covered HTTP redirects, the HTTPS access gate, authenticated web and API responses, and original client addresses. IPv4 was tested externally. The IPv6 check used the VM's global address from the VM. Automatic deployment still requires the outbound artifact updater, a dedicated read-only repository credential and an observed update to a newer tested revision.
 
 At the operator’s request, the demo now opens directly at the application sign-in screen. With no credentials, the homepage returns 200, readiness reports OK and the students API returns the application’s 401 sign-in response.
+
+### Attendance and demo walkthrough
+
+- Attendance PR #22 merged at 5faf45f. Both full CI runs passed. The merged tree matched the independently reviewed revision and passed contract regeneration. PostgreSQL upgrade testing preserved the school's settings and Chromium verified attendance readback across roles.
+- PR #23 adds bilingual role buttons to the demo sign-in form. Independent Chromium checks verified all four real accounts and editable credentials before submission. Live verification is pending deployment.
+- PR #24 adds the synthetic 20-student school. A restored copy of the live database retained its existing records. Two seed runs produced the same 60 bookings and 20 attendance records. Live application and all four role walkthroughs are pending.
