@@ -56,7 +56,7 @@ func TestIntegrationDemoChangeHistoryScope(t *testing.T) {
 		t.Fatalf("pending queue got %d, want 1", got)
 	}
 	student := login(t, h, "student@swim.test")
-	bookings := request(t, h, "GET", "/api/v1/students/amy/bookings", nil, student)
+	bookings := request(t, h, "GET", "/api/v1/students/amy/bookings?from=2026-11-23&to=2026-11-23", nil, student)
 	expectStatus(t, bookings, 200)
 	found := false
 	for _, b := range decodeBody[struct{ Items []StudentBooking }](t, bookings).Items {
