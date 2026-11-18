@@ -5063,6 +5063,57 @@
         ]
       }
     },
+    "/api/v1/students/{id}/bookings/{bookingId}": {
+      "get": {
+        "operationId": "getStudentBooking",
+        "description": "Administrators, current guardians and self-linked students may read one booking and its current lesson by exact student and booking ID.",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudentBookingDetail"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "bookingId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
     "/api/v1/students/{id}/bookings/{bookingId}/change-options": {
       "get": {
         "operationId": "listLessonChangeOptions",
@@ -6517,6 +6568,45 @@
             "format": "date-time"
           }
         }
+      },
+      "StudentBookingDetail": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "studentId": {
+            "type": "string"
+          },
+          "studentName": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "reserved"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "class": {
+            "$ref": "#/components/schemas/ClassSession"
+          },
+          "attendance": {
+            "$ref": "#/components/schemas/Attendance"
+          }
+        },
+        "required": [
+          "id",
+          "studentId",
+          "studentName",
+          "status",
+          "createdAt",
+          "class"
+        ],
+        "additionalProperties": false
       },
       "StudentBooking": {
         "type": "object",

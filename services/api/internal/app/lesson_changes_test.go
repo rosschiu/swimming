@@ -50,6 +50,27 @@ func TestIntegrationLessonChangeApproval(t *testing.T) {
 	enrolment := decodeBody[Enrolment](t, w)
 	bookingID := enrolment.Bookings[0].ID
 	path := "/api/v1/students/amy/bookings/" + bookingID
+	checkExactBooking := func(actor authState, classID string) {
+		t.Helper()
+		result := request(t, h, "GET", path, nil, actor)
+		expectStatus(t, result, 200)
+		got := decodeBody[StudentBookingDetail](t, result)
+		if got.ID != bookingID || got.StudentID != "amy" || got.StudentName != "Amy" || got.Class.ID != classID {
+			t.Fatalf("unexpected exact booking: %+v", got)
+		}
+		fields := decodeBody[map[string]any](t, result)
+		for _, key := range []string{"creditPackageId", "purchaseId", "receiptId", "enrolmentId"} {
+			if _, exists := fields[key]; exists {
+				t.Fatalf("unexpected financial or enrolment field %s", key)
+			}
+		}
+	}
+	for _, actor := range []authState{parent, student, f.admin} {
+		checkExactBooking(actor, original.ID)
+	}
+	expectStatus(t, request(t, h, "GET", path, nil, other), 404)
+	expectStatus(t, request(t, h, "GET", path, nil, coach), 403)
+	expectStatus(t, request(t, h, "GET", "/api/v1/students/ben/bookings/"+bookingID, nil, f.admin), 404)
 	options := path + "/change-options?from=2030-01-08&to=2030-01-08"
 	w = request(t, h, "GET", options, nil, parent)
 	expectStatus(t, w, 200)
@@ -189,6 +210,8 @@ func TestIntegrationLessonChangeApproval(t *testing.T) {
 	}
 	check(target.ID, 1)
 	listed(parent, "approved")
+	checkExactBooking(parent, target.ID)
+	checkExactBooking(student, target.ID)
 	noticeCount(change.ID, 1)
 	detailPath := "/api/v1/students/amy/lesson-changes/" + change.ID
 	w = request(t, h, "GET", detailPath, nil, parent)
@@ -204,6 +227,8 @@ func TestIntegrationLessonChangeApproval(t *testing.T) {
 		t.Fatal(err)
 	}
 	exec("DELETE FROM student_access WHERE student_id='amy' AND user_id='parent' AND kind='guardian'")
+	expectStatus(t, request(t, h, "GET", path, nil, parent), 404)
+	checkExactBooking(student, target.ID)
 	expectStatus(t, request(t, h, "GET", detailPath, nil, parent), 404)
 	expectStatus(t, request(t, h, "PUT", "/api/v1/notifications/"+noticeID+"/read", nil, parent), 404)
 	expectStatus(t, request(t, h, "PUT", decisionPath, approve, coach), 200)
