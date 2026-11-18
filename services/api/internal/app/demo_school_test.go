@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 )
@@ -28,7 +29,37 @@ func TestIntegrationDemoSchoolSeed(t *testing.T) {
 		t.Fatalf("failed seed left %d swimmers, error %v", count, err)
 	}
 	exec("ALTER TABLE booking_attendance DROP CONSTRAINT reject_demo")
+	f := prepareScheduling(t, h)
+	today := now.In(hongKong)
+	conflictingDate := today.AddDate(0, 0, 7-(int(today.Weekday())+6)%7).Format("2006-01-02")
+	// A different coach avoids triggering the coach overlap check first.
+	exec("INSERT INTO users(id,email,name,role,password_hash) VALUES('fixture-other-coach','fixture-other-coach@swim.test','Existing Coach','coach','unused')")
+	classInput := f.input(f.venue.ID, conflictingDate, "17:00", "18:00")
+	classInput.CoachID = "fixture-other-coach"
+	w := request(t, h, "POST", "/api/v1/classes", classInput, f.admin)
+	expectStatus(t, w, http.StatusCreated)
+	class := decodeBody[ClassSession](t, w)
+	seedBookingCredit(t, db, "existing-pack", "amy", "parent", 1, nil)
+	parent := login(t, h, "parent@swim.test")
+	w = request(t, h, "POST", "/api/v1/students/amy/bookings", bookingBody(class, "existing-pack", "existing-booking"), parent)
+	expectStatus(t, w, http.StatusCreated)
+	if err := SeedDemoSchool(ctx, db, now); err == nil || !strings.Contains(err.Error(), "demo booking overlaps an existing booking") {
+		t.Fatalf("expected overlap to abort seed, got %v", err)
+	}
+	if err := db.QueryRow(ctx, "SELECT count(*) FROM bookings").Scan(&count); err != nil || count != 1 {
+		t.Fatalf("overlap left %d bookings, error %v", count, err)
+	}
+}
 
+func TestIntegrationDemoSchoolReplayAndScope(t *testing.T) {
+	db := testDB(t)
+	ctx := context.Background()
+	h := testHandler(db)
+	now := time.Now()
+	if _, err := db.Exec(ctx, "UPDATE students SET name='Existing Amy' WHERE id='amy'"); err != nil {
+		t.Fatal(err)
+	}
+	var count int
 	for _, date := range []time.Time{now, now.AddDate(0, 0, 7)} {
 		if err := SeedDemoSchool(ctx, db, date); err != nil {
 			t.Fatal(err)
