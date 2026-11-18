@@ -216,15 +216,51 @@ test('weekly enrolment rechecks the school rule across HK midnight and preserves
   }
 });
 
+const renewalSettingsPath = '/api/v1/settings/fixed-enrolment';
+type RenewalSettings = components['schemas']['FixedEnrolmentSettings'];
+
+const renewalTest = test.extend<{ renewalPolicy: void }>({
+  renewalPolicy: async ({ playwright, baseURL }, use) => {
+    const context = await playwright.request.newContext({ baseURL });
+    try {
+      const login = await context.post('/api/v1/auth/login', {
+        headers: { Origin: baseURL! },
+        data: { email: 'admin@swim.test', password: 'Swim-test-2026!' },
+      });
+      expect(login.ok(), await login.text()).toBe(true);
+      const headers = { Origin: baseURL!, 'X-CSRF-Token': (await login.json()).csrfToken };
+      async function readPolicy(): Promise<RenewalSettings> {
+        const response = await context.get(renewalSettingsPath, { timeout: 10000 });
+        expect(response.ok(), await response.text()).toBe(true);
+        return response.json();
+      }
+      async function setPolicy(wanted: RenewalSettings, current: RenewalSettings) {
+        if (wanted.allocationPolicy === current.allocationPolicy && wanted.renewalPolicy === current.renewalPolicy) return;
+        const response = await context.patch(renewalSettingsPath, {
+          headers, data: { ...wanted, version: current.version }, timeout: 10000,
+        });
+        expect(response.ok(), await response.text()).toBe(true);
+      }
+      const initial = await readPolicy();
+      try {
+        await setPolicy({ ...initial, allocationPolicy: 'all_or_none', renewalPolicy: 'same_offer' }, initial);
+        await use();
+      } finally {
+        await setPolicy(initial, await readPolicy());
+      }
+    } finally {
+      await context.dispose();
+    }
+  },
+});
+
 for (const carry of [true, false]) {
-  test(`guardian confirms only available renewal weeks with carry-forward ${carry ? 'enabled' : 'disabled'}`, async ({ page: admin, browser }) => {
+  renewalTest(`guardian confirms only available renewal weeks with carry-forward ${carry ? 'enabled' : 'disabled'}`, async ({ page: admin, browser, renewalPolicy: _renewalPolicy }) => {
     test.setTimeout(90000);
     const headers = await login(admin, 'admin');
     const parent = await browser.newPage({ baseURL: 'http://localhost:18573' });
     const guardian = await login(parent, 'parent');
-    const settingsPath = '/api/v1/settings/fixed-enrolment';
     const path = '/api/v1/students/amy/enrolments';
-    const initial = await (await admin.request.get(settingsPath)).json();
     const stamp = Date.now();
     const start = Date.UTC(carry ? 3800 : 4200, 0, 1) + (stamp % 100000) * 86400000;
     const day = (week: number) => new Date(start + week * 7 * 86400000).toISOString().slice(0, 10);
@@ -280,8 +316,15 @@ for (const carry of [true, false]) {
       await allocation.selectOption('confirm_available_subset');
       await renewal.selectOption('any_paid_package');
       const save = admin.getByRole('button', { name: 'Save fixed enrolment settings' });
-      await save.click();
-      await expect(admin.getByText('Fixed enrolment settings saved.')).toBeVisible();
+      async function savePolicy(renewalPolicy: RenewalSettings['renewalPolicy']) {
+        const pending = admin.waitForResponse(response => response.url().endsWith(renewalSettingsPath) && response.request().method() === 'PATCH');
+        await save.click();
+        const response = await pending;
+        expect(response.ok(), await response.text()).toBe(true);
+        expect(await response.json()).toMatchObject({ allocationPolicy: 'confirm_available_subset', renewalPolicy });
+        await expect(admin.getByText('Fixed enrolment settings saved.')).toBeVisible();
+      }
+      await savePolicy('any_paid_package');
       const endpoint = path + '/' + source.id + '/renewals';
       async function submit(label: string) {
         const result = parent.waitForResponse(r => r.url().endsWith(endpoint) && r.request().method() === 'POST');
@@ -302,14 +345,12 @@ for (const carry of [true, false]) {
       }
       await preview();
       await renewal.selectOption('same_offer');
-      await save.click();
-      await expect(save).toBeDisabled();
+      await savePolicy('same_offer');
       const stale = await submit('Confirm available weeks');
       expect(stale.status()).toBe(409);
       await expect(parent.getByRole('alert')).toContainText('fixed enrolment settings changed');
       await renewal.selectOption('any_paid_package');
-      await save.click();
-      await expect(save).toBeDisabled();
+      await savePolicy('any_paid_package');
       await preview();
       const saved = await submit('Confirm available weeks');
       expect(saved.status(), await saved.text()).toBe(201);
@@ -324,10 +365,6 @@ for (const carry of [true, false]) {
       expect(await replay.json()).toEqual(result);
       expect(await balances()).toMatchObject({ [oldPack]: [carry ? 0 : 2, 1], [newPack]: [0, carry ? 3 : 1] });
     } finally {
-      const current = await (await admin.request.get(settingsPath)).json();
-      if (current.allocationPolicy !== initial.allocationPolicy || current.renewalPolicy !== initial.renewalPolicy) {
-        expect((await admin.request.patch(settingsPath, { headers, data: { ...initial, version: current.version } })).status()).toBe(200);
-      }
       await parent.close();
     }
   });
