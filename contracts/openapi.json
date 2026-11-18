@@ -2205,6 +2205,68 @@
         ]
       }
     },
+    "/api/v1/classes/{id}/cancellation": {
+      "post": {
+        "operationId": "cancelClass",
+        "summary": "Cancel one upcoming lesson for the school",
+        "description": "Administrator only. Send a reason, the class version reviewed in the impact preview and a request key. Every reservation is cancelled and its credit returns to the funding package; when that package has already expired, include a new expiry for the booking and the credit is restored into a new package as an audited recovery (409 expiry_required lists the booking IDs still needing one). Pending lesson changes into or out of the lesson close as closed. Linked guardians and students receive in-app class.cancelled notices, with generic email per the school setting and their service email preference, and the class coach receives in-app notices. The lesson then rejects bookings, moves and edits, and no longer blocks its coach. Started lessons return 409 class_started; a stale version returns 409 version_conflict; an exact replay returns the recorded result.",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SchoolCancellationInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Cancellation result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SchoolCancellationResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/classes/{id}/roster": {
       "get": {
         "operationId": "getClassRoster",
@@ -6775,6 +6837,11 @@
           "version": {
             "type": "integer",
             "minimum": 1
+          },
+          "cancelledAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Set when the school cancelled this occurrence."
           }
         },
         "required": [
@@ -8167,7 +8234,8 @@
               "lesson_change.requested",
               "lesson_change.approved",
               "lesson_change.rejected",
-              "booking.cancelled"
+              "booking.cancelled",
+              "class.cancelled"
             ]
           },
           "sourceId": {
@@ -9775,6 +9843,10 @@
         "type": "object",
         "description": "Present on cancelled bookings. lesson is the class as reviewed at cancellation, even if the class is edited later.",
         "properties": {
+          "bySchool": {
+            "type": "boolean",
+            "description": "True when the school cancelled the lesson; timing is then absent."
+          },
           "timing": {
             "type": "string",
             "enum": [
@@ -9799,10 +9871,10 @@
           }
         },
         "required": [
-          "timing",
           "creditOutcome",
           "cancelledAt",
-          "lesson"
+          "lesson",
+          "bySchool"
         ],
         "additionalProperties": false
       },
@@ -9886,6 +9958,77 @@
           "timing",
           "creditOutcome",
           "idempotencyKey"
+        ],
+        "additionalProperties": false
+      },
+      "SchoolCancellationInput": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "The class version reviewed in the impact preview."
+          },
+          "idempotencyKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "pattern": "^[!-~]{1,100}$"
+          },
+          "expiries": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "New Hong Kong expiry, today or later, by booking ID, for each booking whose package has already expired."
+          }
+        },
+        "required": [
+          "reason",
+          "version",
+          "idempotencyKey"
+        ],
+        "additionalProperties": false
+      },
+      "SchoolCancellationResult": {
+        "type": "object",
+        "properties": {
+          "lesson": {
+            "$ref": "#/components/schemas/ClassSession"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "cancelledAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "cancelledBookings": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "restoredCredits": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "closedRequests": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "lesson",
+          "reason",
+          "cancelledAt",
+          "cancelledBookings",
+          "restoredCredits",
+          "closedRequests"
         ],
         "additionalProperties": false
       }

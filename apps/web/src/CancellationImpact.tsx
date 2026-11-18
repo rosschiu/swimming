@@ -1,13 +1,14 @@
 import { useEffect, useId, useState, type ReactNode } from 'react';
 import type { components } from './generated/api';
 import { APIError } from './api';
+import CancelClass from './CancelClass';
 import { hkDate, hkTime } from './scheduling';
 import { isAborted, useProtectedRequest, type ProtectedProps } from './useProtectedRequest';
 
 type Impact = components['schemas']['CancellationImpact'];
 type Section = 'bookings' | 'inbound' | 'outbound';
 
-export default function CancellationImpact({ classId, expired, t }: Pick<ProtectedProps, 'expired' | 't'> & { classId: string }) {
+export default function CancellationImpact({ classId, csrfToken, expired, t, onCancelled }: ProtectedProps & { classId: string; onCancelled?: (lesson: components['schemas']['ClassSession']) => void }) {
   const api = useProtectedRequest(expired);
   const id = useId();
   const [view, setView] = useState<{ section: Section; pages: string[] }>({ section: 'bookings', pages: [] });
@@ -38,7 +39,7 @@ export default function CancellationImpact({ classId, expired, t }: Pick<Protect
         {t('Refresh impact', '重新載入影響')}
       </button>
     </div>
-    <p>{t('Review the current lesson records. No lesson, booking or credit changes are made here.', '檢視目前的課堂紀錄。此處不會更改課堂、預約或堂數。')}</p>
+    <p>{t('Review the current lesson records before deciding. Nothing changes until you confirm a cancellation below.', '決定前請先檢視目前的課堂紀錄。你在下方確認取消前，不會作出任何更改。')}</p>
     <label htmlFor={`${id}-section`}>{t('Impact details', '影響詳情')}</label>
     <select id={`${id}-section`} value={view.section} onChange={event => show(event.target.value as Section)}>
       <option value="bookings">{t('Booked swimmers', '已預約學員')}</option>
@@ -52,6 +53,7 @@ export default function CancellationImpact({ classId, expired, t }: Pick<Protect
         {view.pages.length > 0 && <button type="button" className="outline" onClick={() => show(view.section, view.pages.slice(0, -1))}>{t('Previous page', '上一頁')}</button>}
         {result.nextCursor && <button type="button" className="outline" onClick={() => show(view.section, [...view.pages, result.nextCursor!])}>{t('Next page', '下一頁')}</button>}
       </ImpactDetails>}
+    {result && typeof result === 'object' && <CancelClass impact={result} csrfToken={csrfToken} expired={expired} t={t} onCancelled={cancelled => onCancelled?.(cancelled.lesson)}/>}
   </section>;
 }
 

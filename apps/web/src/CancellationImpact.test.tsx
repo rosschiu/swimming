@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, expect, it, vi } from 'vitest';
 import CancellationImpact from './CancellationImpact';
 
-const props = { classId: 'original', expired: () => false, t: (en: string) => en };
+const props = { classId: 'original', csrfToken: 'csrf', expired: () => false, t: (en: string) => en };
 const lesson = {
   id: 'original', classTypeName: 'Morning group', venueName: 'Harbour Pool', coachName: 'Coach Alex',
   startsAt: '2030-01-07T17:00:00+08:00', endsAt: '2030-01-07T10:00:00.100Z',

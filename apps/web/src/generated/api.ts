@@ -499,6 +499,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/classes/{id}/cancellation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel one upcoming lesson for the school
+         * @description Administrator only. Send a reason, the class version reviewed in the impact preview and a request key. Every reservation is cancelled and its credit returns to the funding package; when that package has already expired, include a new expiry for the booking and the credit is restored into a new package as an audited recovery (409 expiry_required lists the booking IDs still needing one). Pending lesson changes into or out of the lesson close as closed. Linked guardians and students receive in-app class.cancelled notices, with generic email per the school setting and their service email preference, and the class coach receives in-app notices. The lesson then rejects bookings, moves and edits, and no longer blocks its coach. Started lessons return 409 class_started; a stale version returns 409 version_conflict; an exact replay returns the recorded result.
+         */
+        post: operations["cancelClass"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/classes/{id}/roster": {
         parameters: {
             query?: never;
@@ -1502,6 +1522,11 @@ export interface components {
             seriesId: string | null;
             classTypeVersion: number;
             version: number;
+            /**
+             * Format: date-time
+             * @description Set when the school cancelled this occurrence.
+             */
+            cancelledAt?: string;
         };
         BookingInput: {
             classId: string;
@@ -1855,7 +1880,7 @@ export interface components {
             studentId: string;
             studentName: string;
             /** @enum {string} */
-            kind: "progress.created" | "progress.updated" | "milestone.achieved" | "milestone.revoked" | "booking.created" | "lesson_change.requested" | "lesson_change.approved" | "lesson_change.rejected" | "booking.cancelled";
+            kind: "progress.created" | "progress.updated" | "milestone.achieved" | "milestone.revoked" | "booking.created" | "lesson_change.requested" | "lesson_change.approved" | "lesson_change.rejected" | "booking.cancelled" | "class.cancelled";
             sourceId: string;
             sourceVersion: number;
             /** Format: date-time */
@@ -2219,8 +2244,10 @@ export interface components {
         };
         /** @description Present on cancelled bookings. lesson is the class as reviewed at cancellation, even if the class is edited later. */
         BookingCancellation: {
+            /** @description True when the school cancelled the lesson; timing is then absent. */
+            bySchool: boolean;
             /** @enum {string} */
-            timing: "early" | "late";
+            timing?: "early" | "late";
             /** @enum {string} */
             creditOutcome: "consumed" | "retained" | "expired";
             /** Format: date-time */
@@ -2252,6 +2279,25 @@ export interface components {
             /** @enum {string} */
             creditOutcome: "consumed" | "retained" | "expired";
             idempotencyKey: string;
+        };
+        SchoolCancellationInput: {
+            reason: string;
+            /** @description The class version reviewed in the impact preview. */
+            version: number;
+            idempotencyKey: string;
+            /** @description New Hong Kong expiry, today or later, by booking ID, for each booking whose package has already expired. */
+            expiries?: {
+                [key: string]: string;
+            };
+        };
+        SchoolCancellationResult: {
+            lesson: components["schemas"]["ClassSession"];
+            reason: string;
+            /** Format: date-time */
+            cancelledAt: string;
+            cancelledBookings: number;
+            restoredCredits: number;
+            closedRequests: number;
         };
     };
     responses: never;
@@ -3664,6 +3710,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CancellationImpact"];
+                };
+            };
+            /** @description Request failed */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    cancelClass: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-Token": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SchoolCancellationInput"];
+            };
+        };
+        responses: {
+            /** @description Cancellation result */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SchoolCancellationResult"];
                 };
             };
             /** @description Request failed */
