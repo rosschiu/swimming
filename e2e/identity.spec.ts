@@ -71,7 +71,7 @@ test('invitation delivered over SMTP activates a scoped parent; reset revokes ol
   await expect(page.getByText('Account unlinked. Its access to this student has been removed.', { exact: true })).toBeVisible();
   expect((await reset.request.get('/api/v1/students/amy')).status()).toBe(404);
   await reset.reload();
-  await expect(reset.getByRole('heading', { name: 'No students to display' })).toBeVisible();
+  await expect(reset.getByRole('heading', { name: 'No swimmers linked yet' })).toBeVisible();
   await context.close();
   await resetContext.close();
 });

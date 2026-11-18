@@ -1,6 +1,6 @@
 # Web delivery backlog
 
-Active goal: complete web functionality with mock payments and reviewed stage PRs. AI/voice is deferred beyond first delivery (user decision, 2026-11-18). Real payments and native clients remain outside first delivery. The user has added automatic deployment to a designated VM; the public demo runs on swimmer.bsoltest.com. Automatic delivery targets successful main builds.
+Active goal: complete web functionality with mock payments and reviewed stage PRs. From 2026-11-18 Claude owns implementation, review, testing, merge and deployment; the GPT-6.2 agents are retired. The web client is being rebuilt mobile-first for phone browsers (see the [application review](APP-REVIEW-2026-11-18.md) and the delivery plan below). AI/voice is deferred beyond first delivery (user decision, 2026-11-18). Real payments and native clients remain outside first delivery. The user has added automatic deployment to a designated VM; the public demo runs on swimmer.bsoltest.com. Automatic delivery targets successful main builds.
 
 ## Gates for every implementation stage
 
@@ -38,7 +38,7 @@ Update these rows in the stage PR when scope, evidence or status changes. Record
 | [Absences and attendance corrections](STAGE-04-ATTENDANCE-OUTCOMES.md) | Open | Apply the configured outcome and correction window, reconcile credit movements and show the audit trail. |
 | Guardian change requests and coach decisions | Shipped, [#25](https://github.com/rosschiu/swimming/pull/25) | Keep the original reservation while pending. Approval moves it once; rejection or a failed swap preserves it. [In-app coach decision notices](STAGE-05-LESSON-CHANGE-DECISIONS.md) shipped in [#31](https://github.com/rosschiu/swimming/pull/31). [In-app request-submission notices](STAGE-05-LESSON-CHANGE-REQUEST-NOTICES.md) shipped in [#32](https://github.com/rosschiu/swimming/pull/32). Reassignment alerts, additional lifecycle notices and email remain separate. |
 | [Family cancellation](STAGE-04-FAMILY-CANCELLATIONS.md) and make-up | Open | Apply the configured timing and credit policy and show the resulting entitlement to the family. |
-| [School cancellation and substitution](STAGE-04-SCHOOL-CANCELLATION-SUBSTITUTION.md) | Open | Split single-occurrence substitution and cancellation into separate stages. Use the plan’s decisions on coach availability, returned credit validity, pending requests and service notices to gate the affected stage. |
+| [School cancellation and substitution](STAGE-04-SCHOOL-CANCELLATION-SUBSTITUTION.md) | Impact preview shipped, [#38](https://github.com/rosschiu/swimming/pull/38); operations open | Split single-occurrence substitution and cancellation into separate stages. Use the plan’s decisions on coach availability, returned credit validity, pending requests and service notices to gate the affected stage. |
 | Credit expiry and recovery | Shipped, #16 | An assigned coach restores actual expired unused credits with a reason and new expiry. |
 | Administrator extra credit grants | Authority confirmed, package origin open | [Decision record](DECISIONS.md#additional-rule-details) limits extra grants to administrators. Confirm whether grants add to a current package or create a separate complimentary package. That choice determines expiry options and availability for swimmers without purchases. Resolve any renewal eligibility changes with the origin decision. Keep issuance and scoped readback in one stage with immutable ledger and audit entries and no purchase or receipt changes. |
 | Progress, milestones and teaching email | Shipped, #8–10 | Family sees scoped feedback; opt-in teaching emails have delivery history and retries. [Lesson-linked feedback](STAGE-05-LESSON-FEEDBACK.md) and external demo inbox delivery verification remain open. |
@@ -169,4 +169,36 @@ The #35 live rollout deployed `f6232c3` from artifact `14419647439` after verifi
 
 The [staff rehearsal guide](PILOT-STAFF-TRAINING.md) merged in [PR #37](https://github.com/rosschiu/swimming/pull/37) as `638c991`. Both hosted suites (44288524269 and 44288534395) passed and the merge matched independently reviewed `c4c81a6`. A fresh synthetic PostgreSQL fixture and Chromium rehearsal verified the four role journeys, Amy’s ledger and simulated receipt, and an isolated practice record.
 
-A read-only administrator cancellation impact review is in review. It reports booked swimmers, attendance, source package expiry and pending moves in each direction for one occurrence, with exact counts and bounded detail pages. Cancellation and any remedy remain separate from review.
+The read-only administrator cancellation impact review merged in [PR #38](https://github.com/rosschiu/swimming/pull/38) as `8f96655`. Hosted checks were first refused by GitHub billing limits; after capacity returned, reruns 44291634814 and 44291696014 passed on the unchanged reviewed head `8cc704b`, and the merged tree is identical to it. The [main run](https://github.com/rosschiu/swimming/actions/runs/44346996809) passed and published release artifact `14447831926`. It reports booked swimmers, attendance, source package expiry and pending moves in each direction for one occurrence, with exact counts and bounded detail pages. Cancellation and any remedy remain separate from review. Not yet deployed to the demo VM.
+
+## Mobile-first delivery plan (2026-11-18)
+
+The [application review](APP-REVIEW-2026-11-18.md) found the backend sound and the web client unsuited to phones. Decisions from that review are in [DECISIONS.md](DECISIONS.md#mobile-revamp-and-remaining-workflow-decisions-2026-11-18). One delivery PR is open at a time. Each stage runs the cumulative Go/PostgreSQL race suite, frontend tests and build, contract check, Playwright against the real stack (including 390px journeys), and scale/restore checks where affected.
+
+| # | Stage | Status | Gate or dependency |
+|---|---|---|---|
+| 0 | Merge cancellation impact preview | Merged #38 as `8f96655` | Demo rollout pending NetBird access |
+| 1 | Mobile shell and role home screens: bottom tabs with More sheet, role home (`GET /api/v1/home`), phone overflow fixes | In review, [#39](https://github.com/rosschiu/swimming/pull/39) | None |
+| 2 | Guardian task screens: booking, weekly enrolment, renewal, lesson change, mock checkout as focused steps; withdraw a pending change request; offer default validity at payment | Next | Purchase default validity confirmed |
+| 3 | Attendance outcomes and corrections | Planned | Proposed defaults need confirmation |
+| 4 | Family cancellation of one lesson, configurable notices | Planned | Proposed defaults need confirmation |
+| 5 | School cancellation with notices | Planned | Proposed defaults need confirmation |
+| 6 | Coach substitution (replaces the silent coach change on booked classes) | Planned | Proposed defaults need confirmation |
+| 7 | Administrator extra credit grants | Planned | Proposed defaults need confirmation |
+| 8 | Lesson-linked feedback | Planned | Proposed defaults need confirmation |
+| 9 | Scheduled reminders, in-app and email by default, configurable | Planned | Decision confirmed; external email needs recipients |
+| 10 | Administrator pages on the new shell | Planned | None |
+| 11 | Excel (.xlsx) migration import | Planned | Confirmed purpose and format; column mapping to propose |
+| 12 | Final acceptance, external email proof, live rollback, automatic delivery | Planned | Demo recipients and SMTP; VM read-only GitHub token |
+
+### Waiting on the owner
+
+- Confirmation of the proposed defaults recorded in DECISIONS.md (UI, attendance, family and school cancellation, substitution, grants, feedback). Work on stages 1–2 continues meanwhile.
+- Approved demo email recipients with SMTP access, and a fine-grained read-only GitHub token for VM delivery (promised for the next round).
+- NetBird SSO for each demo VM rollout.
+
+### Progress log
+
+2026-11-18: Hosted CI capacity returned. On the owner's instruction all queued runs, including 18 archived `handover/*` branch runs, were cancelled; only gate runs are rerun. Local verification now uses PostgreSQL 16 and Mailpit 1.27 on the development host; hosted CI (PostgreSQL 17) remains the merge gate.
+
+Stage 1 ([#39](https://github.com/rosschiu/swimming/pull/39)): sign-in now lands on a role home at `/home` (`/` redirects there). Guardians see each swimmer's next lesson, lessons left to book with the nearest expiry, and pending changes; students see their next lesson; coaches see their lessons from today with roster links and the decision queue; administrators see the action queue and today's lessons. Under 900px the sidebar is replaced by a bottom tab bar per role with a More sheet holding the remaining pages, language and sign-out. Phone pages no longer scroll sideways (the student profile was 647px wide on a 390px screen). Local evidence: PostgreSQL integration test for the home summary (role scope, Hong Kong expiry, ended lessons, revoked account), 217 frontend tests and build, contract regeneration, and Playwright against the real stack including a new 390px guardian and coach journey. Eleven existing journeys were updated because they assumed sign-in landed on the student directory.

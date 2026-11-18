@@ -1,11 +1,11 @@
 import type { MouseEvent } from 'react';
 import type { User } from './api';
 
-export type View = 'students' | 'accounts' | 'audit' | 'schedule' | 'setup' | 'availability' | 'notifications' | 'deliveries' | 'packages' | 'lesson-changes' | 'missing-attendance';
+export type View = 'home' | 'students' | 'accounts' | 'audit' | 'schedule' | 'setup' | 'availability' | 'notifications' | 'deliveries' | 'packages' | 'lesson-changes' | 'missing-attendance';
 export const deliveryStatuses = ['pending', 'leased', 'sent', 'retry', 'failed', 'suppressed'] as const;
 export type DeliveryStatus = typeof deliveryStatuses[number];
 export type Route = { view: View; studentId?: string; bookingId?: string; auditEntityId?: string; classId?: string; deliveryStatus?: DeliveryStatus; lessonChangeStatus?: 'pending'; lessonChangeId?: string } | { view: 'unavailable' };
-const paths: Record<View, string> = { students: '/students', accounts: '/accounts', audit: '/audit', schedule: '/schedule', setup: '/setup', availability: '/availability', notifications: '/notifications', deliveries: '/notification-deliveries', packages: '/packages', 'lesson-changes': '/lesson-changes', 'missing-attendance': '/missing-attendance' };
+const paths: Record<View, string> = { home: '/home', students: '/students', accounts: '/accounts', audit: '/audit', schedule: '/schedule', setup: '/setup', availability: '/availability', notifications: '/notifications', deliveries: '/notification-deliveries', packages: '/packages', 'lesson-changes': '/lesson-changes', 'missing-attendance': '/missing-attendance' };
 
 export function parseRoute(path: string, search = ''): Route {
   if (path === paths.audit) {
@@ -19,7 +19,7 @@ export function parseRoute(path: string, search = ''): Route {
   if (path === paths['lesson-changes'] && new URLSearchParams(search).get('status') === 'pending') {
     return { view: 'lesson-changes', lessonChangeStatus: 'pending' };
   }
-  if (path === '/') return { view: 'students' };
+  if (path === '/') return { view: 'home' };
   for (const view of Object.keys(paths) as View[]) if (paths[view] === path) return { view };
   const change = /^\/lesson-changes\/([^/]+)\/([a-f0-9]{64})$/.exec(path);
   const booking = /^\/students\/([^/]+)\/bookings\/([A-Za-z0-9_-]+)$/.exec(path);
@@ -55,6 +55,7 @@ export function routePath(route: Route): string {
 }
 export function canView(route: Route, role: User['role']): boolean {
   switch (route.view) {
+    case 'home': return true;
     case 'students': return (!route.lessonChangeId || role !== 'student') && (!route.bookingId || role !== 'coach');
     case 'schedule': return !route.classId || role === 'admin' || role === 'coach';
     case 'lesson-changes': return role === 'admin' || role === 'coach' || role === 'parent';
