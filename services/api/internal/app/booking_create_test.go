@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -320,5 +321,94 @@ func TestIntegrationBookingReservesRecoveredPackageOnly(t *testing.T) {
 	expectStatus(t, receiptAfter, 200)
 	if receiptBefore.Body.String() != receiptAfter.Body.String() {
 		t.Fatal("recovery and booking changed the original receipt")
+	}
+}
+
+func TestIntegrationBookingRechecksConcurrentEdits(t *testing.T) {
+	db := testDB(t)
+	h := testHandler(db)
+	f := prepareScheduling(t, h)
+	class := createBookingClass(t, f, "2030-01-07", "10:00", "11:00", 1)
+	seedBookingCredit(t, db, "edit-race-pack", "amy", "parent", 1, nil)
+	parent := login(t, h, "parent@swim.test")
+	path := "/api/v1/students/amy/bookings"
+	input := bookingBody(class, "edit-race-pack", "edit-race")
+	ctx := context.Background()
+
+	raceEdit := func(tx pgx.Tx, blockedQuery, errorCode string) {
+		t.Helper()
+		defer tx.Rollback(ctx)
+		var editorPID int
+		if err := tx.QueryRow(ctx, "SELECT pg_backend_pid()").Scan(&editorPID); err != nil {
+			t.Fatal(err)
+		}
+		result := make(chan *httptest.ResponseRecorder, 1)
+		go func() { result <- request(t, h, "POST", path, input, parent) }()
+		waitCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+		for {
+			var blocked bool
+			if err := db.QueryRow(waitCtx, `SELECT EXISTS (SELECT 1 FROM pg_stat_activity
+				WHERE query LIKE $2 AND $1 = ANY(pg_blocking_pids(pid)))`, editorPID, blockedQuery).Scan(&blocked); err != nil {
+				t.Fatalf("booking did not wait for editor %d: %v", editorPID, err)
+			}
+			if blocked {
+				break
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+		if err := tx.Commit(ctx); err != nil {
+			t.Fatal(err)
+		}
+		select {
+		case w := <-result:
+			expectBookingError(t, w, 409, errorCode)
+		case <-time.After(5 * time.Second):
+			t.Fatal("booking did not finish after the edit committed")
+		}
+		var bookings, reservations, available int
+		if err := db.QueryRow(ctx, `SELECT (SELECT count(*) FROM bookings),
+			(SELECT count(*) FROM credit_movements WHERE source LIKE 'booking:%:reserved'),
+			(SELECT sum(available) FROM credit_movements WHERE package_id='edit-race-pack')`).Scan(&bookings, &reservations, &available); err != nil {
+			t.Fatal(err)
+		}
+		if bookings != 0 || reservations != 0 || available != 1 {
+			t.Fatalf("rejected booking left state: bookings %d, reservations %d, available %d", bookings, reservations, available)
+		}
+	}
+
+	studentEditor, err := db.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer studentEditor.Rollback(ctx)
+	if _, err = studentEditor.Exec(ctx, "UPDATE students SET level='Intermediate',version=version+1 WHERE id='amy'"); err != nil {
+		t.Fatal(err)
+	}
+	raceEdit(studentEditor, "SELECT st.level FROM students st WHERE % FOR UPDATE OF st", "level_mismatch")
+	if _, err = db.Exec(ctx, "UPDATE students SET level='Beginner',version=version+1 WHERE id='amy'"); err != nil {
+		t.Fatal(err)
+	}
+
+	classEditor, err := (&API{db: db}).beginScheduling(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer classEditor.Rollback(ctx)
+	if _, err = classEditor.Exec(ctx, `UPDATE class_sessions
+		SET starts_at=starts_at+interval '1 hour',ends_at=ends_at+interval '1 hour',version=version+1 WHERE id=$1`, class.ID); err != nil {
+		t.Fatal(err)
+	}
+	raceEdit(classEditor, "SELECT pg_advisory_xact_lock(829417003)", "version_conflict")
+
+	w := request(t, h, "GET", "/api/v1/classes/"+class.ID, nil, parent)
+	expectStatus(t, w, 200)
+	updated := decodeBody[ClassSession](t, w)
+	input.ClassVersion = updated.Version
+	w = request(t, h, "POST", path, input, parent)
+	expectStatus(t, w, 201)
+	booking := decodeBody[StudentBooking](t, w)
+	if !booking.Class.StartsAt.Equal(class.StartsAt.Add(time.Hour)) {
+		t.Fatalf("retry did not book the edited class: %v", booking.Class.StartsAt)
 	}
 }
