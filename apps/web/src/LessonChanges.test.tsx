@@ -114,6 +114,20 @@ it('loads older history with an opaque cursor and retains loaded rows', async ()
   expect(screen.queryByRole('button', { name: 'Load more requests' })).not.toBeInTheDocument();
 });
 
+it('preserves the administrator pending filter when loading the next page', async () => {
+  const fetch = vi.fn().mockResolvedValueOnce(response({ items: [pending], nextCursor: 'next+page', cutoffHours: 24 }))
+    .mockResolvedValueOnce(response({ items: [{ ...pending, id: 'older', studentName: 'Older swimmer' }], nextCursor: null, cutoffHours: 24 }));
+  vi.stubGlobal('fetch', fetch);
+  render(<LessonChanges {...props} follow={vi.fn()} initialPending role="admin"/>);
+  await userEvent.setup().click(await screen.findByRole('button', { name: 'Load more requests' }));
+  expect(await screen.findByText('Older swimmer')).toBeVisible();
+  expect(screen.getAllByText('Pending')).toHaveLength(2);
+  expect(fetch.mock.calls.map(([path]) => path)).toEqual([
+    '/api/v1/lesson-changes?status=pending',
+    '/api/v1/lesson-changes?status=pending&cursor=next%2Bpage',
+  ]);
+});
+
 it('starts with the coach pending queue and can switch to the complete history', async () => {
   const fetch = vi.fn().mockResolvedValueOnce(response({ items: [], nextCursor: null, cutoffHours: 24 }))
     .mockResolvedValueOnce(response({ items: [rejected], nextCursor: null, cutoffHours: 24 }));
