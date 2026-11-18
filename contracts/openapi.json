@@ -6133,7 +6133,8 @@
               "progress.created",
               "progress.updated",
               "milestone.achieved",
-              "milestone.revoked"
+              "milestone.revoked",
+              "booking.created"
             ]
           },
           "sourceId": {

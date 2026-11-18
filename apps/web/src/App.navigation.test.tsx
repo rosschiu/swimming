@@ -203,14 +203,18 @@ it.each(['parent', 'admin'] as const)('books with explicit confirmation and refr
   const pack = { id: 'pack-recovered', expiresOn: null, available: 1, reserved: 0, consumed: 0, expired: 0, movements: [] };
   const writes: Record<string, unknown>[] = [];
   let booked = false;
+  let confirmed = false;
+  const oldBadge = deferred();
   const mock = api(role, (path, options) => {
+    if (path === '/api/v1/notifications?limit=1') return confirmed ? response({ unreadCount: 4 }) : oldBadge.promise;
     if (path.includes('/classes?')) return response({ items: [lesson, { ...lesson, id: 'c2', level: 'Expert' }] });
     if (path.endsWith('/credit-history')) return response({ items: [{ ...pack, available: booked ? 0 : 1, reserved: booked ? 1 : 0 }], recoveries: [], bookingValidity });
     if (path.includes('/bookings?')) return response({ items: booked ? [bookedLesson] : [] });
     if (path.endsWith('/bookings') && options?.method === 'POST') {
       writes.push(JSON.parse(String(options.body)));
-      if (writes.length === 1) return response({}, 500);
       booked = true;
+      if (writes.length === 1) return response({}, 500);
+      confirmed = true;
       return response(bookedLesson);
     }
   });
@@ -236,6 +240,17 @@ it.each(['parent', 'admin'] as const)('books with explicit confirmation and refr
   await user.click(retry);
   await screen.findByText('Lesson booked. One place and one credit are reserved.');
   await screen.findByText('Lesson to reserve');
+  if (role === 'parent') {
+    const badge = await screen.findByRole('link', { name: 'Notifications (4)' });
+    const counts = mock.mock.calls.filter(([path]) => path === '/api/v1/notifications?limit=1');
+    expect(counts).toHaveLength(2);
+    expect(counts[0][1]?.signal?.aborted).toBe(true);
+    await act(async () => oldBadge.resolve(response({ unreadCount: 3 })));
+    expect(badge).toHaveTextContent('Notifications (4)');
+    expect(window.location.pathname).toBe('/students/amy');
+  } else {
+    expect(mock.mock.calls.some(([path]) => path === '/api/v1/notifications?limit=1')).toBe(false);
+  }
   expect(writes).toHaveLength(2);
   expect(writes[0]).toEqual(writes[1]);
   expect(writes[0]).toEqual({
@@ -291,6 +306,44 @@ it.each([
   expect(writes.map(body => body.bookingValidityVersion)).toEqual([1, 2]);
   expect(writes[0].idempotencyKey).not.toBe(writes[1].idempotencyKey);
   expect(mock.mock.calls.filter(([path]) => String(path).includes('/classes?')).length).toBeGreaterThan(1);
+});
+
+it.each([
+  ['parent', 'A lesson was booked.', 'Unread', 'Mark read', 'Read', 'Open current student profile', 'Notifications'],
+  ['student', '已預約課堂。', '未讀', '標記已讀', '已讀', '開啟學員最新資料', '通知'],
+] as const)('shows %s a booking alert, updates the badge, and opens the scoped profile', async (role, message, unread, markRead, read, openProfile, badge) => {
+  at('/notifications');
+  if (role === 'student') window.localStorage.setItem('language', 'zh');
+  const item = {
+    id: 'new-booking', kind: 'booking.created', sourceId: 'booking', sourceVersion: 1,
+    studentId: 'amy', studentName: amy.name, createdAt: '2030-01-01T00:00:00Z', readAt: null,
+  };
+  let unreadCount = 1;
+  const mock = api(role, (path, options) => {
+    if (path === '/api/v1/notifications/new-booking/read' && options?.method === 'PUT') {
+      unreadCount = 0;
+      return response({ ...item, readAt: '2030-01-02T00:00:00Z' });
+    }
+    if (path.startsWith('/api/v1/notifications?')) return response({ items: [item], nextCursor: null, unreadCount });
+  });
+  render(<App />);
+  const user = userEvent.setup();
+  expect(await screen.findByText(message)).toBeVisible();
+  expect(screen.getByRole('link', { name: `${badge} (1)` })).toBeVisible();
+  expect(screen.getByText(unread, { exact: false })).toBeVisible();
+  expect(screen.getByRole('checkbox')).not.toBeChecked();
+  await user.click(screen.getByRole('button', { name: markRead }));
+  expect(await screen.findByRole('link', { name: `${badge} (0)` })).toBeVisible();
+  expect(screen.getByText(new RegExp(`^· ${read}$`))).toBeVisible();
+  expect(screen.queryByRole('button', { name: markRead })).not.toBeInTheDocument();
+  expect(mock).toHaveBeenCalledWith('/api/v1/notifications/new-booking/read', expect.objectContaining({
+    method: 'PUT', headers: expect.objectContaining({ 'X-CSRF-Token': `csrf-${role}` }),
+  }));
+  const profile = screen.getByRole('link', { name: openProfile });
+  expect(profile).toHaveAttribute('href', '/students/amy');
+  await user.click(profile);
+  expect(await screen.findByRole('heading', { name: amy.name })).toBeVisible();
+  expect(mock).toHaveBeenCalledWith('/api/v1/students/amy', expect.anything());
 });
 
 it.each([
