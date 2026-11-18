@@ -107,3 +107,35 @@ func TestIntegrationDemoHistoryResumeEveryCommit(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestIntegrationDemoHistoryDoesNotAdoptUnrelatedReplacement(t *testing.T) {
+	ctx := context.Background()
+	db := testDB(t)
+	now := time.Date(2026, 11, 18, 12, 0, 0, 0, hongKong)
+	if err := SeedDemoSchool(ctx, db, now); err != nil {
+		t.Fatal(err)
+	}
+	_, err := db.Exec(ctx, `INSERT INTO class_sessions(id, venue_id, class_type_id, coach_id, starts_at, ends_at, capacity)
+		SELECT 'unrelated-harbour-replacement', venue_id, class_type_id, coach_id,
+		starts_at + interval '1 day', ends_at + interval '1 day', 10
+		FROM class_sessions WHERE id='demo-group-1-3'`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	before := historyProtectedRows(t, db)
+	var initialAudit int
+	if err := db.QueryRow(ctx, "SELECT count(*) FROM audit_events").Scan(&initialAudit); err != nil {
+		t.Fatal(err)
+	}
+	err = seedDemoChangeHistory(ctx, db, func() time.Time { return now }, func(step string) error { t.Fatalf("unexpected commit %s", step); return nil })
+	if err == nil {
+		t.Fatal("accepted colliding third-party class")
+	}
+	var classes, requests, audit int
+	if err := db.QueryRow(ctx, `SELECT (SELECT count(*) FROM class_sessions),(SELECT count(*) FROM lesson_change_requests),(SELECT count(*) FROM audit_events)`).Scan(&classes, &requests, &audit); err != nil {
+		t.Fatal(err)
+	}
+	if classes != 16 || requests != 0 || audit != initialAudit || historyProtectedRows(t, db) != before {
+		t.Fatal("rejected preflight changed fixture data")
+	}
+}
