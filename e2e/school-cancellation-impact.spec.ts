@@ -90,6 +90,10 @@ test('administrator reviews both ends of a pending move without changing either 
       if (role !== 'parent') { await parent.getByRole('button', { name: 'Sign out' }).click(); await login(parent, role); }
       expect((await parent.request.get(readPath(original.id))).status()).toBe(403);
       await parent.getByRole('link', { name: 'Schedule', exact: true }).click();
+      await parent.getByLabel('From date', { exact: true }).fill(date);
+      await parent.getByLabel('To date', { exact: true }).fill(date);
+      await parent.getByRole('button', { name: 'Apply filters' }).click();
+      await expect(parent.getByText(kind.name, { exact: true }).first()).toBeVisible();
       await expect(parent.getByRole('button', { name: /Review cancellation impact/ })).toHaveCount(0);
     }
     const coachSession = await (await parent.request.get('/api/v1/auth/me')).json();
