@@ -78,3 +78,5 @@ Stage 04a merged in [PR #16](https://github.com/rosschiu/swimming/pull/16) at `1
 Stage 05f merged in [PR #20](https://github.com/rosschiu/swimming/pull/20) at `7df170f`. Administrators can open pending purchases and failed email deliveries from the action queue. Both CI runs passed. The merged tree matched the reviewed commit and contract regeneration passed.
 
 Stage 03b merged in [PR #17](https://github.com/rosschiu/swimming/pull/17) at `8447350`. Flexible bookings reserve seats and credits atomically. Administrators control the school-wide validity rule. Both CI runs, the full Go suite, 175 frontend tests and 25 Chromium journeys passed. The merged tree matched the reviewed commit and contract regeneration passed.
+
+Stage 04 timing settings merged in [PR #18](https://github.com/rosschiu/swimming/pull/18) at `2595ec4`. The full PostgreSQL Go race suite, 179 frontend tests and both CI runs passed. Independent upgrade and Chromium tests verified that an existing school's booking-validity setting survives migration and that stale timing edits require a reload. The merged tree matched the reviewed commit and passed contract regeneration.
