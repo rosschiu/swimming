@@ -24,6 +24,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/home": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the signed-in account home summary
+         * @description Role-specific summary for the landing screen. Guardians and students receive their linked swimmers with the next upcoming unmarked lesson; guardians also receive usable credit totals and pending lesson-change counts. Coaches receive their own lessons from the start of the Hong Kong day, and administrators receive today's lessons and the action queue. Lesson lists are limited to 20 entries. Credit totals do not run expiry; a package past its Hong Kong expiry date contributes no available credits.
+         */
+        get: operations["getHome"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/health": {
         parameters: {
             query?: never;
@@ -2074,6 +2094,37 @@ export interface components {
             items: components["schemas"]["MissingAttendanceClass"][];
             nextCursor: string | null;
         };
+        HomeCredits: {
+            available: number;
+            reserved: number;
+            /** Format: date */
+            nextExpiry: string | null;
+        };
+        HomeStudent: {
+            id: string;
+            name: string;
+            level: string;
+            nextLesson: components["schemas"]["StudentBooking"] | (never | null);
+            upcomingCount: number;
+            credits?: components["schemas"]["HomeCredits"];
+            pendingChanges: number;
+        };
+        HomeClass: {
+            class: components["schemas"]["ClassSession"];
+            booked: number;
+            unmarked: number;
+        };
+        Home: {
+            /** @enum {string} */
+            role: "admin" | "coach" | "parent" | "student";
+            /** Format: date */
+            today: string;
+            students: components["schemas"]["HomeStudent"][];
+            classes: components["schemas"]["HomeClass"][];
+            pendingLessonChanges: number;
+            unreadNotifications: number;
+            actionQueue?: components["schemas"]["AdminActionQueue"];
+        };
     };
     responses: never;
     parameters: never;
@@ -2099,6 +2150,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdminActionQueue"];
+                };
+            };
+            /** @description Request failed */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getHome: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Home summary */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Home"];
                 };
             };
             /** @description Request failed */

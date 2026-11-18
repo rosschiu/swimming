@@ -39,6 +39,40 @@
         }
       }
     },
+    "/api/v1/home": {
+      "get": {
+        "operationId": "getHome",
+        "summary": "Get the signed-in account home summary",
+        "description": "Role-specific summary for the landing screen. Guardians and students receive their linked swimmers with the next upcoming unmarked lesson; guardians also receive usable credit totals and pending lesson-change counts. Coaches receive their own lessons from the start of the Hong Kong day, and administrators receive today's lessons and the action queue. Lesson lists are limited to 20 entries. Credit totals do not run expiry; a package past its Hong Kong expiry date contributes no available credits.",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Home summary",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Home"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/health": {
       "get": {
         "operationId": "health",
@@ -9191,6 +9225,150 @@
             "nullable": true
           }
         }
+      },
+      "HomeCredits": {
+        "type": "object",
+        "required": [
+          "available",
+          "reserved",
+          "nextExpiry"
+        ],
+        "properties": {
+          "available": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "reserved": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "nextExpiry": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "HomeStudent": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "level",
+          "nextLesson",
+          "upcomingCount",
+          "pendingChanges"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "level": {
+            "type": "string"
+          },
+          "nextLesson": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StudentBooking"
+              },
+              {
+                "type": "object",
+                "nullable": true,
+                "enum": [
+                  null
+                ]
+              }
+            ]
+          },
+          "upcomingCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "credits": {
+            "$ref": "#/components/schemas/HomeCredits"
+          },
+          "pendingChanges": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "additionalProperties": false
+      },
+      "HomeClass": {
+        "type": "object",
+        "required": [
+          "class",
+          "booked",
+          "unmarked"
+        ],
+        "properties": {
+          "class": {
+            "$ref": "#/components/schemas/ClassSession"
+          },
+          "booked": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "unmarked": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "additionalProperties": false
+      },
+      "Home": {
+        "type": "object",
+        "required": [
+          "role",
+          "today",
+          "students",
+          "classes",
+          "pendingLessonChanges",
+          "unreadNotifications"
+        ],
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "admin",
+              "coach",
+              "parent",
+              "student"
+            ]
+          },
+          "today": {
+            "type": "string",
+            "format": "date"
+          },
+          "students": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HomeStudent"
+            }
+          },
+          "classes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HomeClass"
+            }
+          },
+          "pendingLessonChanges": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "unreadNotifications": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "actionQueue": {
+            "$ref": "#/components/schemas/AdminActionQueue"
+          }
+        },
+        "additionalProperties": false
       }
     },
     "securitySchemes": {
