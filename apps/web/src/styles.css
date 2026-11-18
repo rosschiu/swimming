@@ -6,3 +6,6 @@ a.action-link,.sidebar nav a{display:block;min-height:44px;padding:11px 18px;bor
 
 .demo-accounts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;min-width:0;margin:16px 0 0;padding:12px;border:1px solid #dce6e3;border-radius:9px}.demo-accounts legend{padding:0 5px;font-size:14px;font-weight:600}.demo-accounts button{padding:8px;overflow-wrap:anywhere}
 .roster-list li{align-items:flex-start;flex-wrap:wrap}.roster-actions{display:flex;align-items:center;flex-wrap:wrap;gap:10px}.roster-actions>div{flex-basis:100%}.roster-actions p{margin-bottom:10px}.roster-actions .form-actions{margin:0;flex-wrap:wrap}
+
+.roster-actions .tag:focus,.roster-feedback:focus{outline:3px solid #e2a12c;outline-offset:3px}
+.roster-actions button[aria-disabled="true"]{opacity:.55;cursor:wait}

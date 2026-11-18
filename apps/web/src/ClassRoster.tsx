@@ -14,6 +14,9 @@ export default function ClassRoster({ classId, csrfToken, expired, t }: Protecte
   const [revision, setRevision] = useState(0);
   const [reviewing, setReviewing] = useState<RosterEntry | null>(null);
   const reviewTrigger = useRef<HTMLButtonElement>(null);
+  const confirmButton = useRef<HTMLButtonElement>(null);
+  const focusRecordedBooking = useRef<string | null>(null);
+  const focusRosterFeedback = useRef(false);
   const [saving, setSaving] = useState(false);
   const [failure, setFailure] = useState('');
   const [notice, setNotice] = useState('');
@@ -44,7 +47,15 @@ export default function ClassRoster({ classId, csrfToken, expired, t }: Protecte
     setRevision(previous => previous + 1);
   }
 
+  function focusFeedback(element: HTMLParagraphElement | null) {
+    if (element && focusRosterFeedback.current) {
+      focusRosterFeedback.current = false;
+      element.focus();
+    }
+  }
+
   async function markPresent(entry: RosterEntry) {
+    if (saving) return;
     setSaving(true);
     setFailure('');
     setNotice('');
@@ -52,6 +63,9 @@ export default function ClassRoster({ classId, csrfToken, expired, t }: Protecte
       const attendance = await api<components['schemas']['Attendance']>(`${path}/${encodeURIComponent(entry.bookingId)}/attendance`, {
         method: 'PUT', headers: { 'X-CSRF-Token': csrfToken },
       });
+      if (document.activeElement === confirmButton.current) {
+        focusRecordedBooking.current = entry.bookingId;
+      }
       setResult(previous => previous && typeof previous === 'object' ? {
         ...previous,
         items: previous.items.map(item => item.bookingId === entry.bookingId ? { ...item, attendance } : item),
@@ -61,9 +75,11 @@ export default function ClassRoster({ classId, csrfToken, expired, t }: Protecte
     } catch (error) {
       if (isAborted(error)) return;
       if (error instanceof APIError && (error.status === 403 || error.status === 404)) {
+        focusRosterFeedback.current = document.activeElement === confirmButton.current;
         setReviewing(null);
         setResult('unavailable');
       } else if (error instanceof APIError && error.code === 'attendance_not_open') {
+        focusRosterFeedback.current = document.activeElement === confirmButton.current;
         setReviewing(null);
         setFailure(t('Attendance has yet to open. Reload the roster for the current opening time.', '出席記錄尚未開放，請重新載入名單查看最新的開放時間。'));
       } else if (error instanceof APIError && error.code === 'credit_unavailable') {
@@ -83,10 +99,10 @@ export default function ClassRoster({ classId, csrfToken, expired, t }: Protecte
         {t('Reload roster', '重新載入名單')}
       </button>
     </div>
-    {failure && <p className="error" role="alert">{failure}</p>}
+    {failure && <p className="error roster-feedback" ref={focusFeedback} tabIndex={-1} role="alert">{failure}</p>}
     {notice && <p className="success" role="status">{notice}</p>}
     {result === null ? <p role="status">{t('Loading class roster…', '正在載入課堂名單…')}</p>
-      : result === 'unavailable' ? <p role="alert">{t('This roster is unavailable for your current access.', '目前權限無法存取此課堂名單。')}</p>
+      : result === 'unavailable' ? <p className="roster-feedback" ref={focusFeedback} tabIndex={-1} role="alert">{t('This roster is unavailable for your current access.', '目前權限無法存取此課堂名單。')}</p>
       : result === 'error' ? <p role="alert">{t('Could not load the roster. Reload to retry.', '未能載入名單，請重新載入。')}</p>
       : result.items.length === 0 ? <p role="status">{t('No reserved places for this class.', '此課堂尚無預約。')}</p>
       : <>
@@ -94,7 +110,12 @@ export default function ClassRoster({ classId, csrfToken, expired, t }: Protecte
         <ul className="link-list roster-list">{result.items.map(entry => <li key={entry.bookingId}>
           <div><strong>{entry.studentName}</strong><span className="muted">{entry.level}</span></div>
           <div className="roster-actions">
-            <span className="tag">{entry.attendance ? t('Present', '已出席') : t('Reserved', '已預約')}</span>
+            {entry.attendance ? <span className="tag" tabIndex={-1} ref={status => {
+              if (status && focusRecordedBooking.current === entry.bookingId) {
+                focusRecordedBooking.current = null;
+                status.focus();
+              }
+            }}>{t('Present', '已出席')}</span> : <span className="tag">{t('Reserved', '已預約')}</span>}
             {!entry.attendance && <button
               className="outline" disabled={!isOpen || saving} aria-expanded={reviewing?.bookingId === entry.bookingId} aria-label={t(`Mark present ${entry.studentName}`, `標記 ${entry.studentName} 出席`)}
               onClick={event => {
@@ -108,7 +129,7 @@ export default function ClassRoster({ classId, csrfToken, expired, t }: Protecte
             {reviewing?.bookingId === entry.bookingId && <div>
               <p>{t(`Mark ${entry.studentName} present and use one reserved lesson credit?`, `標記 ${entry.studentName} 出席並使用一個預留的課堂點數？`)}</p>
               <div className="form-actions">
-                <button disabled={saving} onClick={() => void markPresent(entry)}>{t('Confirm present', '確認出席')}</button>
+                <button ref={confirmButton} aria-disabled={saving} onClick={() => void markPresent(entry)}>{t('Confirm present', '確認出席')}</button>
                 <button className="outline" disabled={saving} onClick={() => {
                   setReviewing(null);
                   setFailure('');
