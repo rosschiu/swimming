@@ -75,6 +75,11 @@ test('guardian and coach land on a phone home with the next lesson, credits and 
   }
   await page.goto(`/students/${swimmer.id}`);
   await expect(page.getByRole('heading', { name: swimmer.name })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Lessons' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('region', { name: 'Booked lessons' })).toBeVisible();
+  await page.getByRole('tab', { name: 'Credits' }).click();
+  await expect(page.getByRole('heading', { name: 'Credit history' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Booked lessons' })).toBeHidden();
   await expectNoSidewaysScroll(page);
   await tabs(page).getByRole('button', { name: 'More' }).click();
   await page.getByRole('dialog', { name: 'More' }).getByRole('link', { name: 'Schedule' }).click();
