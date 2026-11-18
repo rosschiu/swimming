@@ -16,7 +16,7 @@ Synthetic accounts: `admin@swim.test`, `parent@swim.test`, `coach@swim.test`, `s
 ## Checks
 
 - `npm run contracts:check` regenerates frontend types and fails on tracked drift.
-- In `services/api`: `go vet ./...` and `go test -race ./...` with DATABASE_URL pointing to a dedicated development/test PostgreSQL.
+- In `services/api`: `go vet ./...` and `go test -race -timeout 25m ./...` with DATABASE_URL pointing to a dedicated development/test PostgreSQL. The race suite takes around ten minutes, beyond Go's default test timeout.
 - `npm test --prefix apps/web -- --run` and `npm run build --prefix apps/web`.
 - `npx playwright install chromium`, then `npm run test:e2e` with DATABASE_URL exported. Playwright starts its own API/web servers and fails if the test ports are already occupied and uses real PostgreSQL records.
 - Browser failures retain screenshots and traces in ignored `test-results/` and `playwright-report/`; CI uploads them.
