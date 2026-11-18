@@ -1,3 +1,4 @@
+import { attendanceSummary } from './attendanceLabels';
 import { useCallback, useEffect, useState, type MouseEvent } from 'react';
 import { APIError } from './api';
 import type { components } from './generated/api';
@@ -38,7 +39,7 @@ export default function BookingDetail({ studentId, bookingId, expired, t, follow
         <p>{classLabel(result.class)}</p>
         <p className="muted">{t('Times shown in Hong Kong time.', '時間以香港時間顯示。')}</p>
         <p>{t('Booking status', '預約狀態')} <span className="tag">{t('Reserved', '已預約')}</span></p>
-        <p>{t('Attendance', '出席記錄')} <span className="tag">{result.attendance ? t('Present', '已出席') : t('Unmarked', '尚未記錄')}</span></p>
+        <p>{t('Attendance', '出席記錄')} <span className="tag">{attendanceSummary(result.attendance, t)}</span></p>
         <a className="text-button" href={routePath(profile)} onClick={event => follow(event, profile)}>{t('Open student profile', '開啟學員資料')}</a>
       </>}
   </section>;

@@ -81,11 +81,11 @@ func (a *API) createBooking(w http.ResponseWriter, r *http.Request, s Session) {
 	}{booking.StudentID, in})
 	var existingClass string
 	var same bool
-	var markedAt *time.Time
-	err := tx.QueryRow(ctx, `SELECT b.id,b.class_id,b.status,b.created_at,b.request=$3::jsonb,ba.marked_at FROM bookings b
+	var attendance attendanceScan
+	err := tx.QueryRow(ctx, `SELECT b.id,b.class_id,b.status,b.created_at,b.request=$3::jsonb,`+attendanceColumns+` FROM bookings b
         LEFT JOIN booking_attendance ba ON ba.booking_id=b.id
         WHERE b.actor_id=$1 AND b.idempotency_key=$2 AND b.enrolment_id IS NULL`,
-		s.User.ID, in.IdempotencyKey, canonical).Scan(&booking.ID, &existingClass, &booking.Status, &booking.CreatedAt, &same, &markedAt)
+		s.User.ID, in.IdempotencyKey, canonical).Scan(append([]any{&booking.ID, &existingClass, &booking.Status, &booking.CreatedAt, &same}, attendance.fields()...)...)
 	if err == nil {
 		if !same {
 			fail(w, 409, "conflict", "Request key already used with different booking details")
@@ -96,7 +96,7 @@ func (a *API) createBooking(w http.ResponseWriter, r *http.Request, s Session) {
 			internal(w, err)
 			return
 		}
-		booking.Attendance = presentAttendance(markedAt)
+		booking.Attendance = attendance.value()
 		financeCommit(w, r, tx, 200, booking)
 		return
 	}

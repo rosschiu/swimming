@@ -14,8 +14,10 @@ func TestMigrateSchoolSettingsUpgrade(t *testing.T) {
 	}{
 		{
 			name: "from fixed enrolment and school settings without attendance",
-			setup: `DROP TABLE booking_attendance;
-				DELETE FROM schema_migrations WHERE version = 15;
+			// Migration 25 builds on the attendance table, so a database from before 15 has neither.
+			setup: `DROP TABLE attendance_corrections;
+				DROP TABLE booking_attendance;
+				DELETE FROM schema_migrations WHERE version IN (15, 25);
 				UPDATE booking_validity_settings SET validity_rule = 'lesson_start', version = 2`,
 			cutoff: 24,
 			rule:   "lesson_start",

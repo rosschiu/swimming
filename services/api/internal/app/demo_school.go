@@ -226,8 +226,8 @@ func seedDemoSwimmer(ctx context.Context, tx pgx.Tx, a *API, swimmer demoSwimmer
 				VALUES($1,$2,$1,0,-1,1,0,$3,'Class attendance',$4)`, movement, packageID, swimmer.coach, markedAt); err != nil {
 				return err
 			}
-			if _, err = tx.Exec(ctx, `INSERT INTO booking_attendance(booking_id,status,actor_id,marked_at,movement_id)
-				VALUES($1,'present',$2,$3,$4)`, bookingID, swimmer.coach, markedAt, movement); err != nil {
+			if _, err = tx.Exec(ctx, `INSERT INTO booking_attendance(booking_id,status,actor_id,marked_at,movement_id,credit_outcome)
+				VALUES($1,'present',$2,$3,$4,'consumed')`, bookingID, swimmer.coach, markedAt, movement); err != nil {
 				return err
 			}
 		}

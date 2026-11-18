@@ -33,7 +33,7 @@ function errorMessage(error: unknown, t: Translate, fallback: string, deciding =
 }
 
 function statusLabel(status: LessonChange['status'], t: Translate) {
-  return { pending: t('Pending', '待處理'), approved: t('Approved', '已批准'), rejected: t('Rejected', '已拒絕'), withdrawn: t('Withdrawn', '已撤回') }[status];
+  return { pending: t('Pending', '待處理'), approved: t('Approved', '已批准'), rejected: t('Rejected', '已拒絕'), withdrawn: t('Withdrawn', '已撤回'), closed: t('Closed', '已結束') }[status];
 }
 
 function Timestamp({ value }: { value: string }) {
