@@ -9,6 +9,7 @@ type Props = Pick<ProtectedProps, 'expired' | 't'> & {
 };
 
 const purchases: Route = { view: 'packages' };
+const lessonChanges: Route = { view: 'lesson-changes', lessonChangeStatus: 'pending' };
 const deliveries: Route = { view: 'deliveries', deliveryStatus: 'failed' };
 
 export default function AdminActionQueue({ expired, t, follow }: Props) {
@@ -32,13 +33,15 @@ export default function AdminActionQueue({ expired, t, follow }: Props) {
         <p role="alert">{t('Could not load the action queue.', '未能載入待辦事項。')}</p>
         <button className="outline" onClick={() => void load()}>{t('Retry action queue', '重試載入待辦事項')}</button>
       </> : <>
-        {summary.purchasesAwaitingExpiry === 0 && summary.failedEmailDeliveries === 0 &&
+        {summary.purchasesAwaitingExpiry === 0 && summary.failedEmailDeliveries === 0 && summary.pendingLessonChanges === 0 &&
           <p>{t('No items need attention.', '目前沒有待處理事項。')}</p>}
         <ul className="link-list">
           <li><a aria-describedby="action-queue-purchases" href={routePath(purchases)} onClick={event => follow(event, purchases)}>{t('Purchases awaiting expiry', '待設定到期日的購買')}</a>
             <strong id="action-queue-purchases">{summary.purchasesAwaitingExpiry}</strong></li>
           <li><a aria-describedby="action-queue-deliveries" href={routePath(deliveries)} onClick={event => follow(event, deliveries)}>{t('Failed email deliveries', '電郵寄送失敗')}</a>
             <strong id="action-queue-deliveries">{summary.failedEmailDeliveries}</strong></li>
+          <li><a aria-describedby="action-queue-lesson-changes" href={routePath(lessonChanges)} onClick={event => follow(event, lessonChanges)}>{t('Pending lesson change requests', '待處理的調課申請')}</a>
+            <strong id="action-queue-lesson-changes">{summary.pendingLessonChanges}</strong></li>
         </ul>
       </>}
   </section>;

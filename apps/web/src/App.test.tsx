@@ -11,7 +11,7 @@ function mockAPI(role: 'parent' | 'coach' | 'student' | 'admin', saveStatus = 20
     if (path.endsWith('/auth/me')) return response({ user: { id: role, name: 'Alex', role }, csrfToken: 'csrf-value' });
     if (path.endsWith('/auth/logout')) return response(null, 204);
     if (options?.method === 'POST' || options?.method === 'PATCH') return response(saveStatus === 200 ? amy : { error: { code: 'error', message: 'Error' } }, saveStatus);
-    if (path.endsWith('/admin/action-queue')) return response({ purchasesAwaitingExpiry: 0, failedEmailDeliveries: 0 });
+    if (path.endsWith('/admin/action-queue')) return response({ purchasesAwaitingExpiry: 0, failedEmailDeliveries: 0, pendingLessonChanges: 0 });
     if (path.endsWith('/students/amy')) return response(amy);
     if (path.endsWith('/students')) return response({ items: [amy] });
     throw new Error(`Unexpected request ${path}`);

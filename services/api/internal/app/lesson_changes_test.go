@@ -241,6 +241,11 @@ func TestIntegrationLessonChangeApproval(t *testing.T) {
 	w = request(t, h, "POST", standalonePath, changeBody(target, "new-pending"), other)
 	expectStatus(t, w, 201)
 	pending := decodeBody[LessonChange](t, w)
+	queue := request(t, h, "GET", "/api/v1/admin/action-queue", nil, f.admin)
+	expectStatus(t, queue, 200)
+	if got := decodeBody[AdminActionQueue](t, queue).PendingLessonChanges; got != 1 {
+		t.Fatalf("expected one pending change among decided requests, got %d", got)
+	}
 	exec("UPDATE lesson_change_requests SET requested_at='2029-01-01' WHERE id=$1", pending.ID)
 	if latest := listPage(coach, ""); len(latest.Items) != 1 || latest.Items[0].ID == pending.ID {
 		t.Fatalf("expected an older pending change beneath the first history page: %+v", latest)

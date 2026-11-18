@@ -5475,10 +5475,15 @@
         "type": "object",
         "required": [
           "purchasesAwaitingExpiry",
-          "failedEmailDeliveries"
+          "failedEmailDeliveries",
+          "pendingLessonChanges"
         ],
         "properties": {
           "purchasesAwaitingExpiry": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "pendingLessonChanges": {
             "type": "integer",
             "minimum": 0
           },

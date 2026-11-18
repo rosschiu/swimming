@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type MouseEvent } from 'react';
 import { APIError } from './api';
 import type { components } from './generated/api';
+import { routePath, type Route } from './navigation';
 import { classLabel, hkDate, hkTime, rangeEnd } from './scheduling';
 import { isAborted, useProtectedRequest, type ProtectedProps, type Translate } from './useProtectedRequest';
 
@@ -38,13 +39,19 @@ function Timestamp({ value }: { value: string }) {
   return <time dateTime={value}>{hkDate(new Date(value))} {hkTime(value)}</time>;
 }
 
-export default function LessonChanges(props: ProtectedProps & { role: 'parent' | 'coach' | 'admin' }) {
+const changeHistory: Route = { view: 'lesson-changes' };
+
+export default function LessonChanges(props: ProtectedProps & {
+  role: 'parent' | 'coach' | 'admin';
+  initialPending?: boolean;
+  follow: (event: MouseEvent<HTMLAnchorElement>, next: Route) => void;
+}) {
   const { expired, t, role } = props;
   const api = useProtectedRequest(expired);
   const [result, setResult] = useState<ChangeList>();
   const [failed, setFailed] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [pendingOnly, setPendingOnly] = useState(role === 'coach');
+  const [pendingOnly, setPendingOnly] = useState(props.initialPending || role === 'coach');
   const [decision, setDecision] = useState<Decision['decision']>();
 
   const load = useCallback(async (cursor?: string) => {
@@ -83,12 +90,13 @@ export default function LessonChanges(props: ProtectedProps & { role: 'parent' |
   return <section className="panel">
     <h1>{role === 'admin' ? t('Lesson change history', '調課記錄') : t('Lesson changes', '調課申請')}</h1>
     <p className="muted">{t('Dates and times are shown in Hong Kong time.', '日期及時間以香港時間顯示。')}</p>
+    {role !== 'coach' && pendingOnly && <a className="text-button" href={routePath(changeHistory)} onClick={event => props.follow(event, changeHistory)}>{t('View all lesson changes', '查看所有調課申請')}</a>}
     {role === 'coach' && <label className="checkbox-label"><input type="checkbox" checked={pendingOnly} disabled={loading} onChange={event => setPendingOnly(event.target.checked)}/> {t('Show pending requests only', '只顯示待處理申請')}</label>}
     <button type="button" className="outline" disabled={loading} onClick={() => void load()}>{t('Refresh requests', '重新載入申請')}</button>
     {decision && <p role="status">{decision === 'approved' ? t('Lesson change approved.', '已批准調課申請。') : t('Lesson change rejected.', '已拒絕調課申請。')}</p>}
     {failed && <p role="alert">{t('Could not load lesson changes.', '未能載入調課申請。')}</p>}
     {loading && <p role="status">{t('Loading lesson changes…', '正在載入調課申請…')}</p>}
-    {result && (result.items.length === 0 ? <p role="status">{t('No lesson change requests for this view.', '此檢視沒有調課申請。')}</p>
+    {result && (result.items.length === 0 ? <p role="status">{pendingOnly ? t('No pending lesson change requests.', '沒有待處理的調課申請。') : t('No lesson change requests for this view.', '此檢視沒有調課申請。')}</p>
       : <ul className="link-list">{result.items.map(item => <li key={item.id}>
         <div>
           <strong>{item.studentName}</strong> <span className="tag">{statusLabel(item.status, t)}</span>

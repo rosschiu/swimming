@@ -24,7 +24,7 @@ func TestIntegrationAdminActionQueueCountsAndAccess(t *testing.T) {
 		t.Helper()
 		w := request(t, h, "GET", path, nil, admin)
 		expectStatus(t, w, 200)
-		if want, got := (AdminActionQueue{purchases, deliveries}), decodeBody[AdminActionQueue](t, w); got != want {
+		if want, got := (AdminActionQueue{PurchasesAwaitingExpiry: purchases, FailedEmailDeliveries: deliveries}), decodeBody[AdminActionQueue](t, w); got != want {
 			t.Fatalf("incorrect action counts: got %+v, want %+v", got, want)
 		}
 	}
