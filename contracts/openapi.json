@@ -4746,7 +4746,8 @@
           {
             "sessionCookie": []
           }
-        ]
+        ],
+        "description": "Administrator only. Sets an individual expiry on a purchase awaiting expiry, or on a purchase with default validity before any payment attempt; the entered date replaces the default."
       }
     },
     "/api/v1/purchases/{id}/payment-attempts": {
@@ -8140,6 +8141,13 @@
             ],
             "additionalProperties": false,
             "nullable": true
+          },
+          "validityDays": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 3650,
+            "nullable": true,
+            "description": "Days of validity applied at successful payment when expiry is enabled. Null keeps administrator-entered expiry before payment."
           }
         },
         "required": [
@@ -8217,6 +8225,13 @@
             "type": "integer",
             "minimum": 1,
             "maximum": 2147483647
+          },
+          "validityDays": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 3650,
+            "nullable": true,
+            "description": "Days of validity applied at successful payment when expiry is enabled. Null keeps administrator-entered expiry before payment."
           }
         },
         "required": [
@@ -8299,6 +8314,13 @@
             "type": "integer",
             "minimum": 1,
             "maximum": 2147483647
+          },
+          "validityDays": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 3650,
+            "nullable": true,
+            "description": "Days of validity applied at successful payment when expiry is enabled. Null keeps administrator-entered expiry before payment."
           }
         },
         "required": [
@@ -8309,7 +8331,8 @@
           "currency",
           "active",
           "policyOverride",
-          "version"
+          "version",
+          "validityDays"
         ],
         "additionalProperties": false
       },
@@ -8446,6 +8469,12 @@
             "minLength": 1,
             "maxLength": 100,
             "nullable": true
+          },
+          "validityDays": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 3650,
+            "description": "Snapshot of the offer's default validity when expiry applies; the expiry is set from the Hong Kong payment date."
           }
         },
         "required": [
@@ -8622,6 +8651,12 @@
           "createdAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "validityDays": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 3650,
+            "description": "Snapshot of the offer's default validity when expiry applies; the expiry is set from the Hong Kong payment date."
           }
         },
         "required": [

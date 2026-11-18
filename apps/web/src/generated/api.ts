@@ -1015,6 +1015,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /** @description Administrator only. Sets an individual expiry on a purchase awaiting expiry, or on a purchase with default validity before any payment attempt; the entered date replaces the default. */
         post: operations["assignPurchaseExpiry"];
         delete?: never;
         options?: never;
@@ -1858,6 +1859,8 @@ export interface components {
                 absenceRetainsCredit: boolean;
                 illnessRetainsCredit: boolean;
             } | null;
+            /** @description Days of validity applied at successful payment when expiry is enabled. Null keeps administrator-entered expiry before payment. */
+            validityDays?: number | null;
         };
         PackageOfferUpdate: {
             name: string;
@@ -1875,6 +1878,8 @@ export interface components {
                 illnessRetainsCredit: boolean;
             } | null;
             version: number;
+            /** @description Days of validity applied at successful payment when expiry is enabled. Null keeps administrator-entered expiry before payment. */
+            validityDays?: number | null;
         };
         PackageOffer: {
             id: string;
@@ -1893,6 +1898,8 @@ export interface components {
                 illnessRetainsCredit: boolean;
             } | null;
             version: number;
+            /** @description Days of validity applied at successful payment when expiry is enabled. Null keeps administrator-entered expiry before payment. */
+            validityDays: number | null;
         };
         PaymentAttempt: {
             id: string;
@@ -1928,6 +1935,8 @@ export interface components {
             createdAt: string;
             attempts: components["schemas"]["PaymentAttempt"][];
             receiptId: string | null;
+            /** @description Snapshot of the offer's default validity when expiry applies; the expiry is set from the Hong Kong payment date. */
+            validityDays?: number;
         };
         PurchaseInput: {
             offerId: string;
@@ -1966,6 +1975,8 @@ export interface components {
             simulated: true;
             /** Format: date-time */
             createdAt: string;
+            /** @description Snapshot of the offer's default validity when expiry applies; the expiry is set from the Hong Kong payment date. */
+            validityDays?: number;
         };
         CreditMovement: {
             id: string;

@@ -55,6 +55,8 @@ type PackageOffer struct {
 	Active         bool          `json:"active"`
 	Version        int           `json:"version"`
 	PolicyOverride *CreditPolicy `json:"policyOverride"`
+	// ValidityDays sets each purchase's expiry at successful payment; nil keeps administrator-entered expiry.
+	ValidityDays *int `json:"validityDays"`
 }
 type PurchaseTerms struct {
 	OfferID       string       `json:"offerId"`
@@ -65,6 +67,7 @@ type PurchaseTerms struct {
 	Currency      string       `json:"currency"`
 	Policy        CreditPolicy `json:"policy"`
 	PolicyVersion int          `json:"policyVersion"`
+	ValidityDays  *int         `json:"validityDays,omitempty"`
 }
 type PaymentAttempt struct {
 	ID         string    `json:"id"`
@@ -248,14 +251,14 @@ func (a *API) creditSettings(w http.ResponseWriter, r *http.Request, s Session) 
 func scanOffer(row pgx.Row) (PackageOffer, error) {
 	var x PackageOffer
 	var p []byte
-	err := row.Scan(&x.ID, &x.Name, &x.Credits, &x.PriceMinor, &x.Currency, &x.Active, &x.Version, &p)
+	err := row.Scan(&x.ID, &x.Name, &x.Credits, &x.PriceMinor, &x.Currency, &x.Active, &x.Version, &p, &x.ValidityDays)
 	if err == nil && p != nil {
 		err = json.Unmarshal(p, &x.PolicyOverride)
 	}
 	return x, err
 }
 
-const offerColumns = "id,name,credits,price_minor,currency,active,version,policy_override"
+const offerColumns = "id,name,credits,price_minor,currency,active,version,policy_override,validity_days"
 
 func (a *API) packageOffers(w http.ResponseWriter, r *http.Request, s Session) {
 	tx, ok := a.financeTx(w, r, s)
@@ -299,6 +302,7 @@ func (a *API) packageOffers(w http.ResponseWriter, r *http.Request, s Session) {
 		Active         *bool         `json:"active"`
 		Version        int           `json:"version"`
 		PolicyOverride *CreditPolicy `json:"policyOverride"`
+		ValidityDays   *int          `json:"validityDays"`
 	}
 	if !decode(w, r, &in) {
 		return
@@ -306,6 +310,10 @@ func (a *API) packageOffers(w http.ResponseWriter, r *http.Request, s Session) {
 	in.Name = strings.TrimSpace(in.Name)
 	if in.Active == nil || !validName(in.Name) || in.Credits < 1 || in.Credits > 10000 || in.PriceMinor < 1 || in.PriceMinor > 100000000 || in.Currency != "HKD" {
 		fail(w, 422, "validation_error", "Provide a name, 1–10000 credits and HKD price of 1–100000000 minor units")
+		return
+	}
+	if in.ValidityDays != nil && (*in.ValidityDays < 1 || *in.ValidityDays > 3650) {
+		fail(w, 422, "validation_error", "Default validity must be 1–3650 days")
 		return
 	}
 	id := r.PathValue("id")
@@ -318,11 +326,11 @@ func (a *API) packageOffers(w http.ResponseWriter, r *http.Request, s Session) {
 	if r.Method == "POST" {
 		id, err = RandomToken()
 		if err == nil {
-			_, err = tx.Exec(r.Context(), "INSERT INTO package_offers(id,name,credits,price_minor,currency,active,policy_override) VALUES($1,$2,$3,$4,$5,$6,$7)", id, in.Name, in.Credits, in.PriceMinor, in.Currency, in.Active, p)
+			_, err = tx.Exec(r.Context(), "INSERT INTO package_offers(id,name,credits,price_minor,currency,active,policy_override,validity_days) VALUES($1,$2,$3,$4,$5,$6,$7,$8)", id, in.Name, in.Credits, in.PriceMinor, in.Currency, in.Active, p, in.ValidityDays)
 		}
 		status = 201
 	} else {
-		tag, e := tx.Exec(r.Context(), "UPDATE package_offers SET name=$2,credits=$3,price_minor=$4,currency=$5,active=$6,policy_override=$7,version=version+1 WHERE id=$1 AND version=$8", id, in.Name, in.Credits, in.PriceMinor, in.Currency, in.Active, p, in.Version)
+		tag, e := tx.Exec(r.Context(), "UPDATE package_offers SET name=$2,credits=$3,price_minor=$4,currency=$5,active=$6,policy_override=$7,validity_days=$9,version=version+1 WHERE id=$1 AND version=$8", id, in.Name, in.Credits, in.PriceMinor, in.Currency, in.Active, p, in.Version, in.ValidityDays)
 		err = e
 		if err == nil && tag.RowsAffected() == 0 {
 			fail(w, 409, "conflict", "Offer changed or does not exist; reload")
@@ -463,11 +471,14 @@ func (a *API) createPurchase(w http.ResponseWriter, r *http.Request, s Session) 
 	if offer.PolicyOverride != nil {
 		policy = *offer.PolicyOverride
 	}
-	terms := PurchaseTerms{offer.ID, offer.Version, offer.Name, offer.Credits, offer.PriceMinor, offer.Currency, policy, version}
+	terms := PurchaseTerms{offer.ID, offer.Version, offer.Name, offer.Credits, offer.PriceMinor, offer.Currency, policy, version, nil}
+	if policy.ExpiryEnabled {
+		terms.ValidityDays = offer.ValidityDays
+	}
 	data, _ = json.Marshal(terms)
 	id, err := RandomToken()
 	status := "pending_payment"
-	if policy.ExpiryEnabled {
+	if policy.ExpiryEnabled && terms.ValidityDays == nil {
 		status = "awaiting_expiry"
 	}
 	if err == nil {
@@ -574,7 +585,9 @@ func (a *API) assignPurchaseExpiry(w http.ResponseWriter, r *http.Request, s Ses
 	if !ok {
 		return
 	}
-	if x.Version != in.Version || x.Status != "awaiting_expiry" {
+	// A purchase with default validity can receive an individual expiry until payment begins.
+	overridable := x.Status == "pending_payment" && x.ValidityDays != nil && x.ExpiresOn == nil && len(x.Attempts) == 0
+	if x.Version != in.Version || (x.Status != "awaiting_expiry" && !overridable) {
 		fail(w, 409, "conflict", "Purchase changed or expiry is already finalised")
 		return
 	}
@@ -739,6 +752,11 @@ func (a *API) fulfillPurchase(ctx context.Context, tx pgx.Tx, actorID string, x 
 		return err
 	}
 	now := a.now()
+	if x.Policy.ExpiryEnabled && x.ExpiresOn == nil && x.ValidityDays != nil {
+		paid := now.In(hongKong)
+		expiry := time.Date(paid.Year(), paid.Month(), paid.Day()+*x.ValidityDays, 0, 0, 0, 0, hongKong).Format("2006-01-02")
+		x.ExpiresOn = &expiry
+	}
 	policy, _ := json.Marshal(x.Policy)
 	if _, err = tx.Exec(ctx, "INSERT INTO credit_packages(id,purchase_id,student_id,credits,expires_on,policy,created_at) VALUES($1,$2,$3,$4,$5,$6,$7)", packageID, x.ID, x.StudentID, x.Credits, x.ExpiresOn, policy, now); err != nil {
 		return err
@@ -755,7 +773,7 @@ func (a *API) fulfillPurchase(ctx context.Context, tx pgx.Tx, actorID string, x 
 	if _, err = tx.Exec(ctx, "INSERT INTO receipts(id,purchase_id,snapshot,created_at) VALUES($1,$2,$3,$4)", receiptID, x.ID, data, now); err != nil {
 		return err
 	}
-	_, err = tx.Exec(ctx, "UPDATE purchases SET status='paid',version=version+1 WHERE id=$1", x.ID)
+	_, err = tx.Exec(ctx, "UPDATE purchases SET status='paid',expires_on=$2,version=version+1 WHERE id=$1", x.ID, x.ExpiresOn)
 	return err
 }
 func (a *API) getReceipt(w http.ResponseWriter, r *http.Request, s Session) {

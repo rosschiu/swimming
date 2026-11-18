@@ -75,3 +75,25 @@ it('assigns distinct accessible expiry inputs when a purchase appears in both ad
  mockApi(p=>p.includes('/purchases?')||p.endsWith('/students/amy/purchases')?response({items:[purchase]}):undefined);render(<Packages role="admin" {...props}/>);const user=userEvent.setup();await user.selectOptions(await screen.findByLabelText('Choose student for credit history'),'amy');
  await waitFor(()=>expect(screen.getAllByLabelText('Expiry date (Hong Kong)')).toHaveLength(2));const inputs=screen.getAllByLabelText('Expiry date (Hong Kong)');expect(inputs[0].id).not.toBe(inputs[1].id);
 });
+it('administrator saves a default validity in days and can clear it',async()=>{
+ const bodies:Record<string,unknown>[]=[];mockApi((p,o)=>{if(p.endsWith('/package-offers')&&o?.method==='POST'){bodies.push(JSON.parse(String(o.body)));return response({...offer,validityDays:90},201);}return undefined;});
+ render(<Packages role="admin" {...props}/>);const user=userEvent.setup();await user.click(await screen.findByRole('button',{name:'Add package offer'}));await user.type(screen.getByLabelText('Package name'),'Term');
+ const validity=screen.getByLabelText('Default validity (days from payment)');await user.type(validity,'0');await user.click(screen.getByRole('button',{name:'Save package offer'}));expect(validity).toBeInvalid();expect(bodies).toHaveLength(0);
+ await user.clear(validity);await user.type(validity,'90');await user.click(screen.getByRole('button',{name:'Save package offer'}));await waitFor(()=>expect(bodies).toHaveLength(1));expect(bodies[0].validityDays).toBe(90);
+ await user.click(screen.getByRole('button',{name:'Add package offer'}));await user.type(screen.getByLabelText('Package name'),'Open');await user.click(screen.getByRole('button',{name:'Save package offer'}));await waitFor(()=>expect(bodies).toHaveLength(2));expect(bodies[1].validityDays).toBeNull();
+});
+it('guardian sees default validity terms and can pay without waiting for an administrator',async()=>{
+ const pending={...purchase,status:'pending_payment' as const,validityDays:30};
+ mockApi(p=>p.endsWith('/package-offers')?response({items:[{...offer,validityDays:30}]}):p.endsWith('/students/amy/purchases')?response({items:[pending]}):undefined);
+ render(<Packages role="parent" {...props}/>);const user=await selectAmy();await user.selectOptions(screen.getByLabelText('Package offer'),'offer');
+ expect(screen.getByText('Credits are valid for 30 days from the payment date (Hong Kong).')).toBeVisible();
+ expect(await screen.findByText(/30 days from the payment date$/)).toBeVisible();expect(screen.getByRole('button',{name:'Start mock payment'})).toBeEnabled();
+});
+it('administrator can set an individual expiry on a default-validity purchase only before payment starts',async()=>{
+ const pending={...purchase,status:'pending_payment' as const,validityDays:30};let started=false;
+ mockApi(p=>/\/api\/v1\/purchases(\?|$)/.test(p)?response({items:[started?{...pending,attempts:[{id:'a',purchaseId:'purchase',status:'pending',createdAt:'2026-11-18T00:00:00Z'}]}:pending]}):undefined);
+ const view=render(<Packages role="admin" {...props}/>);const user=userEvent.setup();await user.selectOptions(await screen.findByLabelText('Purchase queue'),'');
+ expect(await screen.findByRole('button',{name:'Set individual expiry'})).toBeVisible();
+ view.unmount();started=true;render(<Packages role="admin" {...props}/>);await user.selectOptions(await screen.findByLabelText('Purchase queue'),'');
+ await screen.findByText(/30 days from the payment date$/);expect(screen.queryByRole('button',{name:'Set individual expiry'})).not.toBeInTheDocument();
+});
