@@ -456,6 +456,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/settings/lessons": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get lesson timing settings
+         * @description Administrator only.
+         */
+        get: operations["getLessonSettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update lesson timing settings
+         * @description Administrator only. Submit all timing settings with the version from the last read.
+         */
+        patch: operations["updateLessonSettings"];
+        trace?: never;
+    };
     "/api/v1/settings/scheduling": {
         parameters: {
             query?: never;
@@ -1171,6 +1195,25 @@ export interface components {
             endTime: string;
             capacity: number;
             sessions: components["schemas"]["ClassSession"][];
+        };
+        LessonSettings: {
+            /**
+             * Format: int32
+             * @example 24
+             */
+            parentChangeCutoffHours: number;
+            /**
+             * Format: int32
+             * @example 15
+             */
+            attendanceOpenMinutes: number;
+            /**
+             * Format: int32
+             * @example 3
+             */
+            correctionWindowDays: number;
+            /** Format: int32 */
+            version: number;
         };
         SchedulingSettings: {
             travelGapMinutes: number;
@@ -2884,6 +2927,79 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ClassSeries"];
+                };
+            };
+            /** @description Request failed */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getLessonSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LessonSettings"];
+                };
+            };
+            /** @description Request failed */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    updateLessonSettings: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-Token": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LessonSettings"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LessonSettings"];
+                };
+            };
+            /** @description The submitted version is stale */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
                 };
             };
             /** @description Request failed */
