@@ -1,11 +1,11 @@
 import type { MouseEvent } from 'react';
 import type { User } from './api';
 
-export type View = 'students' | 'accounts' | 'audit' | 'schedule' | 'setup' | 'availability' | 'notifications' | 'deliveries' | 'packages';
+export type View = 'students' | 'accounts' | 'audit' | 'schedule' | 'setup' | 'availability' | 'notifications' | 'deliveries' | 'packages' | 'lesson-changes';
 export const deliveryStatuses = ['pending', 'leased', 'sent', 'retry', 'failed', 'suppressed'] as const;
 export type DeliveryStatus = typeof deliveryStatuses[number];
 export type Route = { view: View; studentId?: string; deliveryStatus?: DeliveryStatus } | { view: 'unavailable' };
-const paths: Record<View, string> = { students: '/students', accounts: '/accounts', audit: '/audit', schedule: '/schedule', setup: '/setup', availability: '/availability', notifications: '/notifications', deliveries: '/notification-deliveries', packages: '/packages' };
+const paths: Record<View, string> = { students: '/students', accounts: '/accounts', audit: '/audit', schedule: '/schedule', setup: '/setup', availability: '/availability', notifications: '/notifications', deliveries: '/notification-deliveries', packages: '/packages', 'lesson-changes': '/lesson-changes' };
 
 export function parseRoute(path: string, search = ''): Route {
   if (path === paths.deliveries) {
@@ -32,6 +32,7 @@ export function routePath(route: Route): string {
 export function canView(route: Route, role: User['role']): boolean {
   switch (route.view) {
     case 'students': case 'schedule': return true;
+    case 'lesson-changes': return role === 'admin' || role === 'coach' || role === 'parent';
     case 'packages': return role === 'admin' || role === 'parent';
     case 'notifications': return role === 'parent' || role === 'student';
     case 'availability': return role === 'admin' || role === 'coach';
