@@ -34,7 +34,7 @@ test('attendance cancel and retry preserve a keyboard path through the remaining
   await page.route(attendancePath, route => {
     writes.push(route.request().url().split('/').at(-2)!);
     return writes.length === 1
-      ? route.fulfill({ status: 409, json: { code: 'credit_unavailable', message: 'Reserved credit unavailable' } })
+      ? route.fulfill({ status: 409, json: { error: { code: 'credit_unavailable', message: 'Reserved credit unavailable' } } })
       : route.fulfill({ json: attendance });
   });
   const amy = button('Mark present Amy');
@@ -45,7 +45,7 @@ test('attendance cancel and retry preserve a keyboard path through the remaining
   expect(writes).toEqual([]);
   await enter(page, amy);
   await enter(page, confirm);
-  await expect(roster.getByRole('alert')).toBeVisible();
+  await expect(roster.getByRole('alert')).toContainText('reserved lesson credit is unavailable');
   await expect(confirm).toBeFocused();
   await page.keyboard.press('Enter');
   const badge = (name: string) => roster.getByRole('listitem').filter({ has: page.getByText(name, { exact: true }) }).getByText('Present', { exact: true });
@@ -65,7 +65,9 @@ test('an attendance response preserves focus when the coach moves outside the ro
   const { roster, button, attendancePath } = await openRoster(page);
   let finish!: () => void;
   const gate = new Promise<void>(resolve => { finish = resolve; });
+  let writes = 0;
   await page.route(attendancePath, async route => {
+    writes++;
     await gate;
     await route.fulfill({ json: attendance });
   });
@@ -73,9 +75,32 @@ test('an attendance response preserves focus when the coach moves outside the ro
   const sent = page.waitForRequest(req => req.url().endsWith('/Amy/attendance') && req.method() === 'PUT');
   await enter(page, button('Confirm present'));
   await sent;
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('Enter');
   const outside = page.getByRole('link', { name: 'Schedule', exact: true });
   await outside.focus();
   finish();
   await expect(roster.getByText('Attendance recorded for Amy.')).toBeVisible();
   await expect(outside).toBeFocused();
+  expect(writes).toBe(1);
 });
+
+for (const [status, code, message] of [
+  [409, 'attendance_not_open', 'Attendance has yet to open.'],
+  [403, 'forbidden', '目前權限無法存取此課堂名單。'],
+] as const) {
+  test('attendance keyboard focus reaches the terminal alert for ' + code, async ({ page }) => {
+    const { button, attendancePath } = await openRoster(page);
+    await page.route(attendancePath, route => route.fulfill({ status, json: { error: { code, message } } }));
+    await enter(page, button('Mark present Amy'));
+    if (code === 'forbidden') {
+      await page.getByRole('button', { name: '繁體中文' }).click();
+    }
+    const confirm = page.getByRole('button', { name: code === 'forbidden' ? '確認出席' : 'Confirm present' });
+    await enter(page, confirm);
+    const alert = page.getByRole('alert');
+    await expect(alert).toContainText(message);
+    await expect(alert).toBeFocused();
+    await expect(confirm).toHaveCount(0);
+  });
+}
