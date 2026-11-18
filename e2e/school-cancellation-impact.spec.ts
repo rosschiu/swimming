@@ -121,6 +121,8 @@ test('administrator reviews both ends of a pending move without changing either 
     const after = await (await page.request.get('/api/v1/students/amy/credits')).json();
     expect(after.items.find((item: { id: string }) => item.id === pack.id)).toMatchObject({ available: 1, reserved: 1, consumed: 0 });
 
+    await buttons.nth(1).click();
+    await expect(panel).toHaveCount(0);
     // Set the date only for this fixture, then use the normal attendance endpoint.
     const past = execFileSync('psql', [process.env.DATABASE_URL!, '-XqtA', '-v', 'ON_ERROR_STOP=1', '-v', 'id=' + target.id], {
       input: "UPDATE class_sessions SET starts_at=now()-interval '2 days', ends_at=now()-interval '47 hours' WHERE id=:'id' RETURNING (starts_at AT TIME ZONE 'Asia/Hong_Kong')::date;", encoding: 'utf8',
@@ -131,6 +133,7 @@ test('administrator reviews both ends of a pending move without changing either 
     await page.getByLabel('To date', { exact: true }).fill(past);
     await page.getByLabel('Filter venue').selectOption(venue.id);
     await page.getByRole('button', { name: 'Apply filters' }).click();
+    await expect(page.getByRole('status').filter({ hasText: 'Loaded dates: ' + past })).toBeVisible();
     const historical = page.waitForResponse(response => new URL(response.url()).pathname === readPath(target.id));
     await buttons.first().click();
     const impact = await (await historical).json();
