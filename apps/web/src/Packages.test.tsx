@@ -97,3 +97,8 @@ it('administrator can set an individual expiry on a default-validity purchase on
  view.unmount();started=true;render(<Packages role="admin" {...props}/>);await user.selectOptions(await screen.findByLabelText('Purchase queue'),'');
  await screen.findByText(/30 days from the payment date$/);expect(screen.queryByRole('button',{name:'Set individual expiry'})).not.toBeInTheDocument();
 });
+it('opens checkout for a guardian’s only linked child without asking',async()=>{
+ mockApi(p=>p.endsWith('/students')?response({items:[{id:'amy',name:'Amy',level:'Beginner',version:1}]}):undefined);
+ render(<Packages role="parent" {...props}/>);
+ await waitFor(()=>expect(screen.getByLabelText('Choose child')).toHaveValue('amy'));expect(await screen.findByRole('heading',{name:'Purchase history'})).toBeVisible();
+});
