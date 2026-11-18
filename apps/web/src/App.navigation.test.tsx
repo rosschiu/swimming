@@ -363,7 +363,7 @@ it.each([
   expect(await screen.findByRole('heading', { name: amy.name })).toBeVisible();
   expect(await screen.findByText(/Confirmation lesson/)).toBeVisible();
   expect(mock).toHaveBeenCalledWith('/api/v1/students/amy/bookings/booking', expect.anything());
-  expect(mock.mock.calls.some(([path]) => path.includes('/credit') || path.includes('/purchases'))).toBe(false);
+  expect(mock.mock.calls.some(([path]) => /\/(credit|purchases)/.test(String(path)))).toBe(false);
 });
 
 it('drops the previous booking response after navigating to a different student and booking', async () => {
