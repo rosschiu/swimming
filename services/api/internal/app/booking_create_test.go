@@ -70,6 +70,14 @@ func TestBookingCreditHongKongExpiry(t *testing.T) {
 	if bookingCreditCovers(bookingValidityLessonEnd, ClassSession{ClassInput: ClassInput{EndsAt: midnight}}, &expiry, midnight) {
 		t.Fatal("credits must already be in date when reserved")
 	}
+	late := ClassSession{ClassInput: ClassInput{StartsAt: midnight.Add(-time.Minute), EndsAt: midnight.Add(time.Minute)}}
+	if !bookingCreditCovers(bookingValidityLessonStart, late, &expiry, now) {
+		t.Fatal("lesson start rule should cover a lesson starting before and ending after midnight")
+	}
+	late.StartsAt = midnight
+	if bookingCreditCovers(bookingValidityLessonStart, late, &expiry, now) {
+		t.Fatal("lesson starting at midnight requires validity on the next Hong Kong date")
+	}
 }
 
 func TestIntegrationBookingCreateChecksAndReplay(t *testing.T) {
@@ -410,5 +418,89 @@ func TestIntegrationBookingRechecksConcurrentEdits(t *testing.T) {
 	booking := decodeBody[StudentBooking](t, w)
 	if !booking.Class.StartsAt.Equal(class.StartsAt.Add(time.Hour)) {
 		t.Fatalf("retry did not book the edited class: %v", booking.Class.StartsAt)
+	}
+}
+
+func TestIntegrationSchoolBookingValidity(t *testing.T) {
+	db := testDB(t)
+	h := testHandler(db)
+	f := prepareScheduling(t, h)
+	parent := login(t, h, "parent@swim.test")
+	coach := login(t, h, "coach@swim.test")
+	student := login(t, h, "student@swim.test")
+	const settingsPath = "/api/v1/settings/booking-validity"
+	const bookingPath = "/api/v1/students/amy/bookings"
+	const historyPath = "/api/v1/students/amy/credit-history"
+	readSettings := func(path string, auth authState) BookingValiditySettings {
+		t.Helper()
+		w := request(t, h, "GET", path, nil, auth)
+		expectStatus(t, w, 200)
+		if path == historyPath {
+			return decodeBody[struct {
+				BookingValidity BookingValiditySettings `json:"bookingValidity"`
+			}](t, w).BookingValidity
+		}
+		return decodeBody[BookingValiditySettings](t, w)
+	}
+	initial := readSettings(settingsPath, f.admin)
+	if initial != (BookingValiditySettings{bookingValidityLessonEnd, 1}) || readSettings(historyPath, parent) != initial {
+		t.Fatal("default validity must cover lesson end and be reflected in booking options")
+	}
+	startRule := BookingValiditySettings{bookingValidityLessonStart, 1}
+	for _, state := range []authState{parent, coach, student} {
+		expectStatus(t, request(t, h, "GET", settingsPath, nil, state), 403)
+		expectStatus(t, request(t, h, "PATCH", settingsPath, startRule, state), 403)
+	}
+	expectBookingError(t, request(t, h, "PATCH", settingsPath, BookingValiditySettings{"unknown", 1}, f.admin), 422, "validation_error")
+
+	first := createBookingClass(t, f, "2030-01-07", "10:00", "11:00", 2)
+	input := f.input(f.venue.ID, "2030-01-07", "23:30", "00:30")
+	input.EndsAt = input.EndsAt.AddDate(0, 0, 1)
+	w := request(t, h, "POST", "/api/v1/classes", input, f.admin)
+	expectStatus(t, w, 201)
+	late := decodeBody[ClassSession](t, w)
+
+	expiry := "2030-01-07"
+	seedBookingCredit(t, db, "validity-pack", "amy", "parent", 2, &expiry)
+	firstBooking := bookingBody(first, "validity-pack", "before-validity-change")
+	firstBooking.BookingValidityVersion = &initial.Version
+	w = request(t, h, "POST", bookingPath, firstBooking, parent)
+	expectStatus(t, w, 201)
+	firstID := decodeBody[StudentBooking](t, w).ID
+	lateBooking := bookingBody(late, "validity-pack", "after-validity-change")
+	lateBooking.BookingValidityVersion = &initial.Version
+	expectBookingError(t, request(t, h, "POST", bookingPath, lateBooking, parent), 409, "credit_unavailable")
+
+	w = request(t, h, "PATCH", settingsPath, startRule, f.admin)
+	expectStatus(t, w, 200)
+	current := decodeBody[BookingValiditySettings](t, w)
+	if current != (BookingValiditySettings{bookingValidityLessonStart, 2}) || readSettings(historyPath, parent) != current {
+		t.Fatal("options must use the updated validity rule")
+	}
+	expectBookingError(t, request(t, h, "PATCH", settingsPath, startRule, f.admin), 409, "version_conflict")
+	expectBookingError(t, request(t, h, "POST", bookingPath, lateBooking, parent), 409, "booking_validity_changed")
+	expectStatus(t, request(t, h, "POST", bookingPath, firstBooking, parent), 200)
+
+	lateBooking.BookingValidityVersion = &current.Version
+	w = request(t, h, "POST", bookingPath, lateBooking, parent)
+	expectStatus(t, w, 201)
+	lateID := decodeBody[StudentBooking](t, w).ID
+
+	ctx := context.Background()
+	var before, after, actor string
+	err := db.QueryRow(ctx, "SELECT b.validity_rule,a.validity_rule FROM bookings b, bookings a WHERE b.id=$1 AND a.id=$2", firstID, lateID).Scan(&before, &after)
+	if err != nil || before != bookingValidityLessonEnd || after != bookingValidityLessonStart {
+		t.Fatal("booking validity snapshots", before, after, err)
+	}
+	err = db.QueryRow(ctx, "SELECT actor_id,details->'before'->>'validityRule',details->'after'->>'validityRule' FROM audit_events WHERE action='booking.validity_settings.updated'").Scan(&actor, &before, &after)
+	if err != nil || actor != "admin" || before != bookingValidityLessonEnd || after != bookingValidityLessonStart {
+		t.Fatal("setting change audit", actor, before, after, err)
+	}
+	if _, err = db.Exec(ctx, "ALTER TABLE audit_events ADD CONSTRAINT reject_validity_audit CHECK (action <> 'booking.validity_settings.updated') NOT VALID"); err != nil {
+		t.Fatal(err)
+	}
+	expectStatus(t, request(t, h, "PATCH", settingsPath, BookingValiditySettings{bookingValidityLessonEnd, current.Version}, f.admin), 500)
+	if readSettings(settingsPath, f.admin) != current {
+		t.Fatal("setting changed despite failed audit")
 	}
 }
