@@ -22,7 +22,8 @@ function api(role: Role, override?: Override) {
   if (path.endsWith('/students')) return response({ items: [amy, ben] });
   if (path.endsWith('/settings/credits')) return response({ policy: {expiryEnabled:true,carryForwardEnabled:true,earlyCancellationRetainsCredit:true,lateCancellationRetainsCredit:true,absenceRetainsCredit:true,illnessRetainsCredit:true}, version:1 });
   if (path.endsWith('/settings/scheduling')) return response({ travelGapMinutes: 30, version: 1 });
-  if (path.endsWith('/settings/availability')) return response({ lockHours: 24, version: 1 });
+  if (path.endsWith('/settings/lessons')) return response({ parentChangeCutoffHours: 24, attendanceOpenMinutes: 15, correctionWindowDays: 3, version: 1 });
+ if (path.endsWith('/settings/availability')) return response({ lockHours: 24, version: 1 });
   if (path.endsWith('/notification-preferences')) return response({ emailEnabled: false, emailAddress: 'parent@swim.test', emailDeliveryAvailable: false });
   return response({ items: [], nextCursor: null, unreadCount: 0 });
  }); vi.stubGlobal('fetch', mock); return mock;
@@ -43,7 +44,9 @@ const routes: [string, Role[], (role: Role) => string][] = [
 for (const [path, roles, heading] of routes) for (const role of roles) {
  it(`${role} restores ${path} on direct entry, remount, and sign-in`, async () => {
   at(path); api(role); let app = render(<App />);
-  await screen.findByRole('heading', { name: heading(role) }); app.unmount();
+  await screen.findByRole('heading', { name: heading(role) });
+  if (path === '/setup') expect(await screen.findByLabelText('Parent change cutoff (hours)')).toHaveValue(24);
+  app.unmount();
   app = render(<App />); await screen.findByRole('heading', { name: heading(role) }); app.unmount();
   api(role, p => p.endsWith('/auth/me') ? response({}, 401) : undefined); render(<App />); const user = userEvent.setup();
   await user.type(await screen.findByLabelText('Email'), `${role}@swim.test`); await user.type(screen.getByLabelText('Password'), 'password'); await user.click(screen.getByRole('button', { name: 'Sign in' }));
