@@ -17,3 +17,13 @@ export function classLabel(value: ClassSession) {
   const end = day === endDay ? hkTime(value.endsAt) : `${endDay} ${hkTime(value.endsAt)}`;
   return `${day} ${hkTime(value.startsAt)}–${end} · ${value.classTypeName} · ${value.venueName} · ${value.coachName}`;
 }
+
+export function bookingCreditCovers(expiresOn: string | null, lesson: ClassSession, rule: "lesson_start" | "lesson_end") {
+  if (!expiresOn) return true;
+  const cutoff = Date.parse(`${expiresOn}T00:00:00+08:00`) + 86_400_000;
+  if (Date.now() >= cutoff) return false;
+  if (rule === 'lesson_start') return Date.parse(lesson.startsAt) < cutoff;
+  const end = Date.parse(lesson.endsAt);
+  // Date.parse truncates precision below a millisecond.
+  return end < cutoff || (end === cutoff && !/\.\d{3}\d*[1-9]\d*(?:Z|[+-])/.test(lesson.endsAt));
+}

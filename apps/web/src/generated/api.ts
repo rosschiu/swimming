@@ -143,10 +143,28 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /** @description Administrators and current guardians may list fixed enrolments and the current school policies for a student. */
+        get: operations["listStudentEnrolments"];
+        put?: never;
+        /** @description Administrators and current guardians may reserve selected future lessons from one weekly class series with one credit per lesson from the selected paid package. The default allocation is all-or-none. The alternative policy can return partial_enrolment_confirmation_required with error.details.availableSessionIds and error.details.settingsVersion. Confirm the exact proposed subset explicitly via partialConfirmation. Only administrators can override level mismatches with a reason. A stale bookingValidityVersion returns booking_validity_changed for new requests. Identical retries return the existing enrolment after checking current access. */
+        post: operations["createEnrolment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/students/{id}/enrolments/{enrolmentId}/renewals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
         get?: never;
         put?: never;
-        /** @description Administrators and current guardians may reserve all selected future lessons from one weekly class series with one credit per lesson from the selected paid package. A failed reservation rolls back the entire enrolment. Only administrators can override level mismatches with a reason. Identical retries return the existing enrolment after checking current access. */
-        post: operations["createEnrolment"];
+        /** @description Explicitly renew selected dates into an eligible paid package. The transaction carries forward current unreserved credits, preserves prior reservations, and applies the current school policies. When only a subset is available under the alternative allocation policy, confirm the proposed subset via partialConfirmation. Identical retries return the same renewal. */
+        post: operations["renewEnrolment"];
         delete?: never;
         options?: never;
         head?: never;
@@ -614,6 +632,42 @@ export interface paths {
         patch: operations["updateAvailabilitySettings"];
         trace?: never;
     };
+    "/api/v1/settings/booking-validity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Administrators may read the school-wide booking validity rule. */
+        get: operations["getBookingValiditySettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** @description Administrators may change the school-wide rule for new bookings. A stale version returns version_conflict. */
+        patch: operations["updateBookingValiditySettings"];
+        trace?: never;
+    };
+    "/api/v1/settings/fixed-enrolment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Administrators may read the school-wide fixed enrolment policies. */
+        get: operations["getFixedEnrolmentSettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** @description Administrators may change the school-wide rule for new bookings. A stale version returns version_conflict. */
+        patch: operations["updateFixedEnrolmentSettings"];
+        trace?: never;
+    };
     "/api/v1/availability/{id}/classes": {
         parameters: {
             query?: never;
@@ -1054,6 +1108,7 @@ export interface components {
         Error: {
             error: {
                 code: string;
+                details?: components["schemas"]["PartialEnrolmentDetails"];
                 message: string;
             };
         };
@@ -1190,6 +1245,8 @@ export interface components {
             creditPackageId: string;
             idempotencyKey: string;
             overrideReason?: string;
+            /** @description Version of the booking validity rule presented for review. A stale version returns booking_validity_changed for a new request. */
+            bookingValidityVersion?: number;
         };
         EnrolmentInput: {
             seriesId: string;
@@ -1201,7 +1258,54 @@ export interface components {
             }[];
             creditPackageId: string;
             idempotencyKey: string;
+            /** @description Version of the school credit validity rule shown at confirmation. */
+            bookingValidityVersion?: number;
+            settingsVersion?: number;
+            partialConfirmation?: components["schemas"]["PartialEnrolmentConfirmation"];
             overrideReason?: string;
+        };
+        StudentEnrolments: {
+            items: {
+                id: string;
+                studentId: string;
+                seriesId: string;
+                creditPackageId: string;
+                /** Format: date-time */
+                createdAt: string;
+                /** Format: date-time */
+                lastLessonStartsAt: string;
+                purchaseId: string;
+                carryForwardEnabled: boolean;
+                offerId: string;
+            }[];
+            settings: components["schemas"]["FixedEnrolmentSettings"];
+        };
+        EnrolmentRenewalInput: {
+            seriesId: string;
+            /** @description Select distinct class IDs. Input order does not affect idempotent replay. */
+            sessions: {
+                classId: string;
+                classVersion: number;
+                classTypeVersion: number;
+            }[];
+            creditPackageId: string;
+            idempotencyKey: string;
+            /** @description Version of the school credit validity rule shown at confirmation. */
+            bookingValidityVersion: number;
+            overrideReason?: string;
+            partialConfirmation?: components["schemas"]["PartialEnrolmentConfirmation"];
+            sourcePackageId: string;
+            settingsVersion: number;
+        };
+        EnrolmentRenewal: {
+            id: string;
+            studentId: string;
+            seriesId: string;
+            bookings: components["schemas"]["StudentBooking"][];
+            /** Format: date-time */
+            createdAt: string;
+            sourceEnrolmentId: string;
+            carriedForwardCredits: number;
         };
         Enrolment: {
             id: string;
@@ -1341,6 +1445,29 @@ export interface components {
         AvailabilitySettings: {
             lockHours: number;
             version: number;
+        };
+        BookingValiditySettings: {
+            /**
+             * @description Default lesson_end requires validity through the end of the lesson. lesson_start requires validity when the lesson starts. The expiry cutoff is midnight after the expiry date in Asia/Hong_Kong. Lesson end may equal the cutoff. Lesson start must precede it.
+             * @enum {string}
+             */
+            validityRule: "lesson_end" | "lesson_start";
+            version: number;
+        };
+        FixedEnrolmentSettings: {
+            /** @enum {string} */
+            allocationPolicy: "all_or_none" | "confirm_available_subset";
+            /** @enum {string} */
+            renewalPolicy: "same_offer" | "any_paid_package";
+            version: number;
+        };
+        PartialEnrolmentConfirmation: {
+            sessionIds: string[];
+            settingsVersion: number;
+        };
+        PartialEnrolmentDetails: {
+            availableSessionIds: string[];
+            settingsVersion: number;
         };
         AvailabilityClassInput: {
             requestId: string;
@@ -1633,6 +1760,7 @@ export interface components {
         };
         /** @description Authoritative balances from immutable ledger movements, including durable expiry and recovery. Recovered packages retain purchase provenance and source package lineage. */
         CreditPackage: {
+            offerId: string;
             id: string;
             purchaseId: string;
             credits: number;
@@ -1656,6 +1784,8 @@ export interface components {
             items: components["schemas"]["CreditPackage"][];
         };
         CreditHistoryPackage: {
+            purchaseId?: string;
+            offerId?: string;
             id: string;
             credits: number;
             /** Format: date */
@@ -1691,6 +1821,7 @@ export interface components {
         CreditHistory: {
             items: components["schemas"]["CreditHistoryPackage"][];
             recoveries: components["schemas"]["CreditRecovery"][];
+            bookingValidity: components["schemas"]["BookingValiditySettings"];
         };
     };
     responses: never;
@@ -2020,6 +2151,37 @@ export interface operations {
             };
         };
     };
+    listStudentEnrolments: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Enrolments and effective settings */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentEnrolments"];
+                };
+            };
+            /** @description Request failed */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
     createEnrolment: {
         parameters: {
             query?: never;
@@ -2053,6 +2215,53 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Enrolment"];
+                };
+            };
+            /** @description Request failed */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    renewEnrolment: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-Token": string;
+            };
+            path: {
+                id: string;
+                enrolmentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EnrolmentRenewalInput"];
+            };
+        };
+        responses: {
+            /** @description Idempotent replay */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EnrolmentRenewal"];
+                };
+            };
+            /** @description Enrolment renewed */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EnrolmentRenewal"];
                 };
             };
             /** @description Request failed */
@@ -2137,6 +2346,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StudentBooking"];
+                };
+            };
+            /** @description Booking conflict. booking_validity_changed indicates that the school rule changed after review. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
                 };
             };
             /** @description Request failed */
@@ -3513,6 +3731,188 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AvailabilitySettings"];
+                };
+            };
+            /** @description Request failed */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getBookingValiditySettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookingValiditySettings"];
+                };
+            };
+            /** @description Administrator access required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request failed */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    updateBookingValiditySettings: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-Token": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookingValiditySettings"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookingValiditySettings"];
+                };
+            };
+            /** @description Administrator access required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Settings version changed */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request failed */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getFixedEnrolmentSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FixedEnrolmentSettings"];
+                };
+            };
+            /** @description Administrator access required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request failed */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    updateFixedEnrolmentSettings: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-Token": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FixedEnrolmentSettings"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FixedEnrolmentSettings"];
+                };
+            };
+            /** @description Administrator access required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Settings version changed */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
                 };
             };
             /** @description Request failed */

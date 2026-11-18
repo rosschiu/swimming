@@ -1,6 +1,6 @@
 # Web delivery backlog
 
-Active goal: complete web functionality with mock payments and reviewed stage PRs. AI/voice is deferred beyond first delivery (user decision, 2026-11-18). No real payments, native apps, hosting selection or public deployment.
+Active goal: complete web functionality with mock payments and reviewed stage PRs. AI/voice is deferred beyond first delivery (user decision, 2026-11-18). Real payments and native clients remain outside first delivery. The user has added automatic deployment to a designated VM; target access and release trigger are pending.
 
 ## Gates for every implementation stage
 
@@ -12,14 +12,48 @@ Frontend behaviour tests, Go tests, relevant PostgreSQL integration tests, API c
 |---|---|---|---|
 | 00 | Record active goal, exclusions, stage gates and open decisions | None | Merged [PR #1](https://github.com/rosschiu/swimming/pull/1), `902016c`; independent review and diff check passed |
 | 01 | Runnable Go/Postgres/React foundation; persistent authenticated sessions; scoped parent/coach/admin home; synthetic seed; CI and real-stack Playwright login/permission journeys | 00 | Merged [PR #2](https://github.com/rosschiu/swimming/pull/2), `de7f06a`; local/CI tests and independent review passed |
-| 02 | Admin maintains families/students/coaches/venues/class types/sessions; coach roster and parent child selection read shared records; invitations/recovery and student access decision resolved | 01 | 02a merged PR #3 (`6c6d829`); 02b merged [PR #4](https://github.com/rosschiu/swimming/pull/4) (`04fa641`); rosters depend on03 bookings |
-| 03 | Configurable packages, ledger, clearly labelled mock payment pending/success/failure/duplicates through shared entitlement services, receipts; flexible and bounded recurring bookings; concurrency/overlap/eligibility checks | 02 and credit decisions | 03a merged PR #15 (`0f8e029`); 03b booking design underway |
-| 04 | Attendance/corrections, cancellation cases, change approval/rejection, expiry, carry-forward, scoped coach recovery, substitution and school cancellation; audit all consequences | 03 and timing/recovery decisions | Pending |
-| 05 | Progress entry/history, skill milestones, notification history/reminders and email delivery, coach availability, admin action queue, search/filters; complete role journeys and language/accessibility states | 04 | Pending |
+| 02 | Admin maintains families/students/coaches/venues/class types/sessions; coach roster and parent child selection read shared records; invitations/recovery and student access decision resolved | 01 | Merged PRs #3–7 cover records, scheduling, coach availability and publishing lessons from availability. Shared rosters shipped in [#17](https://github.com/rosschiu/swimming/pull/17). |
+| 03 | Configurable packages, ledger, clearly labelled mock payment pending/success/failure/duplicates through shared entitlement services, receipts; flexible and bounded recurring bookings; concurrency/overlap/eligibility checks | 02 and credit decisions | Mock checkout and credit issuance merged in #15. Flexible booking and school-wide credit validity merged in #17. Fixed enrolment and explicit renewal merged in [#21](https://github.com/rosschiu/swimming/pull/21). Both alternatives are administrator-configurable school-wide. |
+| 04 | Attendance/corrections, cancellation cases, change approval/rejection, expiry, carry-forward, scoped coach recovery, substitution and school cancellation; audit all consequences | 03 and timing/recovery decisions | Expiry and coach recovery merged in #16. Timing settings merged in #18. Marking attendance is integrated with #21 and under review in [#22](https://github.com/rosschiu/swimming/pull/22). Corrections, cancellations and change requests remain outstanding. |
+| 05 | Progress entry/history, skill milestones, notification history/reminders and email delivery, coach availability, admin action queue, search/filters; complete role journeys and language/accessibility states | 04 | Progress, milestones, teaching notifications and opt-in email, and role navigation merged in #8–10 and #14. The admin action queue merged in #20 and in-app family booking confirmations in [#19](https://github.com/rosschiu/swimming/pull/19). Scheduled reminders, external demo inbox verification and remaining role journeys are outstanding. |
 | 06 | Provider-backed typed assistant, STT and optional TTS; scoped reads and confirmed mutations; ambiguity/stale confirmation/idempotency/failure tests; actual provider validation | Stable domain tools; provider credentials | Deferred beyond first delivery by user |
-| 07 | Cumulative end-to-end coverage, operational documentation, import/export needs review, backup/restore proof, permission/security review, representative scale/concurrency checks and final gap closure | First-delivery stages01–05 | Pending |
+| 07 | Cumulative end-to-end coverage, operational documentation, import/export needs review, backup/restore proof, permission/security review, representative scale/concurrency checks and final gap closure | First-delivery stages01–05 | Backup/restore, representative-scale checks and administrator revocation checks merged in #11–13. Final cross-role acceptance and operating documentation remain open. |
 
 Stage scope may be split into smaller reviewed PRs when useful, but requirements cannot disappear. Each implementation PR must include a complete useful slice and its tests. Stage 00 is explicitly preparatory, not application delivery.
+
+## Workflow breakdown
+
+Update these rows in the stage PR when scope, evidence or status changes. Record the merge commit and verification in the evidence log after each release. A passing test on a draft branch counts as review evidence. Mark a workflow shipped once verified on main.
+
+| Workflow | Delivery state | Acceptance or next check |
+|---|---|---|
+| Account access and family links | Shipped, #2–3 | Guardians manage linked students; a student signs in separately to their own records. |
+| Timetable and availability | Shipped, #4–7 | Administrators publish lessons within coach windows, apply travel gaps and preserve scheduled lessons when a window changes. |
+| Mock purchase and credit issuance | Shipped, #15 | Pending, failed, successful and duplicate outcomes reconcile to the purchase, receipt and ledger. |
+| Flexible booking and rosters | Shipped, #17 | Reserve one place and credit. The student schedule and assigned coach roster show the same booking. |
+| Fixed weekly selection | Merged, [#21](https://github.com/rosschiu/swimming/pull/21) | Default books all selected dates together. Stale input or insufficient credit leaves every date unchanged. |
+| Partial weekly selection | Merged, #21 | An administrator can allow partial booking school-wide. Show the exact available dates and require a fresh confirmation before reserving any. |
+| Explicit renewal and carry-forward | Merged, #21 | Confirm next dates and exact paid package. Default to the same package type. An administrator can allow another type for the same student. Transfer unused credits when enabled; preserve existing reservations and their expiry. |
+| Mark present | Under review, [#22](https://github.com/rosschiu/swimming/pull/22) | Coach marks attendance once; a retry consumes no extra credit and the family sees the outcome. Integration tests cover originally reserved and renewed lessons. |
+| Absences and attendance corrections | Open | Apply the configured outcome and correction window, reconcile credit movements and show the audit trail. |
+| Parent change requests | Open; local work started | Keep the original reservation while pending. Approval moves it once; rejection or a failed swap preserves it. |
+| Family cancellation and make-up | Open | Apply the configured timing and credit policy and show the resulting entitlement to the family. |
+| School cancellation and substitution | Open | Reconcile affected bookings, roster access, credits and family communications. |
+| Credit expiry and recovery | Shipped, #16 | An assigned coach restores actual expired unused credits with a reason and new expiry. |
+| Progress, milestones and teaching email | Shipped, #8–10 | Family sees scoped feedback; opt-in teaching emails have delivery history and retries. External demo inbox delivery still needs verification. |
+| Booking confirmation and reminders | Confirmations shipped, #19; reminders open | In-app confirmations are deduplicated. Verify scheduled reminders and delivery preferences separately. |
+| Administration and navigation | Shipped in part, #14 and #20 | Role routes, pending purchase and email queues are live. Request decisions and missing attendance still need cross-role acceptance. |
+| Operational readiness | Shipped in part, #11–13 | Restore, scale and permission checks exist. Repeat on the final workflows, verify setup/seed instructions, and close remaining accessibility and operational gaps. |
+| Typed assistant and voice | Deferred beyond first delivery | Verify authorized queries, confirmed actions, STT and optional TTS against real providers before claiming delivery. |
+
+## VM delivery
+
+| Work item | State | Acceptance |
+|---|---|---|
+| Identify the demo target | Awaiting VM connection details | Inspect its OS, existing ingress, deployment directory and persistent storage. Confirm the app URL and whether it is private. |
+| Package a tested revision | Planned | Build the web assets and Go services from the reviewed commit. Record the commit in the release artifact. |
+| Automate rollout | Planned | Deploy only the selected release after CI passes. Serialize deployments, run migrations once and retain application data. |
+| Verify and recover | Planned | Check the running version, API health and web routing from the target. Exercise recovery to the previous compatible release on the demo VM. |
 
 ## Open decisions and external dependencies
 
@@ -27,7 +61,7 @@ Stage scope may be split into smaller reviewed PRs when useful, but requirements
 - User confirmed separate student login with own schedule/progress access; guardians control booking/payment.
 - Timing, eligibility, notifications and other unresolved questions remain in DECISIONS.md; resolve before dependent work.
 - AI/voice is deferred from first delivery. Actual language-model and STT/TTS credentials/provider access must be established before claiming that later stage complete. Do not expose credentials in logs or repository.
-- Use synthetic seed/test records only; no external messages or public deployment authorised.
+- Use synthetic demo records. Target access, public routing and email recipients require the intended VM and demo configuration.
 
 ## Evidence log
 
@@ -74,3 +108,13 @@ Stage03a merged [PR #15](https://github.com/rosschiu/swimming/pull/15) as `0f8e0
 Stage04a brings forward durable credit expiry and approved assigned-coach recovery while03b configuration alternatives await answers. See STAGE-04A-PLAN.md. It delivers actual expired-unused credit adjustments without guessing booking/renewal policy.
 
 Stage 04a merged in [PR #16](https://github.com/rosschiu/swimming/pull/16) at `18eab4e`. Both complete CI runs passed. Clean main matched the tested head and passed contract regeneration. Assigned coaches can now restore actual expired unused credits with a reason and a new expiry date. Stage 03b builds flexible bookings on the same ledger.
+
+Stage 05f merged in [PR #20](https://github.com/rosschiu/swimming/pull/20) at `7df170f`. Administrators can open pending purchases and failed email deliveries from the action queue. Both CI runs passed. The merged tree matched the reviewed commit and contract regeneration passed.
+
+Stage 03b merged in [PR #17](https://github.com/rosschiu/swimming/pull/17) at `8447350`. Flexible bookings reserve seats and credits atomically. Administrators control the school-wide validity rule. Both CI runs, the full Go suite, 175 frontend tests and 25 Chromium journeys passed. The merged tree matched the reviewed commit and contract regeneration passed.
+
+Stage 04 timing settings merged in [PR #18](https://github.com/rosschiu/swimming/pull/18) at `2595ec4`. The full PostgreSQL Go race suite, 179 frontend tests and both CI runs passed. Independent upgrade and Chromium tests verified that an existing school's booking-validity setting survives migration and that stale timing edits require a reload. The merged tree matched the reviewed commit and passed contract regeneration.
+
+Stage 05e merged in [PR #19](https://github.com/rosschiu/swimming/pull/19) at `17a83e2`. Family booking notifications, reservations and credit movements commit together. Upgrade testing preserved existing data and verified replay and revoked access. Both CI runs, the PostgreSQL-backed Go suite, 181 frontend tests and 29 Chromium journeys passed. The merged tree matched the reviewed files and passed contract regeneration.
+
+Stage03c merged [PR #21](https://github.com/rosschiu/swimming/pull/21) as `227720d`. PostgreSQL race tests covered fixed enrolment, partial allocation, renewal, expiry and credit recovery. Chromium exercised confirmation and next-term renewal. Attendance PR #22 integrates that merge while preserving migration 15 for attendance and migrations 16 and 17 for school settings.

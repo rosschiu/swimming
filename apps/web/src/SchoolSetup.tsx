@@ -1,5 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import AvailabilitySettings from './AvailabilitySettings';
+import FixedEnrolmentSettings from './FixedEnrolmentSettings';
+import BookingValiditySettings from './BookingValiditySettings';
 import LessonSettings from './LessonSettings';
 import SkillCatalogue from './SkillCatalogue';
 import { APIError } from './api';
@@ -56,5 +58,7 @@ export default function SchoolSetup({ csrfToken, expired, t }: ProtectedProps) {
     <SkillCatalogue csrfToken={csrfToken} expired={expired} t={t}/>
     <AvailabilitySettings csrfToken={csrfToken} expired={expired} t={t}/>
     <LessonSettings csrfToken={csrfToken} expired={expired} t={t}/>
+    <BookingValiditySettings csrfToken={csrfToken} expired={expired} t={t}/>
+    <FixedEnrolmentSettings csrfToken={csrfToken} expired={expired} t={t}/>
   </section>;
 }
