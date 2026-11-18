@@ -140,3 +140,32 @@ it('starts with the coach pending queue and can switch to the complete history',
   expect(await screen.findByText('Rejected')).toBeInTheDocument();
   expect(fetch.mock.calls.map(([path]) => path)).toEqual(['/api/v1/lesson-changes?status=pending', '/api/v1/lesson-changes']);
 });
+
+it('lets a guardian withdraw a pending request after confirming and explains a decided one', async () => {
+  const withdrawn = { ...pending, status: 'withdrawn', decidedAt: '2026-12-02T03:00:00Z', decidedBy: 'guardian-id' };
+  const second = { ...pending, id: 'second' };
+  const fetch = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+    const path = String(input);
+    if (path === '/api/v1/lesson-changes') return response({ items: [pending, second, { ...rejected, id: 'decided' }], nextCursor: null, cutoffHours: 24 });
+    if (path.endsWith('/lesson-changes/change/withdraw') && init?.method === 'POST') return response(withdrawn);
+    if (path.endsWith('/lesson-changes/second/withdraw')) return response({ error: { code: 'change_conflict' } }, 409);
+    throw new Error(`Unexpected ${path}`);
+  });
+  vi.stubGlobal('fetch', fetch);
+  render(<LessonChanges {...props} role="parent" follow={vi.fn()}/>);
+  const user = userEvent.setup();
+  const buttons = await screen.findAllByRole('button', { name: 'Withdraw request' });
+  expect(buttons).toHaveLength(2);
+  await user.click(buttons[0]);
+  await user.click(screen.getByRole('button', { name: 'Keep request' }));
+  expect(fetch.mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false);
+  await user.click(screen.getAllByRole('button', { name: 'Withdraw request' })[0]);
+  await user.click(screen.getByRole('button', { name: 'Confirm withdrawal' }));
+  expect(await screen.findByText('Request withdrawn. The original lesson stays booked.')).toBeVisible();
+  expect(screen.getAllByText('Withdrawn', { selector: '.tag' })).toHaveLength(1);
+  expect(screen.getByText(/Withdrawn at/)).toBeVisible();
+  expect(fetch).toHaveBeenCalledWith('/api/v1/students/student/lesson-changes/change/withdraw', expect.objectContaining({ method: 'POST', headers: expect.objectContaining({ 'X-CSRF-Token': 'csrf-value' }) }));
+  await user.click(screen.getByRole('button', { name: 'Withdraw request' }));
+  await user.click(screen.getByRole('button', { name: 'Confirm withdrawal' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('The coach has already decided this request.');
+});

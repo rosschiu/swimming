@@ -90,6 +90,7 @@ test('guardian reserves two selected weeks with purchased credits and leaves the
   const studentHeaders = await switchRole('student');
   expect((await page.request.post(path, { headers: studentHeaders, data: payload })).status()).toBe(403);
   await page.goto('/students/amy');
+  await expect(page.getByRole('button', { name: 'Change dates' }).or(page.getByLabel('Bookings from date'))).toBeVisible(); if (await page.getByRole('button', { name: 'Change dates' }).isVisible()) await page.getByRole('button', { name: 'Change dates' }).click();
   await page.getByLabel('Bookings from date').fill(day(0));
   await page.getByLabel('Bookings to date').fill(day(2));
   await page.getByRole('button', { name: 'Load booked lessons' }).click();
@@ -183,7 +184,7 @@ test('weekly enrolment rechecks the school rule across HK midnight and preserves
     expect(stale.status()).toBe(409);
     await expect(parent.getByRole('alert')).toContainText('booking validity rule changed');
     await selectBoth();
-    await expect(packages.getByRole('option', { name: new RegExp(pack.id) })).toHaveCount(0);
+    await expect(packages.locator(`option[value="${pack.id}"]`)).toHaveCount(0);
     const denied = await parent.request.post(path, { headers: guardian, data: { ...stale.request().postDataJSON(), bookingValidityVersion: strict.version } });
     expect(denied.status()).toBe(409);
     expect(await denied.json()).toMatchObject({ error: { code: 'credit_unavailable' } });

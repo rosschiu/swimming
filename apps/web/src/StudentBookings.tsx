@@ -10,11 +10,19 @@ import { isAborted, useProtectedRequest, type ProtectedProps } from './useProtec
 type StudentBooking = components['schemas']['StudentBooking'];
 type BookingProps = ProtectedProps & { studentId: string; role: 'admin' | 'parent' | 'student' };
 
+function upcomingEnd(from: string) {
+  const day = new Date(`${from}T12:00:00+08:00`);
+  day.setUTCDate(day.getUTCDate() + 92);
+  return hkDate(day);
+}
+
 export default function StudentBookings({ student, expired, t, csrfToken, role, onBooked }: ProtectedProps & { student: Student; role: 'admin' | 'parent' | 'student'; onBooked: () => void }) {
   const id = useId();
   const studentId = student.id;
   const [from, setFrom] = useState(hkDate);
-  const [to, setTo] = useState(() => rangeEnd(hkDate()));
+  // Default to the longest range the API allows so upcoming lessons show without a search.
+  const [to, setTo] = useState(() => upcomingEnd(hkDate()));
+  const [choosing, setChoosing] = useState(false);
   const [range, setRange] = useState(() => ({ from, to, revision: 0 }));
   const [invalid, setInvalid] = useState(false);
 
@@ -23,7 +31,7 @@ export default function StudentBookings({ student, expired, t, csrfToken, role, 
     const first = days[0];
     const last = days[days.length - 1];
     if (first < range.from || last > range.to) {
-      const end = last > rangeEnd(first) ? last : rangeEnd(first);
+      const end = last > upcomingEnd(first) ? last : upcomingEnd(first);
       setFrom(first);
       setTo(end);
       setRange(previous => ({ from: first, to: end, revision: previous.revision + 1 }));
@@ -41,7 +49,8 @@ export default function StudentBookings({ student, expired, t, csrfToken, role, 
       <BookingForm student={student} admin={role === 'admin'} csrfToken={csrfToken} expired={expired} t={t} onBooked={startsAt => refreshBookings([startsAt])}/>
       <EnrolmentForm student={student} admin={role === 'admin'} csrfToken={csrfToken} expired={expired} t={t} onBooked={refreshBookings}/>
     </>}
-    <form className="schedule-filters" onSubmit={event => {
+    {!choosing && <button className="text-button" aria-expanded="false" onClick={() => setChoosing(true)}>{t('Change dates', '更改日期')}</button>}
+    {choosing && <form className="schedule-filters" onSubmit={event => {
       event.preventDefault();
       const valid = from && to && to >= from && Date.parse(to) - Date.parse(from) <= 92 * 86400000;
       setInvalid(!valid);
@@ -54,13 +63,13 @@ export default function StudentBookings({ student, expired, t, csrfToken, role, 
         <input id={`${id}-to`} type="date" required min={from} value={to} onChange={event => setTo(event.target.value)}/>
       </div>
       <button className="outline">{t('Load booked lessons', '載入已預約課堂')}</button>
-    </form>
+    </form>}
     {invalid && <p role="alert">{t('Choose a date range of at most 93 days.', '請選擇最多 93 日的日期範圍。')}</p>}
-    <BookingResults key={`${studentId}:${range.revision}`} studentId={studentId} role={role} csrfToken={csrfToken} expired={expired} t={t} from={range.from} to={range.to}/>
+    <BookingResults key={`${studentId}:${range.revision}`} studentId={studentId} role={role} csrfToken={csrfToken} expired={expired} t={t} from={range.from} to={range.to} onRetry={() => setRange(previous => ({ ...previous, revision: previous.revision + 1 }))}/>
   </section>;
 }
 
-function BookingResults({ studentId, role, csrfToken, expired, t, from, to }: BookingProps & { from: string; to: string }) {
+function BookingResults({ studentId, role, csrfToken, expired, t, from, to, onRetry }: BookingProps & { from: string; to: string; onRetry: () => void }) {
   const api = useProtectedRequest(expired);
   const [result, setResult] = useState<StudentBooking[] | 'unavailable' | 'error' | null>(null);
 
@@ -77,7 +86,7 @@ function BookingResults({ studentId, role, csrfToken, expired, t, from, to }: Bo
     <p className="muted">{t('Selected dates', '選定日期')} {from}–{to}</p>
     {result === null ? <p role="status">{t('Loading booked lessons…', '正在載入已預約課堂…')}</p>
       : result === 'unavailable' ? <p role="alert">{t('Booked lessons are unavailable for your current access.', '目前權限無法存取已預約課堂。')}</p>
-      : result === 'error' ? <p role="alert">{t('Could not load booked lessons. Use the button above to retry.', '未能載入已預約課堂。請使用上方按鈕重試。')}</p>
+      : result === 'error' ? <div><p role="alert">{t('Could not load booked lessons.', '未能載入已預約課堂。')}</p><button className="outline" onClick={onRetry}>{t('Retry booked lessons', '重試載入已預約課堂')}</button></div>
       : result.length === 0 ? <p role="status">{t('No booked lessons on these dates.', '這段日期內沒有已預約課堂。')}</p>
       : <ul className="link-list">{result.map(({ id, class: lesson, attendance }) => <li key={id}>
         <div><strong>{lesson.classTypeName}</strong>

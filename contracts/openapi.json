@@ -5526,6 +5526,66 @@
         ]
       }
     },
+    "/api/v1/students/{id}/lesson-changes/{changeId}/withdraw": {
+      "post": {
+        "operationId": "withdrawLessonChange",
+        "summary": "Withdraw a pending lesson change request",
+        "description": "Linked guardian only. Closes a pending request as withdrawn with the guardian recorded as decidedBy; the original booking and credit are unchanged. Replaying a withdrawal returns the withdrawn request; a request the coach has already decided returns 409 change_conflict. A family can submit a new request afterwards.",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "changeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Withdrawn request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LessonChange"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/lesson-changes/{id}/decision": {
       "put": {
         "operationId": "decideLessonChange",
@@ -9077,7 +9137,8 @@
             "enum": [
               "pending",
               "approved",
-              "rejected"
+              "rejected",
+              "withdrawn"
             ]
           },
           "requestedAt": {

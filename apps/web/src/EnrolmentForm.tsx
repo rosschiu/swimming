@@ -83,9 +83,13 @@ export default function EnrolmentForm({ student, admin, csrfToken, expired, t, o
   }
   const sessions = classes.filter(lesson => lesson.seriesId === seriesId);
   const selected = sessions.filter(lesson => sessionIds.includes(lesson.id));
-  const credit = options?.packages.find(item => item.id === packageId);
+  const chosenPackageId = () => {
+    // New enrolments default to the eligible package expiring first; a renewal's paid package is always chosen explicitly.
+    if (renewing || packages.some(item => item.id === packageId)) return packageId;
+    return [...packages].sort((a, b) => (a.expiresOn ?? '9999-12-31').localeCompare(b.expiresOn ?? '9999-12-31'))[0]?.id ?? '';
+  };
   const override = admin && selected.some(lesson => lesson.level !== student.level);
-  const packageLabel = (item: Package) => `${item.id} · ${t('Available', '可用堂數')} ${item.available} · ${item.expiresOn ? `${t('Expires', '到期日')} ${item.expiresOn}` : t('No expiry', '無到期日')}`;
+  const packageLabel = (item: Package) => `${t(`${item.available} ${item.available === 1 ? 'lesson' : 'lessons'} left`, `尚餘 ${item.available} 堂`)} · ${item.expiresOn ? t(`use by ${item.expiresOn}`, `${item.expiresOn} 前使用`) : t('no expiry', '無到期日')} · #${(item.purchaseId ?? item.id).slice(0, 6)}`;
 
   async function submit() {
     if (!lastIntent.current || sending.current) return;
@@ -160,6 +164,7 @@ export default function EnrolmentForm({ student, admin, csrfToken, expired, t, o
     const covers = (lesson: ClassSession) => bookingCreditCovers(item.expiresOn, lesson, options.validity.validityRule);
     return mayConfirmSubset && selected.length ? selected.some(covers) : selected.every(covers);
   }) ?? [];
+  const credit = options?.packages.find(item => item.id === chosenPackageId());
   const creditsNeeded = mayConfirmSubset ? 1 : selected.length;
   const carryAvailable = source?.carryForwardEnabled && sourcePackage && (!sourcePackage.expiresOn || sourcePackage.expiresOn >= hkDate())
     ? sourcePackage.available : 0;
@@ -193,7 +198,7 @@ export default function EnrolmentForm({ student, admin, csrfToken, expired, t, o
         <h4>{source ? t('Review weekly renewal', '檢查每週課堂續報') : t('Review weekly enrolment', '檢查每週課堂報名')}</h4>
         <p>{student.name} · {packageLabel(credit)}</p>
         {source && <>
-          <p>{t('Renewal packages', '續報套票')} · {source.creditPackageId} → {credit.id}</p>
+          <p>{t('Renewal packages', '續報套票')} · {sourcePackage ? packageLabel(sourcePackage) : source.creditPackageId} → {packageLabel(credit)}</p>
           <p>{source.carryForwardEnabled
             ? t('Unused, unreserved credits still valid in the old package will move to the new package’s expiry. The amount is calculated when you confirm.', '舊套票內仍有效的未用及未預留堂數將轉至新套票的到期日，轉移堂數會在確認時計算。')
             : t('The old package’s policy keeps its unused credits in that package.', '舊套票的規則將未使用堂數保留於原套票。')}</p>
@@ -220,7 +225,7 @@ export default function EnrolmentForm({ student, admin, csrfToken, expired, t, o
       </> : <>
         <form className="field-grid" onSubmit={event => { event.preventDefault(); setFailure(''); load(date); }}>
           <div><label htmlFor={`${id}-date`}>{t('Find weekly lessons from (Hong Kong)', '搜尋此日期起的每週課堂（香港）')}</label>
-            <input id={`${id}-date`} type="date" required min={hkDate()} value={date} onChange={event => setDate(event.target.value)}/></div>
+            <input id={`${id}-date`} type="date" required min={hkDate()} value={date} onChange={event => { setDate(event.target.value); if (event.target.value >= hkDate()) { setFailure(''); load(event.target.value); } }}/></div>
           <div className="form-actions"><button className="outline">{t('Load weekly lessons and credits', '載入每週課堂及堂數')}</button></div>
         </form>
         <p className="muted">{search.from}–{endDate(search.from)} · {t('Hong Kong time', '香港時間')}</p>
@@ -248,7 +253,7 @@ export default function EnrolmentForm({ student, admin, csrfToken, expired, t, o
               }}>
                 <option value="">{t('Choose a previous enrolment', '選擇先前報名')}</option>
                 {options.enrolments?.items.map(item => <option key={item.id} value={item.id}>
-                  {hkDate(new Date(item.lastLessonStartsAt))} · {item.creditPackageId}
+                  {t('Last lesson', '最後一堂')} {hkDate(new Date(item.lastLessonStartsAt))}{(() => { const used = options.packages.find(value => value.id === item.creditPackageId); return used ? ` · ${packageLabel(used)}` : ''; })()}
                 </option>)}
               </select>
             </>}
@@ -260,6 +265,7 @@ export default function EnrolmentForm({ student, admin, csrfToken, expired, t, o
             {!series.size && <p role="status">{t('No eligible weekly lessons on these dates.', '這段日期內沒有符合報名條件的每週課堂。')}</p>}
             {!!sessions.length && <fieldset>
               <legend>{t('Select lesson weeks', '選擇課堂週次')}</legend>
+              {sessionIds.length < Math.min(sessions.length, 14) && <button type="button" className="text-button" onClick={() => setSessionIds(sessions.slice(0, 14).map(lesson => lesson.id))}>{t('Select all weeks', '選擇所有週次')}</button>}
               {sessions.map(lesson => {
                 const checked = sessionIds.includes(lesson.id);
                 return <label className="checkbox-label" key={lesson.id}>
@@ -270,7 +276,7 @@ export default function EnrolmentForm({ student, admin, csrfToken, expired, t, o
               })}
             </fieldset>}
             <label htmlFor={`${id}-package`}>{t('Enrolment credit package', '報名所用堂數套票')}</label>
-            <select id={`${id}-package`} required value={packages.some(item => item.id === packageId) ? packageId : ''} onChange={event => setPackageId(event.target.value)}>
+            <select id={`${id}-package`} required value={chosenPackageId()} onChange={event => setPackageId(event.target.value)}>
               <option value="">{t('Choose a package', '選擇套票')}</option>
               {packages.map(item => <option value={item.id} key={item.id}>{packageLabel(item)}</option>)}
             </select>

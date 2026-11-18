@@ -80,6 +80,7 @@ test('fixed booking stays reserved on a full replacement and follows coach appro
 
     async function openBookings() {
       await page.goto('/students/amy');
+      await expect(page.getByRole('button', { name: 'Change dates' }).or(page.getByLabel('Bookings from date'))).toBeVisible(); if (await page.getByRole('button', { name: 'Change dates' }).isVisible()) await page.getByRole('button', { name: 'Change dates' }).click();
       await page.getByLabel('Bookings from date').fill(day(0));
       await page.getByLabel('Bookings to date').fill(day(7));
       await page.getByRole('button', { name: 'Load booked lessons' }).click();
