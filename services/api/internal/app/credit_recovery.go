@@ -24,6 +24,8 @@ type CreditRecovery struct {
 }
 type CreditHistoryPackage struct {
 	ID              string           `json:"id"`
+	PurchaseID      string           `json:"purchaseId,omitempty"`
+	OfferID         string           `json:"offerId,omitempty"`
 	SourcePackageID *string          `json:"sourcePackageId"`
 	Credits         int              `json:"credits"`
 	ExpiresOn       *string          `json:"expiresOn"`
@@ -88,7 +90,14 @@ func (a *API) creditHistory(w http.ResponseWriter, r *http.Request, s Session) {
 	}
 	items := []CreditHistoryPackage{}
 	for _, p := range packages {
-		items = append(items, CreditHistoryPackage{p.ID, p.SourcePackageID, p.Credits, p.ExpiresOn, p.Available, p.Reserved, p.Consumed, p.Expired, p.Movements})
+		item := CreditHistoryPackage{
+			ID: p.ID, SourcePackageID: p.SourcePackageID, Credits: p.Credits, ExpiresOn: p.ExpiresOn,
+			Available: p.Available, Reserved: p.Reserved, Consumed: p.Consumed, Expired: p.Expired, Movements: p.Movements,
+		}
+		if s.User.Role == "parent" || s.User.Role == "admin" {
+			item.PurchaseID, item.OfferID = p.PurchaseID, p.OfferID
+		}
+		items = append(items, item)
 	}
 	recoveries := []CreditRecovery{}
 	rows, err := tx.Query(r.Context(), "SELECT "+recoveryColumns+" FROM credit_recoveries WHERE student_id=$1 ORDER BY created_at,id", r.PathValue("id"))
@@ -111,7 +120,12 @@ func (a *API) creditHistory(w http.ResponseWriter, r *http.Request, s Session) {
 		internal(w, err)
 		return
 	}
-	financeCommit(w, r, tx, 200, map[string]any{"items": items, "recoveries": recoveries})
+	validity, err := effectiveBookingValidity(r.Context(), tx)
+	if err != nil {
+		internal(w, err)
+		return
+	}
+	financeCommit(w, r, tx, 200, map[string]any{"items": items, "recoveries": recoveries, "bookingValidity": validity})
 }
 
 const recoveryColumns = "id,student_id,source_package_id,destination_package_id,quantity,reason,expires_on::text,actor_id,created_at"

@@ -4,6 +4,16 @@ Guardians and administrators choose a student, an existing weekly series, the ex
 
 Single and recurring bookings share the reservation rules, ledger, scope checks, eligibility overrides and family notifications. Each lesson appears in the student's schedule and the assigned class coach's roster. Completing the selected dates does not automatically reserve future dates.
 
-Renewal must be explicit. The default transfers unused, unreserved credits to the new expiry and preserves the original expiry for existing reservations. Use exact source and destination package IDs and retain purchase and receipt history. Alternative allocation modes, coach configuration scope, matching package eligibility and transfer limits remain open; this branch is not ready for release on default-path evidence alone.
+Renewal must be explicit. The default transfers unused, unreserved credits to the new expiry and preserves the original expiry for existing reservations. Use exact source and destination package IDs and retain purchase and receipt history. Administrators can enable partial booking for the school. The family must confirm the exact available dates. Renewal defaults to the same offer; administrators can allow another paid package for the same student.
 
 Verify the approved default with concurrent retries, a conflict on the last selected lesson, insufficient credits, a forged mixed-series request and a guardian/student/coach browser journey. Check all affected booking, credit, notification and audit records after a rollback.
+
+The school-wide credit validity decision applies to every selected session. The family reviews the effective rule before confirming. If an administrator changes it before the first successful submission, the family must review the refreshed choices. If the original submission succeeded but its response was lost, the same request returns the existing enrolment after checking current access. Verify both branches and check the credit ledger for duplicate reservations.
+
+## Renewal acceptance
+
+Use an original package with four credits, two already reserved, and a new paid package with three credits for the same student. With carry-forward enabled, renewing into two next lessons leaves two reserved credits on the original package and three available plus two reserved on the new one. Replaying the renewal preserves those balances, the expiry dates of the original reservations and both purchase receipts.
+
+With carry-forward disabled, the original package keeps its two available credits. Verify that changing the school setting between review and confirmation requires a new review, and that a conflict on the final selected lesson rolls back the entire renewal, including any transfer. Exercise both package-type settings. A recovered package that funded the original enrolment can be a source; the destination must come from a separate paid purchase.
+
+Test renewal after the last occurrence of a bounded weekly series. A family must be able to select the next term's published series, review the dates, and reserve eligible lessons while retaining the original enrolment history.
