@@ -51,9 +51,9 @@ Update these rows in the stage PR when scope, evidence or status changes. Record
 | Work item | State | Acceptance |
 |---|---|---|
 | Identify the demo target | Verified on the designated VM | Inspect its OS, existing ingress, deployment directory and persistent storage. Confirm the app URL and whether it is private. |
-| Package a tested revision | Planned | Build the web assets and Go services from the reviewed commit. Record the commit in the release artifact. |
+| Package a tested revision | Verified in the first VM installation | Build the web assets and Go services from the reviewed commit. Record the commit in the release artifact. |
 | Automate rollout | Updater verified locally, activation pending a dedicated repository credential | Deploy only the selected release after CI passes. Serialize deployments, run migrations once and retain application data. |
-| Verify and recover | Planned | Check the running version, API health and web routing from the target. Exercise recovery to the previous compatible release on the demo VM. |
+| Verify and recover | Live health and routing verified. Migration rehearsed against a restored copy. Live rollback pending. | Check the running version, API health and web routing from the target. Exercise recovery to the previous compatible release on the demo VM. |
 
 ## Open decisions and external dependencies
 
