@@ -139,7 +139,8 @@ test('coach records attendance once and administrator, guardian and student see 
   await expect(event.getByText(booking.id, { exact: true })).toBeVisible();
   const replay = await page.request.put(path, { headers });
   expect(replay.status()).toBe(200);
-  expect(await replay.json()).toEqual(attendance);
+  expect(await replay.json()).toMatchObject({ ...attendance, evidence: { hasAudit: true } });
+  expect(attendance).not.toHaveProperty('evidence');
   const after = await credit();
   expect(after).toMatchObject({ available: 1, reserved: 0, consumed: 1 });
   expect(after.movements.filter(item => item.consumed === 1)).toHaveLength(1);
