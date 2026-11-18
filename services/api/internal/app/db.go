@@ -53,6 +53,9 @@ var schema13 string
 //go:embed schema14.sql
 var schema14 string
 
+//go:embed schema15.sql
+var schema15 string
+
 //go:embed schema16.sql
 var schema16 string
 
@@ -84,7 +87,7 @@ func Migrate(ctx context.Context, db *pgxpool.Pool) error {
 		sql     string
 	}{
 		{1, schema}, {2, schema2}, {3, schema3}, {4, schema4}, {5, schema5}, {6, schema6},
-		{7, schema7}, {8, schema8}, {9, schema9}, {10, schema10}, {11, schema11}, {12, schema12}, {13, schema13}, {14, schema14}, {16, schema16}, {17, schema17},
+		{7, schema7}, {8, schema8}, {9, schema9}, {10, schema10}, {11, schema11}, {12, schema12}, {13, schema13}, {14, schema14}, {15, schema15}, {16, schema16}, {17, schema17},
 	}
 	for _, migration := range migrations {
 		version := migration.version
