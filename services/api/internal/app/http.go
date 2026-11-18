@@ -67,6 +67,7 @@ func New(cfg Config, db *pgxpool.Pool) http.Handler {
 		respond(w, 200, map[string]string{"status": "ok"})
 	})
 	a.identityRoutes(mux)
+	a.financeRoutes(mux)
 	a.milestoneRoutes(mux)
 	a.notificationRoutes(mux)
 	mux.HandleFunc("GET /api/v1/students/{id}/progress-notes", a.auth(a.listProgressNotes))

@@ -4,7 +4,7 @@ Recorded 2026-11-17. This document preserves the discussion; proposals are not s
 
 ## Active development goal
 
-The user has authorised staged implementation and reviewed PR merges. Deliver all agreed web features for coach, student/parent and administrator, including actual typed/voice AI integration. Payments are mock-only in this goal: pending, success, failure and duplicate outcomes must exercise persistent entitlement/receipt services. Real payment integration remains future end-game scope. Native clients, hosting selection and public deployment are excluded. See BACKLOG.md for acceptance gates.
+The user has authorised staged implementation and reviewed PR merges. Deliver all agreed web features for coach, student/parent and administrator, with AI/voice deferred from the first delivery by the user on 2026-11-18. Payments are mock-only in this goal: pending, success, failure and duplicate outcomes must exercise persistent entitlement/receipt services. Real payment integration remains future end-game scope. Native clients, hosting selection and public deployment are excluded. See BACKLOG.md for acceptance gates.
 
 ## Confirmed direction
 
@@ -25,7 +25,7 @@ Web is first. The eventual product also includes iOS, Android and a WeChat mini 
 | Recovery | Coach can manually recover credits for a parent |
 | Payments | Manual verification today; fully integrated before the end game is complete |
 
-Later approvals below establish administrator-entered expiry, renewal carry-forward, explicit renewal and configurable timing defaults. Expiry placement, recovery limits and the detailed interaction with existing reservations remain unresolved.
+Later approvals below establish administrator-entered expiry, renewal carry-forward, explicit renewal and configurable timing defaults. Recovery limits and the detailed interaction with existing reservations remain unresolved.
 
 ### Technology direction
 
@@ -89,7 +89,7 @@ Coach scheduling requires a 30-minute gap between classes at different venues by
 ## Questions to resolve before dependent implementation
 
 1. Fixed enrolment: explicit renewal is approved. Confirm all-or-nothing allocation and whether unpaid future sessions may ever be provisionally held.
-2. Package validity: administrator-entered expiry is approved. Confirm whether purchases inherit the offer's expiry or receive individually entered dates, and whether validity must cover the lesson end.
+2. Package validity: administrator-entered expiry is approved. The user confirmed individually entered dates per purchase on 2026-11-18. Whether validity must cover the lesson end remains unresolved for booking.
 3. Carry-forward: transfer unused credits on renewal to the new expiry is approved. Confirm treatment of reserved credits, matching package eligibility and any quantity limits.
 4. Recovery: assigned coaches, a reason and a new expiry are approved. Confirm whether recovery is limited to actual expired unused credits or needs administrator approval in some cases.
 5. Timing defaults are approved and admin-configurable:24-hour parent cutoff,72-hour availability restriction, attendance opening15 minutes after start and three-day corrections. No new timing decision is required before implementing those defaults.
@@ -115,3 +115,7 @@ The initial assessment inspected source, not browser/device behaviour. It was no
 Coach availability represents a window in which administrators may schedule shorter lessons, not an exact proposed class. One window may therefore support multiple lessons. Availability management is implemented in stage02c; linking shorter scheduled classes is the next slice.
 
 The user also confirmed that later availability edits or cancellation leave scheduled classes unchanged. Administrators manage changes to scheduled classes separately. Source-window links record how a class was originally scheduled; they do not constrain subsequent class corrections.
+
+## First-delivery scope update (2026-11-18)
+
+The user selected individual expiry per purchase; the previously approved administrator-entered date still applies. Package offers do not supply a shared expiry date. AI/voice and provider selection are deferred beyond the first delivery, so provider credentials are not a gate for that delivery. Full coach, guardian/student and administrator web workflows, mock payments and staged reviewed/tested PRs remain required. AI remains part of the later product plan.

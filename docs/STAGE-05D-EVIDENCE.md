@@ -9,6 +9,6 @@ Sol implemented App, navigation helpers, notification links and styles. Astra in
 - Frontend:129 tests passed (7.66s); production build passed. Navigation coverage includes all allowed role/path combinations, denied routes without protected requests, reload/sign-in, malformed paths, retry, native links/focus, access-link precedence, stale responses and replacement sessions.
 - Real Go/PostgreSQL/SMTP Playwright:17 tests passed (50.8s), including all14 previous journeys plus3 navigation journeys. Notification fixtures are created through the real backend independently of suite order.
 - Generated API contract check, Go vet and git diff --check passed.
-- Cumulative Go/PostgreSQL race suite: pending final result.
+- Cumulative Go/PostgreSQL race suite passed (390.116s).
 
-CI, PR and merge verification will be recorded after completion. No database migration or backend domain change. Package/booking/lesson lifecycle and actual AI/voice remain outstanding; external demo inbox delivery remains unverified. See STAGE-05D-PLAN.md for scope.
+PR #14 merged as2d1fca1a71284854c0d66c281bd9a3d83abb1d86. Both CI runs44168495881 and44168537885 passed. Clean merged main matched tested head5b826b6bde7fa74363e11cdfd5ed45fd19b2e018; contracts passed after merge. No database migration or backend domain change. Package/booking/lesson lifecycle and actual AI/voice remain outstanding; external demo inbox delivery remains unverified. See STAGE-05D-PLAN.md for scope.

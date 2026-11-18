@@ -702,6 +702,183 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/settings/credits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Administrators and guardians may read defaults; only administrators may update them. */
+        get: operations["getCreditSettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["updateCreditSettings"];
+        trace?: never;
+    };
+    "/api/v1/package-offers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listPackageOffers"];
+        put?: never;
+        post: operations["createPackageOffer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/package-offers/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["updatePackageOffer"];
+        trace?: never;
+    };
+    "/api/v1/students/{id}/purchases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listStudentPurchases"];
+        put?: never;
+        post: operations["createPurchase"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/purchases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listPurchases"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/purchases/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getPurchase"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/purchases/{id}/expiry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["assignPurchaseExpiry"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/purchases/{id}/payment-attempts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["createPaymentAttempt"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/payment-attempts/{id}/mock-outcome": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["mockPaymentOutcome"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/receipts/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getReceipt"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/students/{id}/credits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listStudentCredits"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1080,6 +1257,177 @@ export interface components {
         NotificationDeliveryList: {
             items: components["schemas"]["NotificationDelivery"][];
             nextCursor: string | null;
+        };
+        CreditPolicy: {
+            expiryEnabled: boolean;
+            carryForwardEnabled: boolean;
+            earlyCancellationRetainsCredit: boolean;
+            lateCancellationRetainsCredit: boolean;
+            absenceRetainsCredit: boolean;
+            illnessRetainsCredit: boolean;
+        };
+        CreditSettings: {
+            policy: components["schemas"]["CreditPolicy"];
+            version: number;
+        };
+        /** @description Complete terms; nullable complete policyOverride replaces school defaults for new purchases. Prices are simulated HKD minor units. */
+        PackageOfferInput: {
+            name: string;
+            credits: number;
+            priceMinor: number;
+            /** @enum {string} */
+            currency: "HKD";
+            active: boolean;
+            policyOverride: {
+                expiryEnabled: boolean;
+                carryForwardEnabled: boolean;
+                earlyCancellationRetainsCredit: boolean;
+                lateCancellationRetainsCredit: boolean;
+                absenceRetainsCredit: boolean;
+                illnessRetainsCredit: boolean;
+            } | null;
+        };
+        PackageOfferUpdate: {
+            name: string;
+            credits: number;
+            priceMinor: number;
+            /** @enum {string} */
+            currency: "HKD";
+            active: boolean;
+            policyOverride: {
+                expiryEnabled: boolean;
+                carryForwardEnabled: boolean;
+                earlyCancellationRetainsCredit: boolean;
+                lateCancellationRetainsCredit: boolean;
+                absenceRetainsCredit: boolean;
+                illnessRetainsCredit: boolean;
+            } | null;
+            version: number;
+        };
+        PackageOffer: {
+            id: string;
+            name: string;
+            credits: number;
+            priceMinor: number;
+            /** @enum {string} */
+            currency: "HKD";
+            active: boolean;
+            policyOverride: {
+                expiryEnabled: boolean;
+                carryForwardEnabled: boolean;
+                earlyCancellationRetainsCredit: boolean;
+                lateCancellationRetainsCredit: boolean;
+                absenceRetainsCredit: boolean;
+                illnessRetainsCredit: boolean;
+            } | null;
+            version: number;
+        };
+        PaymentAttempt: {
+            id: string;
+            purchaseId: string;
+            /** @enum {string} */
+            status: "pending" | "failed" | "succeeded";
+            /** Format: date-time */
+            createdAt: string;
+        };
+        /** @description Trusted purchase snapshot. Expiry is inclusive in Asia/Hong_Kong, assigned individually once before payment. Null means expiry disabled. */
+        Purchase: {
+            id: string;
+            studentId: string;
+            createdBy: string;
+            offerId: string;
+            offerVersion: number;
+            offerName: string;
+            credits: number;
+            priceMinor: number;
+            /** @enum {string} */
+            currency: "HKD";
+            policy: components["schemas"]["CreditPolicy"];
+            policyVersion: number;
+            /** @enum {string} */
+            status: "awaiting_expiry" | "pending_payment" | "paid";
+            /** Format: date */
+            expiresOn: string | null;
+            expiryAssignedBy: string | null;
+            /** Format: date-time */
+            expiryAssignedAt: string | null;
+            version: number;
+            /** Format: date-time */
+            createdAt: string;
+            attempts: components["schemas"]["PaymentAttempt"][];
+            receiptId: string | null;
+        };
+        PurchaseInput: {
+            offerId: string;
+            offerVersion: number;
+            idempotencyKey: string;
+        };
+        PurchaseExpiryInput: {
+            /** Format: date */
+            expiresOn: string;
+            version: number;
+        };
+        PaymentAttemptInput: {
+            idempotencyKey: string;
+        };
+        MockOutcomeInput: {
+            /** @enum {string} */
+            outcome: "pending" | "failed" | "succeeded";
+        };
+        Receipt: {
+            id: string;
+            purchaseId: string;
+            studentId: string;
+            studentName: string;
+            offerId: string;
+            offerVersion: number;
+            offerName: string;
+            credits: number;
+            priceMinor: number;
+            /** @enum {string} */
+            currency: "HKD";
+            policy: components["schemas"]["CreditPolicy"];
+            policyVersion: number;
+            /** Format: date */
+            expiresOn: string | null;
+            /** @enum {boolean} */
+            simulated: true;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        CreditMovement: {
+            id: string;
+            available: number;
+            reserved: number;
+            consumed: number;
+            expired: number;
+            actorId: string;
+            reason: string;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        /** @description Balances are a read projection: expired unused available credits appear as expired without claiming an expiry job or ledger mutation. */
+        CreditPackage: {
+            id: string;
+            purchaseId: string;
+            credits: number;
+            /** Format: date */
+            expiresOn: string | null;
+            policy: components["schemas"]["CreditPolicy"];
+            available: number;
+            reserved: number;
+            consumed: number;
+            expired: number;
+            movements: components["schemas"]["CreditMovement"][];
+        };
+        PackageOfferList: {
+            items: components["schemas"]["PackageOffer"][];
+        };
+        PurchaseList: {
+            items: components["schemas"]["Purchase"][];
+        };
+        CreditPackageList: {
+            items: components["schemas"]["CreditPackage"][];
         };
     };
     responses: never;
@@ -3178,6 +3526,503 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["NotificationDelivery"];
+                };
+            };
+            /** @description Request failed */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getCreditSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreditSettings"];
+                };
+            };
+            /** @description Request failed */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    updateCreditSettings: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-Token": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreditSettings"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreditSettings"];
+                };
+            };
+            /** @description Request failed */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    listPackageOffers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageOfferList"];
+                };
+            };
+            /** @description Request failed */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    createPackageOffer: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-Token": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PackageOfferInput"];
+            };
+        };
+        responses: {
+            /** @description Idempotent replay */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageOffer"];
+                };
+            };
+            /** @description Success */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageOffer"];
+                };
+            };
+            /** @description Request failed */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    updatePackageOffer: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-Token": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PackageOfferUpdate"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageOffer"];
+                };
+            };
+            /** @description Request failed */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    listStudentPurchases: {
+        parameters: {
+            query?: {
+                status?: "awaiting_expiry" | "pending_payment" | "paid";
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PurchaseList"];
+                };
+            };
+            /** @description Request failed */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    createPurchase: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-Token": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PurchaseInput"];
+            };
+        };
+        responses: {
+            /** @description Idempotent replay */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Purchase"];
+                };
+            };
+            /** @description Success */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Purchase"];
+                };
+            };
+            /** @description Request failed */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    listPurchases: {
+        parameters: {
+            query?: {
+                status?: "awaiting_expiry" | "pending_payment" | "paid";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PurchaseList"];
+                };
+            };
+            /** @description Request failed */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getPurchase: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Purchase"];
+                };
+            };
+            /** @description Request failed */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    assignPurchaseExpiry: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-Token": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PurchaseExpiryInput"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Purchase"];
+                };
+            };
+            /** @description Request failed */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    createPaymentAttempt: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-Token": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PaymentAttemptInput"];
+            };
+        };
+        responses: {
+            /** @description Idempotent replay */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentAttempt"];
+                };
+            };
+            /** @description Success */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentAttempt"];
+                };
+            };
+            /** @description Request failed */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    mockPaymentOutcome: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-Token": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MockOutcomeInput"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Purchase"];
+                };
+            };
+            /** @description Request failed */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getReceipt: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Receipt"];
+                };
+            };
+            /** @description Request failed */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    listStudentCredits: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreditPackageList"];
                 };
             };
             /** @description Request failed */

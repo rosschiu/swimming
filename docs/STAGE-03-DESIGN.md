@@ -1,6 +1,6 @@
 # Stage 03 design and decision gate
 
-Proposal only. Stage 02d merged as `6e4c142` and main verified before advancing stage/03a-packages-mock-payments. No entitlement implementation has begun. Sol completed a read-only design proposal; Astra is reviewing/testing the preceding stage before dependent implementation.
+Stage03a resumes from verified main `2d1fca1` on branch `stage/03a-purchases-credits`. The user approved administrator-entered expiry individually per purchase on2026-11-18. Sol is refining the implementation contract before Astra review; no entitlement implementation is claimed yet.
 
 ## Delivery slices
 
@@ -14,13 +14,13 @@ Booking reserves credits; attendance consumes them. Cancellation/absence policie
 
 ## Proposed 03a persistence and controls
 
-Separate package definitions, immutable purchase orders and payment attempts. New orders snapshot price in integer HKD minor units, allowance, validity and effective credit policy/version. School defaults and optional complete package overrides affect new orders only.
+Separate package definitions, immutable purchase orders and payment attempts. New orders snapshot price in integer HKD minor units, allowance and effective credit policy/version. An administrator finalises individual expiry before the first payment attempt when expiry is enabled. School defaults and optional complete package overrides affect new orders only.
 
 Order creation uses a stable actor-scoped idempotency key; replay returns the same order, while a different payload under the same key is a conflict. Failed payment attempts may be retried on the same order. A single pending attempt per order avoids concurrent checkout branches. Successful fulfilment locks the order and commits payment, entitlement, initial ledger movement, receipt and audit together. PostgreSQL uniqueness enforces one entitlement and one receipt per order. Duplicate success returns existing records; contradictory terminal outcomes are conflicts.
 
 Keep provider simulation behind a narrow boundary invoking shared fulfilment services. Label every payment/receipt as simulated. No client-supplied trusted prices, real-provider callbacks or real financial transactions.
 
-Guardians can act only for currently linked children, with scope rechecked on every operation. Administrators manage offers and review mock finance. Coaches may read scoped allowance, without financial amounts. Student financial access is not implied by their schedule/progress login.
+Guardians can act only for currently linked children, with scope rechecked on every operation. Administrators manage offers and review mock finance. This slice restricts financial endpoints to administrators and current guardians; coach allowance views belong to the later booking/roster workflow. Student financial access is not implied by their schedule/progress login.
 
 Ledger fields distinguish available, reserved, consumed and expired quantities. Immutable movement references prevent duplicate grants and later duplicate reservations/transfers. Do not claim booking, expiry processing or renewal completed in 03a.
 
@@ -31,9 +31,9 @@ Questions were sent asynchronously; no answer is assumed:
 - Whether class eligibility requires matching recorded swimming level with reasoned administrator override, or is guidance only.
 - Whether assigned coach recovery is limited to actual expired unused credits, with extra grants administrator-only, or always needs administrator approval.
 - Whether credits must remain valid through lesson end, recurring enrolment is all-or-nothing, and renewal carries only unreserved unused credits to matching eligibility while existing reservations remain on the old package.
-- Whether expiry is set on each package offer (inclusive Hong Kong day), blocking pending purchase completion once expired/archived, or set individually per purchase.
+- Resolved2026-11-18: expiry is entered individually per purchase by an administrator, not inherited from an offer.
 
-Package/class-type restrictions and exact endpoint shapes will be settled with the above answers before generating shared contracts.
+Booking eligibility and renewal/recovery interactions remain decisions for later slices. Stage03a purchase contracts are implemented without those booking restrictions; see contracts/openapi.json.
 
 ## Verification plan
 
@@ -43,11 +43,11 @@ Frontend checks cover selected-child isolation, clear simulation labels, retaine
 
 Proposed records: versioned package offers, immutable purchase terms, payment attempts, credit packages, append-only credit movements and immutable simulated receipts. Enforce one credit package and receipt per purchase at the database level. A duplicate success is replay of a successful attempt, not a separate payment status. Preserve failed attempt history while permitting an explicit new attempt on the same order; a successful order cannot grant twice.
 
-Proposed endpoint families (not yet generated or implemented):
+Implemented stage03a endpoint families (verification pending):
 
-- Admin offer management: `GET/POST /package-offers`, `PATCH /package-offers/{id}` with version and archive state.
+- Admin offer management: `GET/POST /package-offers`, `PATCH /package-offers/{id}` with version and active state. Guardians can read active offers and school policy defaults.
 - Guardian checkout/history: `POST/GET /students/{id}/purchases`, `GET /purchases/{id}`.
-- Explicit retry and simulation: create a payment attempt on a pending purchase, then submit pending/success/failed to that attempt. Exact request shapes await the expiry decision.
+- Explicit retry and simulation: create a payment attempt on a pending purchase, then submit pending/success/failed to that attempt. Exact request shapes are being refined around individual administrator-entered expiry.
 - Scoped credit history: `GET /students/{id}/credits`; financial receipt read: `GET /receipts/{id}`.
 
 Scope finance separately from generic `studentScope`: that helper deliberately allows coach/student access and is inappropriate for prices or receipts. Recheck current guardian links and student/account eligibility under locks coordinated with identity mutations. A former guardian must not complete checkout based only on a previously authorised purchase.

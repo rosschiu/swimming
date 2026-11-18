@@ -68,3 +68,11 @@ SCALE_VERIFY_SYNTHETIC=true go test -race ./internal/app -run '^TestScaleVerific
 ```
 
 The test uses an isolated temporary schema and removes it afterward. It represents 10 coaches, 500 registered students, 20 venues and 50 classes per week across 13 weeks. It checks currently implemented API results, permissions, pagination and bounded concurrent operations; it starts no email worker and leaves public application data unchanged. CI runs this check separately from the ordinary suite. Logged durations and response sizes are observations from the test environment, not a production SLA or proof of future booking/payment/attendance performance. See [the stage plan](STAGE-07B-PLAN.md) for fixture assumptions and coverage.
+
+## Packages and simulated purchases
+
+Apply migration9 before using Packages and payments. Administrators maintain offers and prospective credit-policy defaults; parents choose a linked student and request a package. When expiry is enabled, an administrator assigns that purchase an individual expiry date in the purchase queue. The date includes the entire selected Hong Kong day. Parents review the assigned terms before starting a simulated payment. No-expiry purchases can proceed without date assignment.
+
+The mock offers pending, failed and successful outcomes. A failed attempt grants nothing; retry creates another attempt on the same purchase. Repeating a successful outcome returns the existing receipt and credits. All payment and receipt screens are simulated; no money moves. Offer and policy changes affect new purchases, while existing purchases retain their terms.
+
+Credit history shows grants and current available/expired quantities. Booking reservations, attendance, renewal/carry-forward and recovery arrive in subsequent stages. AI/voice is deferred beyond first delivery by the user's2026-11-18 decision.

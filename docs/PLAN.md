@@ -2,7 +2,7 @@
 
 ## Current execution scope
 
-The active goal delivers the complete web application with mock payments only. BACKLOG.md is the execution sequence and gate record. The longer-term roadmap below retains real payment integration and native clients for context, but those are explicitly excluded from current completion. Provider-backed AI/STT/TTS remains in scope; fixtures alone do not satisfy it.
+The active goal delivers the complete web application with mock payments only. BACKLOG.md is the execution sequence and gate record. The longer-term roadmap below retains real payment integration and native clients for context, but those are explicitly excluded from current completion. The user deferred AI/STT/TTS and provider selection beyond the first delivery on 2026-11-18. They remain in the later product plan; fixtures will not constitute a working integration.
 
 ## Outcome and completion boundaries
 

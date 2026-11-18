@@ -1,9 +1,9 @@
 import type { MouseEvent } from 'react';
 import type { User } from './api';
 
-export type View = 'students' | 'accounts' | 'audit' | 'schedule' | 'setup' | 'availability' | 'notifications' | 'deliveries';
+export type View = 'students' | 'accounts' | 'audit' | 'schedule' | 'setup' | 'availability' | 'notifications' | 'deliveries' | 'packages';
 export type Route = { view: View; studentId?: string } | { view: 'unavailable' };
-const paths: Record<View, string> = { students: '/students', accounts: '/accounts', audit: '/audit', schedule: '/schedule', setup: '/setup', availability: '/availability', notifications: '/notifications', deliveries: '/notification-deliveries' };
+const paths: Record<View, string> = { students: '/students', accounts: '/accounts', audit: '/audit', schedule: '/schedule', setup: '/setup', availability: '/availability', notifications: '/notifications', deliveries: '/notification-deliveries', packages: '/packages' };
 
 export function parseRoute(path: string): Route {
   if (path === '/') return { view: 'students' };
@@ -24,6 +24,7 @@ export function routePath(route: Route): string {
 export function canView(route: Route, role: User['role']): boolean {
   switch (route.view) {
     case 'students': case 'schedule': return true;
+    case 'packages': return role === 'admin' || role === 'parent';
     case 'notifications': return role === 'parent' || role === 'student';
     case 'availability': return role === 'admin' || role === 'coach';
     case 'accounts': case 'audit': case 'setup': case 'deliveries': return role === 'admin';
