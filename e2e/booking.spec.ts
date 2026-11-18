@@ -31,6 +31,8 @@ test('paid credits reserve a guardian lesson and an administrator override, visi
   }
   const beginner = await lesson('Beginner', '10:00', '11:00');
   const advanced = await lesson('Advanced', '11:00', '12:00');
+  const replacement = await create('classes', { venueId: venue.id, classTypeId: beginner.classTypeId, coachId: 'coach', capacity: 3,
+    startsAt: date + 'T13:00:00+08:00', endsAt: date + 'T14:00:00+08:00' });
   const sibling = await create('students', { name: 'Booking sibling ' + suffix, level: 'Beginner' });
   expect((await page.request.put('/api/v1/students/' + sibling.id + '/relationships/parent', { headers, data: { kind: 'guardian' } })).status()).toBe(200);
   const offer = await create('package-offers', { name: 'Booking credits ' + suffix, credits: 2, priceMinor: 10000, currency: 'HKD', active: true,
@@ -100,16 +102,21 @@ test('paid credits reserve a guardian lesson and an administrator override, visi
     expect((await marked).status()).toBe(200);
     await page.reload();
     await expect(card.getByText(/· Read$/)).toBeVisible();
-    const link = card.getByRole('link', { name: 'Open current student profile' });
-    await expect(link).toHaveAttribute('href', '/students/amy');
-    await link.click();
-    await expect(page).toHaveURL(/\/students\/amy$/);
-    await expect(page.getByRole('heading', { name: 'Booked lessons' })).toBeVisible();
+    const link = card.getByRole('link', { name: 'View booking' });
+    const path = '/students/amy/bookings/' + bookingId;
+    await expect(link).toHaveAttribute('href', path);
+    await link.focus();
+    await page.keyboard.press('Enter');
+    await expect(page).toHaveURL(url => url.pathname === path);
+    await expect(page.getByRole('main')).toBeFocused();
+    await page.reload();
+    await expect(page.getByRole('heading', { name: 'Booking details' })).toBeVisible();
+    return path;
   }
   const firstBooking = await confirm(beginner.classTypeName);
-  await readConfirmation(firstBooking);
+  const permanentPath = await readConfirmation(firstBooking);
   expect(await credit()).toMatchObject({ available: 1, reserved: 1 });
-  await page.getByRole('link', { name: /Back to directory/ }).click();
+  await page.goto('/students');
   await page.getByRole('link', { name: new RegExp(sibling.name) }).click();
   await openList(date);
   await expect(page.getByText('No booked lessons on these dates.')).toBeVisible();
@@ -131,6 +138,7 @@ test('paid credits reserve a guardian lesson and an administrator override, visi
   }
   await switchRole('student');
   await readConfirmation(secondBooking);
+  await page.goto('/students/amy');
   await openList(date);
   const list = page.getByRole('region', { name: 'Booked lessons' });
   await expect(list.getByText(beginner.classTypeName, { exact: true })).toBeVisible();
@@ -152,6 +160,42 @@ test('paid credits reserve a guardian lesson and an administrator override, visi
   expect(savedRoster.classId).toBe(advanced.id);
   expect(savedRoster.items).toHaveLength(1);
   expectContract('RosterEntry', savedRoster.items[0]);
+  const family = await switchRole('parent');
+  const requested = await page.request.post('/api/v1/students/amy/bookings/' + firstBooking + '/change-requests', {
+    headers: family, data: { targetClassId: replacement.id, targetClassVersion: replacement.version, idempotencyKey: firstBooking },
+  });
+  expect(requested.status(), await requested.text()).toBe(201);
+  const change = await requested.json();
+  const coach = await switchRole('coach');
+  const approved = await page.request.put('/api/v1/lesson-changes/' + change.id + '/decision', { headers: coach, data: { decision: 'approved' } });
+  expect(approved.status(), await approved.text()).toBe(200);
+  for (const role of ['parent', 'student']) {
+    await switchRole(role);
+    await page.goto(permanentPath);
+    await expect(page.getByRole('heading', { name: 'Booking details' })).toBeVisible();
+    await expect(page.getByText(/13:00/).first()).toBeVisible();
+    const exact = await page.request.get('/api/v1' + permanentPath);
+    expect(exact.status()).toBe(200);
+    const current = await exact.json();
+    expectContract('StudentBooking', current);
+    expect(current).toMatchObject({ id: firstBooking, class: { id: replacement.id } });
+    expect((await page.request.get('/api/v1/students/' + sibling.id + '/bookings/' + firstBooking)).status()).toBe(404);
+  }
+  const newAdmin = await switchRole('admin');
+  const link = '/api/v1/students/amy/relationships/parent';
+  expect((await page.request.delete(link, { headers: newAdmin })).status()).toBe(204);
+  try {
+    await switchRole('parent');
+    await page.goto(permanentPath);
+    expect((await page.request.get('/api/v1' + permanentPath)).status()).toBe(404);
+    await expect(page.getByText(beginner.classTypeName, { exact: false })).toHaveCount(0);
+    await switchRole('student');
+    await page.goto(permanentPath);
+    await expect(page.getByText(/13:00/).first()).toBeVisible();
+  } finally {
+    const restore = await switchRole('admin');
+    expect((await page.request.put(link, { headers: restore, data: { kind: 'guardian' } })).status()).toBe(200);
+  }
   // The mail worker can send only queued deliveries. Check every recipient of these two bookings.
   const dsn = process.env.DATABASE_URL;
   expect(dsn, 'dedicated synthetic database required').toBeTruthy();
