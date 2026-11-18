@@ -5,9 +5,9 @@
 - `POST /api/v1/students/{id}/bookings/{bookingId}/change-requests` accepts `{targetClassId, idempotencyKey}`. A new request returns 201. An exact replay returns 200 and the current request.
 - `PUT /api/v1/lesson-changes/{id}/decision` accepts `{decision, reason?}` from the currently assigned original coach. Decisions are `approved` or `rejected`. An exact replay returns 200. Conflicting decisions or a failed approval return 409.
 
-Request records include `id`, `bookingId`, `studentId`, `studentName`, `originalClass`, `targetClass`, `status`, `requestedAt`, and after a decision `decidedAt`, `decidedBy`, and any supplied `decisionReason`. Status is `pending`, `approved`, or `rejected`.
+Request records include `id`, `bookingId`, `studentId`, `studentName`, `originalClass`, `targetClass`, `status`, `requestedAt`, the requester ID `requestedBy`, and after a decision `decidedAt`, `decidedBy`, and any supplied `decisionReason`. Status is `pending`, `approved`, or `rejected`.
 
-The original class must be upcoming. The configured cutoff includes equality. A pending request leaves the original seat and credit reserved. Approval rechecks both classes, target eligibility, capacity, overlap and package coverage. Approval moves the existing booking with its credit reservation and enrolment linkage. Rejection or failed approval preserves the original booking. A failed approval leaves the request pending so the coach can retry or reject it.
+The original class must be upcoming. The configured cutoff applies when the guardian submits the request and includes equality. An on-time request can be decided after the cutoff while the original class is still upcoming. A pending request leaves the original seat and credit reserved. Approval rechecks both classes, target eligibility, capacity, overlap and package coverage. Approval moves the existing booking with its credit reservation and enrolment linkage. Rejection or failed approval preserves the original booking. A failed approval leaves the request pending so the coach can retry or reject it.
 
 Checks cover cutoff equality, scoped access, request replay and conflicts, capacity changing after submission, concurrent decision retries, audit rollback, and reservation conservation.
 
