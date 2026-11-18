@@ -1,0 +1,15 @@
+[Unit]
+Description=SwimCoach Pro API
+After=network.target
+
+[Service]
+User=swimming
+Group=swimming
+EnvironmentFile=/etc/swimming/app.env
+ExecStart=/opt/swimming/current/swimming-api
+Restart=on-failure
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,13 @@
+[Unit]
+Description=Apply SwimCoach Pro database migrations for %i
+After=network.target
+
+[Service]
+Type=oneshot
+User=swimming
+Group=swimming
+EnvironmentFile=/etc/swimming/app.env
+ExecStart=/opt/swimming/releases/%i/swimming-migrate
+TimeoutStartSec=5min
+NoNewPrivileges=true
+PrivateTmp=true

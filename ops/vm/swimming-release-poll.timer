@@ -1,0 +1,9 @@
+[Unit]
+Description=Poll GitHub for a tested SwimCoach Pro release
+
+[Timer]
+OnBootSec=3min
+OnUnitInactiveSec=5min
+
+[Install]
+WantedBy=timers.target

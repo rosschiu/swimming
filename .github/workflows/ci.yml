@@ -42,6 +42,8 @@ jobs:
       - run: npm ci
       - run: npm ci --prefix apps/web
       - run: npm run contracts:check
+      - name: Test VM delivery control flow
+        run: python3 ops/vm/test_delivery.py
       - name: Go formatting, static checks and tests
         working-directory: services/api
         run: |
@@ -75,3 +77,13 @@ jobs:
           path: |
             playwright-report/
             test-results/
+      - name: Package VM release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.SWIMMING_VM_DELIVERY == 'enabled'
+        run: ops/vm/package.sh "$GITHUB_SHA" swimming-release.tar.gz
+      - uses: actions/upload-artifact@v4
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.SWIMMING_VM_DELIVERY == 'enabled'
+        with:
+          name: swimming-vm-release
+          path: swimming-release.tar.gz
+          if-no-files-found: error
+          retention-days: 7

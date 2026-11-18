@@ -1,0 +1,11 @@
+[Unit]
+Description=Check for a tested SwimCoach Pro release
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+LoadCredential=github-token:/etc/swimming/github-token
+UMask=0077
+ExecStart=/usr/local/sbin/swimming-check-for-release
+TimeoutStartSec=15min
