@@ -1,13 +1,14 @@
 import { useEffect, useId, useState } from 'react';
 import BookingForm from './BookingForm';
 import EnrolmentForm from './EnrolmentForm';
+import { RequestLessonChange } from './LessonChanges';
 import { APIError, type Student } from './api';
 import type { components } from './generated/api';
 import { hkDate, hkTime, rangeEnd } from './scheduling';
 import { isAborted, useProtectedRequest, type ProtectedProps } from './useProtectedRequest';
 
 type StudentBooking = components['schemas']['StudentBooking'];
-type BookingProps = Pick<ProtectedProps, 'expired' | 't'> & { studentId: string };
+type BookingProps = ProtectedProps & { studentId: string; role: 'admin' | 'parent' | 'student' };
 
 export default function StudentBookings({ student, expired, t, csrfToken, role, onBooked }: ProtectedProps & { student: Student; role: 'admin' | 'parent' | 'student'; onBooked: () => void }) {
   const id = useId();
@@ -55,11 +56,11 @@ export default function StudentBookings({ student, expired, t, csrfToken, role, 
       <button className="outline">{t('Load booked lessons', '載入已預約課堂')}</button>
     </form>
     {invalid && <p role="alert">{t('Choose a date range of at most 93 days.', '請選擇最多 93 日的日期範圍。')}</p>}
-    <BookingResults key={`${studentId}:${range.revision}`} studentId={studentId} expired={expired} t={t} from={range.from} to={range.to}/>
+    <BookingResults key={`${studentId}:${range.revision}`} studentId={studentId} role={role} csrfToken={csrfToken} expired={expired} t={t} from={range.from} to={range.to}/>
   </section>;
 }
 
-function BookingResults({ studentId, expired, t, from, to }: BookingProps & { from: string; to: string }) {
+function BookingResults({ studentId, role, csrfToken, expired, t, from, to }: BookingProps & { from: string; to: string }) {
   const api = useProtectedRequest(expired);
   const [result, setResult] = useState<StudentBooking[] | 'unavailable' | 'error' | null>(null);
 
@@ -83,6 +84,7 @@ function BookingResults({ studentId, expired, t, from, to }: BookingProps & { fr
           <p><time dateTime={lesson.startsAt}>{hkDate(new Date(lesson.startsAt))} {hkTime(lesson.startsAt)}</time>–<time dateTime={lesson.endsAt}>{hkDate(new Date(lesson.startsAt)) !== hkDate(new Date(lesson.endsAt)) && `${hkDate(new Date(lesson.endsAt))} `}{hkTime(lesson.endsAt)}</time></p>
           <p className="muted">{lesson.venueName} · {lesson.coachName}</p>
           <p>{t('Attendance', '出席記錄')} <span className="tag">{attendance ? t('Present', '已出席') : t('Unmarked', '尚未記錄')}</span></p>
+          {role === 'parent' && !attendance && Date.parse(lesson.startsAt) > Date.now() && <RequestLessonChange studentId={studentId} bookingId={id} csrfToken={csrfToken} expired={expired} t={t}/>}
         </div><span className="tag">{t('Reserved', '已預約')}</span>
       </li>)}</ul>}
   </>;

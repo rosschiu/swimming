@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"time"
@@ -88,10 +89,7 @@ func (a *API) markPresent(w http.ResponseWriter, r *http.Request, s Session) {
 	}
 
 	source := "booking:" + bookingID
-	var reserved bool
-	err = tx.QueryRow(ctx, `SELECT COALESCE(sum(reserved),0)>0
-		AND COALESCE(bool_or(source=$2 AND available=-1 AND reserved=1 AND consumed=0 AND expired=0),false)
-		FROM credit_movements WHERE package_id=$1`, packageID, source+":reserved").Scan(&reserved)
+	reserved, err := hasBookingReservation(ctx, tx, packageID, bookingID)
 	if err != nil {
 		internal(w, err)
 		return
@@ -122,4 +120,12 @@ func (a *API) markPresent(w http.ResponseWriter, r *http.Request, s Session) {
 		return
 	}
 	financeCommit(w, r, tx, 200, presentAttendance(&now))
+}
+
+func hasBookingReservation(ctx context.Context, tx pgx.Tx, packageID, bookingID string) (bool, error) {
+	var reserved bool
+	err := tx.QueryRow(ctx, `SELECT COALESCE(sum(reserved),0)>0
+		AND COALESCE(bool_or(source=$2 AND available=-1 AND reserved=1 AND consumed=0 AND expired=0),false)
+		FROM credit_movements WHERE package_id=$1`, packageID, "booking:"+bookingID+":reserved").Scan(&reserved)
+	return reserved, err
 }
