@@ -90,6 +90,7 @@ test('guardian reserves two selected weeks with purchased credits and leaves the
   const studentHeaders = await switchRole('student');
   expect((await page.request.post(path, { headers: studentHeaders, data: payload })).status()).toBe(403);
   await page.goto('/students/amy');
+  if (await page.getByRole('button', { name: 'Change dates' }).isVisible()) await page.getByRole('button', { name: 'Change dates' }).click();
   await page.getByLabel('Bookings from date').fill(day(0));
   await page.getByLabel('Bookings to date').fill(day(2));
   await page.getByRole('button', { name: 'Load booked lessons' }).click();

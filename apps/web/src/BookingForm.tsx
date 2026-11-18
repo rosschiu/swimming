@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { APIError, type Student } from './api';
 import type { components } from './generated/api';
-import { bookingCreditCovers, classLabel, hkDate, rangeEnd, type ClassSession } from './scheduling';
+import { bookingCreditCovers, classLabel, hkDate, hkTime, rangeEnd, type ClassSession } from './scheduling';
 import { isAborted, useProtectedRequest, type ProtectedProps } from './useProtectedRequest';
 
 type CreditPackage = components['schemas']['CreditHistoryPackage'];
@@ -9,6 +9,10 @@ type CreditHistory = components['schemas']['CreditHistory'];
 type BookingInput = components['schemas']['BookingInput'];
 type Choices = { classes: ClassSession[]; packages: CreditPackage[]; validity: CreditHistory['bookingValidity'] };
 type Props = ProtectedProps & { student: Student; admin: boolean; onBooked: (startsAt: string) => void };
+
+const shiftDate = (date: string, days: number) => { const day = new Date(`${date}T12:00:00+08:00`); day.setUTCDate(day.getUTCDate() + days); return hkDate(day); };
+// Spend the credit that expires first; packages without expiry come last.
+const byExpiry = (a: CreditPackage, b: CreditPackage) => (a.expiresOn ?? '9999-12-31').localeCompare(b.expiresOn ?? '9999-12-31');
 
 export default function BookingForm({ csrfToken, expired, t, student, admin, onBooked }: Props) {
   const api = useProtectedRequest(expired);
@@ -56,10 +60,17 @@ export default function BookingForm({ csrfToken, expired, t, student, admin, onB
   const lesson = options?.classes.find(item => item.id === classId);
   const lessonPackages = lesson && options ? options.packages.filter(item => {
     return bookingCreditCovers(item.expiresOn, lesson, options.validity.validityRule);
-  }) : [];
+  }).sort(byExpiry) : [];
   const creditPackage = (input ? options?.packages : lessonPackages)?.find(item => item.id === packageId);
   const override = admin && !!lesson && lesson.level !== student.level;
-  const packageLabel = (value: CreditPackage) => `${value.id} · ${t('Available', '可用堂數')} ${value.available} · ${value.expiresOn ? `${t('Expires', '到期日')} ${value.expiresOn}` : t('No expiry', '無到期日')}`;
+  const packageLabel = (value: CreditPackage) => `${t(`${value.available} ${value.available === 1 ? 'lesson' : 'lessons'} left`, `尚餘 ${value.available} 堂`)} · ${value.expiresOn ? t(`use by ${value.expiresOn}`, `${value.expiresOn} 前使用`) : t('no expiry', '無到期日')}${value.sourcePackageId ? ` · ${t('restored credits', '已恢復堂數')}` : ''}`;
+  function chooseClass(value: string) {
+    setClassId(value); setReason('');
+    const next = options?.classes.find(item => item.id === value);
+    setPackageId(next && options ? options.packages.filter(item => bookingCreditCovers(item.expiresOn, next, options.validity.validityRule)).sort(byExpiry)[0]?.id ?? '' : '');
+  }
+  const days = options ? [...new Set(options.classes.map(item => hkDate(new Date(item.startsAt))))] : [];
+  const today = hkDate();
 
   async function submit() {
     if (!input || submitting.current) return;
@@ -114,7 +125,7 @@ export default function BookingForm({ csrfToken, expired, t, student, admin, onB
       {input && options && lesson && creditPackage ? <div>
         <h4>{t('Review booking', '檢查預約')}</h4>
         <p>{student.name} · {classLabel(lesson)}</p>
-        <p>{packageLabel(creditPackage)}</p>
+        <p>{t('Uses one credit', '使用一堂')} · {packageLabel(creditPackage)}</p>
         <p>{options.validity.validityRule === 'lesson_start'
           ? t('The credit must be valid when the lesson starts.', '堂數須於課堂開始時有效。')
           : t('The credit must be valid through the end of the lesson.', '堂數須有效至課堂結束。')}</p>
@@ -126,13 +137,14 @@ export default function BookingForm({ csrfToken, expired, t, student, admin, onB
           {!uncertain && <button className="outline" disabled={pending} onClick={() => setInput(null)}>{t('Edit booking', '編輯預約')}</button>}
         </div>
       </div> : <>
-        <form className="field-grid" onSubmit={event => { event.preventDefault(); setFailure(null); reload(date); }}>
-          <div><label htmlFor={`${id}-date`}>{t('Find classes from (Hong Kong)', '搜尋此日期起的課堂（香港）')}</label>
-            <input id={`${id}-date`} type="date" required min={hkDate()} value={date} onChange={event => setDate(event.target.value)}/></div>
-          <div className="form-actions"><button className="outline">{t('Load classes and credits', '載入課堂及堂數')}</button></div>
-        </form>
+        <div className="week-picker">
+          <button type="button" className="outline" disabled={range.from <= today} onClick={() => { const from = shiftDate(range.from, -7) < today ? today : shiftDate(range.from, -7); setDate(from); setFailure(null); reload(from); }}>{t('Previous week', '上一週')}</button>
+          <div><label htmlFor={`${id}-date`}>{t('Show classes from', '顯示此日期起的課堂')}</label>
+            <input id={`${id}-date`} type="date" required min={today} value={date} onChange={event => { setDate(event.target.value); if (event.target.value >= today) { setFailure(null); reload(event.target.value); } }}/></div>
+          <button type="button" className="outline" onClick={() => { const from = shiftDate(range.from, 7); setDate(from); setFailure(null); reload(from); }}>{t('Next week', '下一週')}</button>
+        </div>
         <p className="muted">{range.from}–{rangeEnd(range.from)} · {t('Hong Kong time', '香港時間')}</p>
-        {choices === 'error' ? <p role="alert">{t('Could not load booking options. Use the button above to retry.', '未能載入預約選項。請使用上方按鈕重試。')}</p> : !options ? <p role="status">{t('Loading booking options…', '正在載入預約選項…')}</p> : <form onSubmit={event => {
+        {choices === 'error' ? <div><p role="alert">{t('Could not load booking options.', '未能載入預約選項。')}</p><button type="button" className="outline" onClick={() => reload(range.from)}>{t('Retry', '重試')}</button></div> : !options ? <p role="status">{t('Loading booking options…', '正在載入預約選項…')}</p> : <form onSubmit={event => {
           event.preventDefault();
           if (!options || !lesson || !creditPackage || (override && (!reason.trim() || [...reason.trim()].length > 500))) return;
           const intent = {
@@ -144,17 +156,25 @@ export default function BookingForm({ csrfToken, expired, t, student, admin, onB
           if (lastIntent.current?.fingerprint !== fingerprint) lastIntent.current = { fingerprint, input: { ...intent, idempotencyKey: crypto.randomUUID() } };
           setInput(lastIntent.current.input);
         }}>
-          <label htmlFor={`${id}-class`}>{t('Class to book', '預約課堂')}</label>
-          <select id={`${id}-class`} required value={classId} onChange={event => { setClassId(event.target.value); setPackageId(''); setReason(''); }}>
-            <option value="">{t('Choose a class', '選擇課堂')}</option>
-            {options.classes.map(value => <option key={value.id} value={value.id}>{classLabel(value)} · {value.level}</option>)}
-          </select>
-          {!options.classes.length && <p role="status">{t('No eligible classes on these dates.', '這段日期內沒有符合預約條件的課堂。')}</p>}
-          <label htmlFor={`${id}-package`}>{t('Credit package', '堂數套票')}</label>
-          <select id={`${id}-package`} required disabled={!lesson} value={packageId} onChange={event => setPackageId(event.target.value)}>
-            <option value="">{t('Choose a package', '選擇套票')}</option>
-            {lessonPackages.map(value => <option key={value.id} value={value.id}>{packageLabel(value)}</option>)}
-          </select>
+          <fieldset className="choice-group">
+            <legend>{t('Class to book', '預約課堂')}</legend>
+            {!options.classes.length && <p role="status">{t('No eligible classes on these dates. Try the next week.', '這段日期內沒有符合預約條件的課堂。請查看下一週。')}</p>}
+            {days.map(day => <div key={day} role="group" aria-label={day}>
+              <p className="eyebrow choice-day">{day}</p>
+              {options.classes.filter(item => hkDate(new Date(item.startsAt)) === day).map(value => <label key={value.id} className={classId === value.id ? 'choice-card choice-selected' : 'choice-card'}>
+                <input type="radio" name={`${id}-class`} value={value.id} checked={classId === value.id} onChange={() => chooseClass(value.id)}/>
+                <span className="choice-time">{hkTime(value.startsAt)}–{hkTime(value.endsAt)}</span>
+                <span className="choice-body"><strong>{value.classTypeName}</strong><span className="muted">{value.venueName} · {value.coachName}{admin ? ` · ${value.level}` : ''}</span></span>
+              </label>)}
+            </div>)}
+          </fieldset>
+          {lesson && lessonPackages.length > 0 && <fieldset className="choice-group">
+            <legend>{t('Credit package', '堂數套票')}</legend>
+            {lessonPackages.map(value => <label key={value.id} className={packageId === value.id ? 'choice-card choice-selected' : 'choice-card'}>
+              <input type="radio" name={`${id}-package`} value={value.id} checked={packageId === value.id} onChange={() => setPackageId(value.id)}/>
+              <span className="choice-body">{packageLabel(value)}</span>
+            </label>)}
+          </fieldset>}
           {!options.packages.length && <p role="status">{t('This student has no packages with available credits.', '這位學員沒有可用堂數的套票。')}</p>}
           {lesson && options.packages.length > 0 && !lessonPackages.length && <p role="status">{t('No credit package is valid for this lesson.', '沒有適用於此課堂的有效堂數套票。')}</p>}
           {override && <><p>{t('Student level', '學員程度')} · {student.level} / {t('Class level', '班別程度')} · {lesson.level}</p>

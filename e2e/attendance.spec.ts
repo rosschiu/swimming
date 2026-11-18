@@ -166,6 +166,7 @@ test('coach records attendance once and administrator, guardian and student see 
   for (const role of ['parent', 'student']) {
     await switchRole(role);
     await page.goto('/students/amy');
+    if (await page.getByRole('button', { name: 'Change dates' }).isVisible()) await page.getByRole('button', { name: 'Change dates' }).click();
     await page.getByLabel('Bookings from date').fill(pastDate);
     await page.getByLabel('Bookings to date').fill(pastDate);
     await page.getByRole('button', { name: 'Load booked lessons' }).click();

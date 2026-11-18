@@ -10,6 +10,7 @@ const ben = { ...amy, id: 'ben', name: 'Ben Lee' };
 const bookingValidity = { validityRule: 'lesson_end', version: 1 };
 const session = (role: Role) => ({ user: { id: role, name: role, role }, csrfToken: `csrf-${role}` });
 const response = (body: unknown, status = 200) => new Response(status === 204 ? null : JSON.stringify(body), { status });
+const radio = (value: string) => document.querySelector<HTMLInputElement>(`input[type=radio][value="${value}"]`);
 function deferred() { let resolve!: (value: Response) => void; const promise = new Promise<Response>(r => { resolve = r; }); return { promise, resolve }; }
 type Override = (path: string, options?: RequestInit) => Response | Promise<Response> | undefined;
 function api(role: Role, override?: Override) {
@@ -190,10 +191,10 @@ it('discards a pending child read after navigation and lets the guardian retry t
   render(<App />);
   await screen.findByText('Loading booked lessons…');
   pop('/students/ben');
-  expect(await screen.findByText('Could not load booked lessons. Use the button above to retry.')).toHaveAttribute('role', 'alert');
+  expect(await screen.findByText('Could not load booked lessons.')).toHaveAttribute('role', 'alert');
   unavailable = false;
   const user = userEvent.setup();
-  await user.click(screen.getByRole('button', { name: 'Load booked lessons' }));
+  await user.click(screen.getByRole('button', { name: 'Retry booked lessons' }));
   expect(await screen.findByText('No booked lessons on these dates.')).toBeVisible();
   await act(async () => old.resolve(response({}, 401)));
   expect(screen.getByRole('heading', { name: 'Ben Lee' })).toBeVisible();
@@ -234,15 +235,16 @@ it.each(['parent', 'admin'] as const)('books with explicit confirmation and refr
   const user = userEvent.setup();
   await user.click(await screen.findByRole('button', { name: 'Book a lesson' }));
   const shownTime = role === 'parent' ? `${day} 09:30–10:30` : `${day} 23:30–${hkDate(new Date(endsAt))} 00:30`;
-  const classOption = await screen.findByRole('option', { name: new RegExp(`^${shownTime} · .* · ${lesson.level}$`) });
-  await user.selectOptions(screen.getByLabelText('Class to book'), classOption);
-  await user.selectOptions(screen.getByLabelText('Credit package'), pack.id);
+  await screen.findByRole('group', { name: 'Class to book' });
+  await user.click(radio('c1')!);
+  expect(radio(pack.id)).toBeChecked();
   if (role === 'admin') {
+    expect(screen.getByRole('radio', { name: /Lesson to reserve.*Advanced/ })).toBeChecked();
     expect(screen.getByRole('button', { name: 'Review booking' })).toBeDisabled();
     await user.type(screen.getByLabelText('Level override reason'), 'Coach assessment');
   } else {
     expect(screen.queryByLabelText('Level override reason')).not.toBeInTheDocument();
-    expect(screen.queryByRole('option', { name: /Expert/ })).not.toBeInTheDocument();
+    expect(radio('c2')).toBeNull();
   }
   await user.click(screen.getByRole('button', { name: 'Review booking' }));
   expect(screen.getByText(new RegExp(`Amy Chan · ${shownTime}`))).toBeVisible();
@@ -300,16 +302,17 @@ it.each([
   const user = userEvent.setup();
   await user.click(await screen.findByRole('button', { name: 'Book a lesson' }));
   async function chooseAndConfirm() {
-    await user.selectOptions(await screen.findByLabelText('Class to book'), 'c1');
-    await user.selectOptions(screen.getByLabelText('Credit package'), 'pack');
+    await screen.findByRole('group', { name: 'Class to book' });
+    await user.click(radio('c1')!);
+    expect(radio('pack')).toBeChecked();
     await user.click(screen.getByRole('button', { name: 'Review booking' }));
     expect(screen.getByText(writes.length ? 'The credit must be valid when the lesson starts.' : 'The credit must be valid through the end of the lesson.')).toBeVisible();
     await user.click(screen.getByRole('button', { name: 'Confirm booking' }));
   }
   await chooseAndConfirm();
   expect(await screen.findByText(message)).toHaveAttribute('role', 'alert');
-  await screen.findByLabelText('Class to book');
-  expect(screen.getByLabelText('Class to book')).toHaveValue('');
+  await screen.findByRole('group', { name: 'Class to book' });
+  expect(radio('c1')).not.toBeChecked();
   expect(screen.getByRole('button', { name: 'Review booking' })).toBeDisabled();
   expect(writes).toHaveLength(1);
   await chooseAndConfirm();
@@ -411,17 +414,18 @@ it.each([
   render(<App />);
   const user = userEvent.setup();
   await user.click(await screen.findByRole('button', { name: 'Book a lesson' }));
-  const classes = await screen.findByLabelText('Class to book');
-  const packages = screen.getByLabelText('Credit package');
-  await user.selectOptions(classes, 'midnight');
-  await user.selectOptions(packages, 'expiring');
-  expect(packages).toHaveValue('expiring');
-  await user.selectOptions(classes, 'overnight');
-  expect(packages).toHaveValue('');
-  expect(Boolean(screen.queryByRole('option', { name: /^expiring/ }))).toBe(permitsOvernight);
-  await user.selectOptions(classes, 'next-day');
-  expect(screen.queryByRole('option', { name: /^expiring/ })).not.toBeInTheDocument();
-  expect(screen.getByRole('option', { name: /^perpetual/ })).toBeVisible();
+  await screen.findByRole('group', { name: 'Class to book' });
+  await user.click(radio('midnight')!);
+  // The package expiring first is chosen by default; the guardian can still pick another.
+  expect(radio('expiring')).toBeChecked();
+  await user.click(radio('perpetual')!);
+  expect(radio('perpetual')).toBeChecked();
+  await user.click(radio('overnight')!);
+  expect(Boolean(radio('expiring'))).toBe(permitsOvernight);
+  expect(radio(permitsOvernight ? 'expiring' : 'perpetual')).toBeChecked();
+  await user.click(radio('next-day')!);
+  expect(radio('expiring')).toBeNull();
+  expect(radio('perpetual')).toBeChecked();
 });
 
 it('opens both current work queues from the administrator landing summary', async () => {
@@ -576,4 +580,25 @@ it.each(['parent', 'student', 'coach'] as const)('guards the missing attendance 
   render(<App />);
   expect(await screen.findByRole('heading', { name: 'Page unavailable' })).toBeVisible();
   expect(mock.mock.calls.some(([path]) => String(path).includes('/admin/missing-attendance'))).toBe(false);
+});
+
+it('moves the booking week forwards and back without going before today', async () => {
+  at('/students/amy');
+  const today = hkDate();
+  const next = hkDate(new Date(Date.parse(`${today}T12:00:00+08:00`) + 7 * 86400000));
+  const mock = api('parent', path => {
+    if (path.includes('/classes?')) return response({ items: [] });
+    if (path.endsWith('/credit-history')) return response({ items: [], recoveries: [], bookingValidity });
+  });
+  render(<App />);
+  const user = userEvent.setup();
+  await user.click(await screen.findByRole('button', { name: 'Book a lesson' }));
+  expect(await screen.findByText('No eligible classes on these dates. Try the next week.')).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Previous week' })).toBeDisabled();
+  await user.click(screen.getByRole('button', { name: 'Next week' }));
+  await waitFor(() => expect(mock.mock.calls.some(([path]) => String(path).includes(`/classes?from=${next}`))).toBe(true));
+  expect(screen.getByLabelText('Show classes from')).toHaveValue(next);
+  await user.click(screen.getByRole('button', { name: 'Previous week' }));
+  await waitFor(() => expect(screen.getByLabelText('Show classes from')).toHaveValue(today));
+  expect(screen.getByRole('button', { name: 'Previous week' })).toBeDisabled();
 });

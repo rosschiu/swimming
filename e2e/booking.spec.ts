@@ -3,6 +3,8 @@ import { execFileSync } from 'node:child_process';
 import type { components } from '../apps/web/src/generated/api';
 import { expectContract } from './contract';
 
+const choice = (target: Page, id: string) => target.locator(`input[type=radio][value="${id}"]`);
+
 async function signIn(page: Page, role: string) {
   await page.goto('/');
   await page.getByLabel('Email', { exact: true }).fill(role + '@swim.test');
@@ -61,14 +63,12 @@ test('paid credits reserve a guardian lesson and an administrator override, visi
   async function openForm() {
     await page.goto('/students/amy');
     await page.getByRole('button', { name: 'Book a lesson' }).click();
-    await page.getByLabel('Find classes from (Hong Kong)').fill(date);
-    await page.getByRole('button', { name: 'Load classes and credits' }).click();
+    await page.getByLabel('Show classes from').fill(date);
   }
   await openForm();
-  const classChoice = page.getByLabel('Class to book');
-  await classChoice.selectOption(beginner.id);
-  await expect(classChoice.getByRole('option', { name: new RegExp(advanced.classTypeName) })).toHaveCount(0);
-  await page.getByLabel('Credit package', { exact: true }).selectOption(pack.id);
+  await choice(page, beginner.id).check();
+  await expect(choice(page, advanced.id)).toHaveCount(0);
+  await choice(page, pack.id).check();
   await page.getByRole('button', { name: 'Review booking' }).click();
   await expect(page.getByRole('heading', { name: 'Review booking' })).toBeVisible();
   expect((await credit()).reserved).toBe(0);
@@ -123,8 +123,8 @@ test('paid credits reserve a guardian lesson and an administrator override, visi
 
   await switchRole('admin');
   await openForm();
-  await classChoice.selectOption(advanced.id);
-  await page.getByLabel('Credit package', { exact: true }).selectOption(pack.id);
+  await choice(page, advanced.id).check();
+  await choice(page, pack.id).check();
   await expect(page.getByRole('button', { name: 'Review booking' })).toBeDisabled();
   await page.getByLabel('Level override reason').fill('Assessment approved for synthetic swimmer');
   await page.getByRole('button', { name: 'Review booking' }).click();
@@ -132,6 +132,7 @@ test('paid credits reserve a guardian lesson and an administrator override, visi
   expect(await credit()).toMatchObject({ available: 0, reserved: 2 });
 
   async function openList(day: string) {
+    if (await page.getByRole('button', { name: 'Change dates' }).isVisible()) await page.getByRole('button', { name: 'Change dates' }).click();
     await page.getByLabel('Bookings from date').fill(day);
     await page.getByLabel('Bookings to date').fill(day);
     await page.getByRole('button', { name: 'Load booked lessons' }).click();
@@ -282,17 +283,18 @@ test('school validity controls an overnight reservation and preserves it after t
 
     await parent.goto('/students/amy');
     await parent.getByRole('button', { name: 'Book a lesson' }).click();
-    await parent.getByLabel('Find classes from (Hong Kong)').fill(expiryDay);
     async function chooseLesson() {
-      await parent.getByRole('button', { name: 'Load classes and credits' }).click();
-      await parent.getByLabel('Class to book').selectOption(lesson.id);
+      // Changing the date reloads classes and credits under the current school rule.
+      await parent.getByLabel('Show classes from').fill(nextDay);
+      await parent.getByLabel('Show classes from').fill(expiryDay);
+      await choice(parent, lesson.id).check();
     }
     await chooseLesson();
-    await expect(parent.getByLabel('Credit package', { exact: true }).getByRole('option', { name: new RegExp(pack.id) })).toHaveCount(0);
+    await expect(choice(parent, pack.id)).toHaveCount(0);
     await setRule('lesson_start');
     async function review() {
       await chooseLesson();
-      await parent.getByLabel('Credit package', { exact: true }).selectOption(pack.id);
+      await choice(parent, pack.id).check();
       await parent.getByRole('button', { name: 'Review booking' }).click();
       await expect(parent.getByText('The credit must be valid when the lesson starts.')).toBeVisible();
     }
