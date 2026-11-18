@@ -199,7 +199,9 @@ test('fixed booking stays reserved on a full replacement and follows coach appro
       await switchRole('parent');
       await page.goto('/notifications');
       for (const [record, label] of [[change, 'Your lesson change was approved.'], [second, 'Your lesson change was rejected.']] as const) {
-        const card = page.getByRole('article').filter({ hasText: label });
+        const card = page.getByRole('article').filter({ hasText: label }).filter({
+          has: page.locator('a[href="/students/amy/lesson-changes/' + record.id + '"]'),
+        });
         const detailLink = card.getByRole('link', { name: 'View lesson change decision' });
         const detailPath = '/students/amy/lesson-changes/' + record.id;
         await expect(detailLink).toHaveAttribute('href', detailPath);
@@ -215,6 +217,22 @@ test('fixed booking stays reserved on a full replacement and follows coach appro
       const noticeList = await read(page, 'notifications?limit=100');
       const decisionNotices = noticeList.items.filter((item: { sourceId: string }) => [change.id, second.id].includes(item.sourceId));
       expect(decisionNotices).toHaveLength(2);
+      const requesterLink = '/api/v1/students/amy/relationships/parent';
+      expect((await admin.request.delete(requesterLink, { headers: adminHeaders })).status()).toBe(204);
+      try {
+        await page.reload();
+        await expect(page.getByRole('heading', { name: 'Notifications', exact: true })).toBeVisible();
+        const revoked = await read(page, 'notifications?limit=100');
+        expect(revoked.items.some((item: { sourceId: string }) => [change.id, second.id].includes(item.sourceId))).toBe(false);
+        const auth = await read(page, 'auth/me');
+        const mark = await page.request.put('/api/v1/notifications/' + decisionNotices[0].id + '/read', {
+          headers: { Origin: 'http://localhost:18573', 'X-CSRF-Token': auth.csrfToken },
+        });
+        expect(mark.status()).toBe(404);
+        expect((await page.request.get('/api/v1' + detailPath)).status()).toBe(404);
+      } finally {
+        expect((await admin.request.put(requesterLink, { headers: adminHeaders, data: { kind: 'guardian' } })).status()).toBe(200);
+      }
       await switchRole('other-parent');
       const inbox = await read(page, 'notifications?limit=100');
       expect(inbox.items.some((item: { sourceId: string }) => [change.id, second.id].includes(item.sourceId))).toBe(false);
