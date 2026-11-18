@@ -44,7 +44,7 @@ it('confirms exactly the selected nonconsecutive weeks and safely retries the sa
   await user.click(screen.getByRole('checkbox', { name: new RegExp(date(3)) }));
   await user.click(screen.getByRole('checkbox', { name: new RegExp(date(17)) }));
   const packages = screen.getByLabelText('Enrolment credit package');
-  expect(screen.queryByRole('option', { name: /expired-before-last/ })).not.toBeInTheDocument();
+  expect(packages.querySelector('option[value="expired-before-last"]')).toBeNull();
   await user.selectOptions(packages, 'one-credit');
   expect(screen.getByRole('button', { name: 'Review enrolment' })).toBeDisabled();
   await user.selectOptions(packages, 'exact-package');
@@ -162,7 +162,7 @@ it.each([
   await user.click(screen.getByRole('checkbox'));
   const packages = screen.getByLabelText('Enrolment credit package');
   const review = screen.getByRole('button', { name: 'Review enrolment' });
-  if (renewalPolicy === 'same_offer') expect(screen.queryByRole('option', { name: /next-other/ })).not.toBeInTheDocument();
+  if (renewalPolicy === 'same_offer') expect(document.querySelector('option[value="next-other"]')).toBeNull();
   if (!carryForwardEnabled) {
     await user.selectOptions(packages, 'next-same');
     expect(review).toBeDisabled();
@@ -180,4 +180,30 @@ it.each([
       sessions: [{ classId: next.id, classVersion: 1, classTypeVersion: 2 }], idempotencyKey: expect.any(String),
     },
   }]);
+});
+
+it('selects every week on request and defaults a new enrolment to the package expiring first', async () => {
+  vi.stubGlobal('fetch', vi.fn(async (path: string) => {
+    if (path.includes('/classes?')) return response({ items: [first, skipped, third] });
+    if (path.endsWith('/credit-history')) return response({ bookingValidity: history, items: [
+      { id: 'later', purchaseId: 'later-purchase', available: 5, expiresOn: date(90) },
+      { id: 'sooner', purchaseId: 'sooner-purchase', available: 5, expiresOn: date(60) },
+      { id: 'open', purchaseId: 'open-purchase', available: 5, expiresOn: null },
+    ] });
+    return response({ items: [], settings });
+  }));
+  render(<EnrolmentForm {...props} onBooked={vi.fn()}/>);
+  const user = userEvent.setup();
+  await user.click(screen.getByRole('button', { name: 'Enrol in weekly lessons' }));
+  await user.selectOptions(await screen.findByLabelText('Weekly series'), 'series');
+  expect(screen.queryAllByRole('checkbox', { checked: true })).toHaveLength(0);
+  await user.click(screen.getByRole('button', { name: 'Select all weeks' }));
+  expect(screen.getAllByRole('checkbox', { checked: true })).toHaveLength(3);
+  expect(screen.queryByRole('button', { name: 'Select all weeks' })).not.toBeInTheDocument();
+  const packages = screen.getByLabelText('Enrolment credit package');
+  expect(packages).toHaveValue('sooner');
+  expect(screen.getByRole('option', { name: `5 lessons left · use by ${date(60)} · #sooner` })).toBeInTheDocument();
+  await user.selectOptions(packages, 'open');
+  expect(packages).toHaveValue('open');
+  expect(screen.getByRole('button', { name: 'Review enrolment' })).toBeEnabled();
 });

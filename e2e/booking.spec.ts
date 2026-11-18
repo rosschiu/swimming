@@ -132,7 +132,7 @@ test('paid credits reserve a guardian lesson and an administrator override, visi
   expect(await credit()).toMatchObject({ available: 0, reserved: 2 });
 
   async function openList(day: string) {
-    if (await page.getByRole('button', { name: 'Change dates' }).isVisible()) await page.getByRole('button', { name: 'Change dates' }).click();
+    await expect(page.getByRole('button', { name: 'Change dates' }).or(page.getByLabel('Bookings from date'))).toBeVisible(); if (await page.getByRole('button', { name: 'Change dates' }).isVisible()) await page.getByRole('button', { name: 'Change dates' }).click();
     await page.getByLabel('Bookings from date').fill(day);
     await page.getByLabel('Bookings to date').fill(day);
     await page.getByRole('button', { name: 'Load booked lessons' }).click();
