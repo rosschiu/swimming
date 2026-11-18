@@ -83,6 +83,16 @@ func TestIntegrationEnrolmentRenewal(t *testing.T) {
 	in.SettingsVersion, in.SourcePackageID = &settings.Version, source
 	expectStatus(t, request(t, h, "POST", path, in, coach), 403)
 	expectStatus(t, request(t, h, "POST", path, in, otherParent), 404)
+	omittedValidity := in
+	omittedValidity.BookingValidityVersion = nil
+	expectBookingError(t, request(t, h, "POST", path, omittedValidity, parent), 422, "validation_error")
+	staleValidity := in
+	previousVersion := validityVersion
+	staleValidity.BookingValidityVersion = &previousVersion
+	w = request(t, h, "PATCH", "/api/v1/settings/booking-validity", BookingValiditySettings{bookingValidityLessonStart, validityVersion}, f.admin)
+	expectStatus(t, w, 200)
+	validityVersion = decodeBody[BookingValiditySettings](t, w).Version
+	expectBookingError(t, request(t, h, "POST", path, staleValidity, parent), 409, "booking_validity_changed")
 	forged := in
 	if _, err := db.Exec(ctx, `INSERT INTO credit_packages(id,purchase_id,student_id,credits,expires_on,policy,created_at,source_package_id)
 		SELECT 'sibling-recovery',purchase_id,student_id,1,expires_on,policy,created_at,id FROM credit_packages WHERE id=$1`, source); err != nil {

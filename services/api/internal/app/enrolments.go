@@ -65,9 +65,9 @@ func (a *API) createEnrolment(w http.ResponseWriter, r *http.Request, s Session)
 		return
 	}
 	if (in.SettingsVersion != nil && *in.SettingsVersion < 1) ||
-		(sourceEnrolmentID != "" && (!validID(sourceEnrolmentID) || !validID(in.SourcePackageID) || in.SettingsVersion == nil)) ||
+		(sourceEnrolmentID != "" && (!validID(sourceEnrolmentID) || !validID(in.SourcePackageID) || in.SettingsVersion == nil || in.BookingValidityVersion == nil)) ||
 		(sourceEnrolmentID == "" && in.SourcePackageID != "") {
-		fail(w, 422, "validation_error", "Provide a valid settings version and source package for renewal")
+		fail(w, 422, "validation_error", "Renewal requires the source package and current fixed enrolment and booking validity versions")
 		return
 	}
 	if s.User.Role != "admin" && in.OverrideReason != "" {
