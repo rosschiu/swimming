@@ -85,7 +85,7 @@ export function RosterPage({ classId, admin, follow, ...props }: ProtectedProps 
         <button type="button" className="outline" onClick={() => void load()}>{t('Retry lesson', '重試載入課堂')}</button>
       </> : <>
         <p>{classLabel(lesson)}</p>
-        <ClassRoster {...props} classId={classId}/>
+        <ClassRoster {...props} classId={classId} follow={follow}/>
       </>}
   </section>;
 }

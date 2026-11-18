@@ -98,7 +98,7 @@ func TestIntegrationMarkPresent(t *testing.T) {
 		w = <-results
 		expectStatus(t, w, 200)
 		mark := decodeBody[BookingAttendance](t, w)
-		if mark.Status != "present" || !mark.MarkedAt.Equal(now) {
+		if mark.Status != "present" || !mark.MarkedAt.Equal(now) || mark.Evidence != nil {
 			t.Fatalf("unexpected mark: %+v", mark)
 		}
 	}
@@ -111,11 +111,27 @@ func TestIntegrationMarkPresent(t *testing.T) {
 		roster.Items[0].Attendance == nil || !roster.Items[0].Attendance.MarkedAt.Equal(now) {
 		t.Fatalf("marked booking should still occupy its roster place: %+v", roster)
 	}
+	var markerName string
+	if err := db.QueryRow(ctx, "SELECT name FROM users WHERE id='coach'").Scan(&markerName); err != nil {
+		t.Fatal(err)
+	}
+	checkEvidence := func(mark *BookingAttendance, hasAudit bool) {
+		t.Helper()
+		if mark == nil || mark.Evidence == nil || mark.Evidence.RecordedBy != markerName || mark.Evidence.HasAudit != hasAudit {
+			t.Fatalf("expected recorded coach with audit=%v, got %+v", hasAudit, mark)
+		}
+	}
+	checkEvidence(roster.Items[0].Attendance, true)
+	w = request(t, routes, "GET", rosterURL, nil, coach)
+	expectStatus(t, w, 200)
+	if got := decodeBody[ClassRoster](t, w).Items[0].Attendance; got == nil || got.Evidence != nil {
+		t.Fatalf("coach did not get the unchanged attendance projection: %+v", got)
+	}
 	for _, actor := range []authState{parent, student} {
 		w = request(t, routes, "GET", bookingURL+"?from=2030-01-07&to=2030-01-07", nil, actor)
 		expectStatus(t, w, 200)
 		lessons := decodeBody[struct{ Items []StudentBooking }](t, w).Items
-		if len(lessons) != 2 || lessons[0].Attendance == nil || lessons[0].Attendance.Status != "present" || lessons[1].Attendance != nil {
+		if len(lessons) != 2 || lessons[0].Attendance == nil || lessons[0].Attendance.Status != "present" || lessons[0].Attendance.Evidence != nil || lessons[1].Attendance != nil {
 			t.Fatalf("attendance missing from the student's lesson: %+v", lessons)
 		}
 	}
@@ -125,10 +141,20 @@ func TestIntegrationMarkPresent(t *testing.T) {
 	now = now.Add(time.Minute)
 	w = request(t, routes, "PUT", path, nil, f.admin)
 	expectStatus(t, w, 200)
-	if mark := decodeBody[BookingAttendance](t, w); !mark.MarkedAt.Equal(roster.AttendanceOpensAt) {
+	mark := decodeBody[BookingAttendance](t, w)
+	if !mark.MarkedAt.Equal(roster.AttendanceOpensAt) {
 		t.Fatalf("replay changed timestamp: %+v", mark)
 	}
+	checkEvidence(&mark, true)
 	checkState(1, 0, 1)
+	exec("DELETE FROM audit_events WHERE action='attendance.present' AND entity_id=$1", reserved.ID)
+	w = request(t, routes, "GET", rosterURL, nil, f.admin)
+	expectStatus(t, w, 200)
+	legacy := decodeBody[ClassRoster](t, w).Items[0].Attendance
+	checkEvidence(legacy, false)
+	if !legacy.MarkedAt.Equal(mark.MarkedAt) {
+		t.Fatalf("legacy record changed recorded time: %+v", legacy)
+	}
 
 	now = class.StartsAt.Add(48 * time.Hour)
 	latePath := "/api/v1/classes/" + later.ID + "/roster/" + lateBooking.ID + "/attendance"

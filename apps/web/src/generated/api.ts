@@ -1471,11 +1471,17 @@ export interface components {
             status: "reserved";
             attendance?: components["schemas"]["Attendance"];
         };
+        AttendanceEvidence: {
+            recordedBy: string;
+            hasAudit: boolean;
+        };
         Attendance: {
             /** @enum {string} */
             status: "present";
             /** Format: date-time */
             markedAt: string;
+            /** @description Recorded staff and audit availability. Returned only to administrators through the class roster or attendance write responses. */
+            evidence?: components["schemas"]["AttendanceEvidence"];
         };
         SeriesInput: {
             venueId: string;

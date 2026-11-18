@@ -9,11 +9,19 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+const attendanceAuditExists = "EXISTS (SELECT 1 FROM audit_events e WHERE e.entity_id=ba.booking_id AND e.action='attendance.present')"
+
 const attendanceOpening = "c.starts_at + ls.attendance_open_minutes * interval '1 minute'"
 
 type BookingAttendance struct {
-	Status   string    `json:"status"`
-	MarkedAt time.Time `json:"markedAt"`
+	Status   string              `json:"status"`
+	MarkedAt time.Time           `json:"markedAt"`
+	Evidence *AttendanceEvidence `json:"evidence,omitempty"`
+}
+
+type AttendanceEvidence struct {
+	RecordedBy string `json:"recordedBy"`
+	HasAudit   bool   `json:"hasAudit"`
 }
 
 func presentAttendance(markedAt *time.Time) *BookingAttendance {
@@ -70,7 +78,7 @@ func (a *API) markPresent(w http.ResponseWriter, r *http.Request, s Session) {
 		return
 	}
 	if markedAt != nil {
-		financeCommit(w, r, tx, 200, presentAttendance(markedAt))
+		respondPresentAttendance(w, r, tx, s, bookingID, markedAt)
 		return
 	}
 
@@ -119,7 +127,22 @@ func (a *API) markPresent(w http.ResponseWriter, r *http.Request, s Session) {
 		internal(w, err)
 		return
 	}
-	financeCommit(w, r, tx, 200, presentAttendance(&now))
+	respondPresentAttendance(w, r, tx, s, bookingID, &now)
+}
+
+func respondPresentAttendance(w http.ResponseWriter, r *http.Request, tx pgx.Tx, s Session, bookingID string, markedAt *time.Time) {
+	attendance := presentAttendance(markedAt)
+	if s.User.Role == "admin" {
+		var evidence AttendanceEvidence
+		if err := tx.QueryRow(r.Context(), "SELECT marker.name,"+attendanceAuditExists+
+			" FROM booking_attendance ba JOIN users marker ON marker.id=ba.actor_id WHERE ba.booking_id=$1", bookingID).
+			Scan(&evidence.RecordedBy, &evidence.HasAudit); err != nil {
+			internal(w, err)
+			return
+		}
+		attendance.Evidence = &evidence
+	}
+	financeCommit(w, r, tx, 200, attendance)
 }
 
 func hasBookingReservation(ctx context.Context, tx pgx.Tx, packageID, bookingID string) (bool, error) {

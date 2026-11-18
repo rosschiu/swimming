@@ -6677,6 +6677,22 @@
         ],
         "additionalProperties": false
       },
+      "AttendanceEvidence": {
+        "type": "object",
+        "properties": {
+          "recordedBy": {
+            "type": "string"
+          },
+          "hasAudit": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "recordedBy",
+          "hasAudit"
+        ],
+        "additionalProperties": false
+      },
       "Attendance": {
         "type": "object",
         "properties": {
@@ -6689,6 +6705,10 @@
           "markedAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "evidence": {
+            "description": "Recorded staff and audit availability. Returned only to administrators through the class roster or attendance write responses.",
+            "$ref": "#/components/schemas/AttendanceEvidence"
           }
         },
         "required": [

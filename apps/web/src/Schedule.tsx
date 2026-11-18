@@ -1,10 +1,11 @@
-import { Fragment, useEffect, useRef, useState, type FormEvent } from 'react';
+import { Fragment, useEffect, useRef, useState, type FormEvent, type MouseEvent } from 'react';
+import type { Route } from './navigation';
 import ClassRoster from './ClassRoster';
 import { APIError, type User } from './api';
 import { isAborted, useProtectedRequest, type ProtectedProps } from './useProtectedRequest';
 import { hkDate, hkTime, rangeEnd, regionNames, type Venue, type ClassType, type ClassSession, type ClassSeries, type AdminUser } from './scheduling';
 
-export default function Schedule({ csrfToken, expired, t, role }: ProtectedProps & { role: User['role'] }) {
+export default function Schedule({ csrfToken, expired, t, role, follow }: ProtectedProps & { role: User['role']; follow?: (event: MouseEvent<HTMLAnchorElement>, next: Route) => void }) {
   const api = useProtectedRequest(expired);
   const listGeneration = useRef(0);
   const [from, setFrom] = useState(hkDate);
@@ -107,7 +108,7 @@ export default function Schedule({ csrfToken, expired, t, role }: ProtectedProps
                 onClick={() => setRosterClassId(rosterOpen ? null : c.id)}>{t('View roster', '查看名單')}</button>
             </div>}
           </article>
-          {rosterOpen && <ClassRoster classId={c.id} csrfToken={csrfToken} expired={expired} t={t}/>}
+          {rosterOpen && <ClassRoster follow={follow} classId={c.id} csrfToken={csrfToken} expired={expired} t={t}/>}
         </Fragment>;
       })}</div>
       {!classes.length && <p className="panel empty">{t('No classes match these filters. Try another date range or location.', '沒有符合篩選的課堂，請嘗試其他日期或地點。')}</p>}

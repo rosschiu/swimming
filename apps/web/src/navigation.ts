@@ -4,10 +4,13 @@ import type { User } from './api';
 export type View = 'students' | 'accounts' | 'audit' | 'schedule' | 'setup' | 'availability' | 'notifications' | 'deliveries' | 'packages' | 'lesson-changes' | 'missing-attendance';
 export const deliveryStatuses = ['pending', 'leased', 'sent', 'retry', 'failed', 'suppressed'] as const;
 export type DeliveryStatus = typeof deliveryStatuses[number];
-export type Route = { view: View; studentId?: string; bookingId?: string; classId?: string; deliveryStatus?: DeliveryStatus; lessonChangeStatus?: 'pending'; lessonChangeId?: string } | { view: 'unavailable' };
+export type Route = { view: View; studentId?: string; bookingId?: string; auditEntityId?: string; classId?: string; deliveryStatus?: DeliveryStatus; lessonChangeStatus?: 'pending'; lessonChangeId?: string } | { view: 'unavailable' };
 const paths: Record<View, string> = { students: '/students', accounts: '/accounts', audit: '/audit', schedule: '/schedule', setup: '/setup', availability: '/availability', notifications: '/notifications', deliveries: '/notification-deliveries', packages: '/packages', 'lesson-changes': '/lesson-changes', 'missing-attendance': '/missing-attendance' };
 
 export function parseRoute(path: string, search = ''): Route {
+  if (path === paths.audit) {
+    return { view: 'audit', auditEntityId: new URLSearchParams(search).get('entityId') || undefined };
+  }
   if (path === paths.deliveries) {
     const status = new URLSearchParams(search).get('status');
     const deliveryStatus = deliveryStatuses.find(value => value === status);
@@ -38,6 +41,7 @@ export function parseRoute(path: string, search = ''): Route {
 }
 export function routePath(route: Route): string {
   if (route.view === 'unavailable') return '/';
+  if (route.view === 'audit' && route.auditEntityId) return `${paths.audit}?${new URLSearchParams({ entityId: route.auditEntityId })}`;
   if (route.view === 'deliveries' && route.deliveryStatus) return `${paths.deliveries}?status=${route.deliveryStatus}`;
   if (route.view === 'lesson-changes' && route.studentId && route.lessonChangeId) return `/lesson-changes/${encodeURIComponent(route.studentId)}/${encodeURIComponent(route.lessonChangeId)}`;
   if (route.view === 'lesson-changes' && route.lessonChangeStatus) return `${paths['lesson-changes']}?status=pending`;

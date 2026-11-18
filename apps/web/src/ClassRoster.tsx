@@ -1,13 +1,17 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import { APIError } from './api';
 import type { components, operations } from './generated/api';
+import { routePath, type Route } from './navigation';
 import { hkDate, hkTime } from './scheduling';
 import { isAborted, useProtectedRequest, type ProtectedProps } from './useProtectedRequest';
 
 type Roster = operations['getClassRoster']['responses'][200]['content']['application/json'];
 type RosterEntry = components['schemas']['RosterEntry'];
 
-export default function ClassRoster({ classId, csrfToken, expired, t }: ProtectedProps & { classId: string }) {
+export default function ClassRoster({ classId, csrfToken, expired, t, follow }: ProtectedProps & {
+  classId: string;
+  follow?: (event: MouseEvent<HTMLAnchorElement>, next: Route) => void;
+}) {
   const api = useProtectedRequest(expired);
   const path = `/classes/${encodeURIComponent(classId)}/roster`;
   const [result, setResult] = useState<Roster | 'unavailable' | 'error' | null>(null);
@@ -107,8 +111,17 @@ export default function ClassRoster({ classId, csrfToken, expired, t }: Protecte
       : result.items.length === 0 ? <p role="status">{t('No reserved places for this class.', '此課堂尚無預約。')}</p>
       : <>
         {!isOpen && opensAt && <p className="muted">{t('Attendance opens', '出席記錄開放時間')} <time dateTime={opensAt}>{hkDate(new Date(opensAt))} {hkTime(opensAt)}</time> {t('Hong Kong time', '香港時間')}</p>}
-        <ul className="link-list roster-list">{result.items.map(entry => <li key={entry.bookingId}>
-          <div><strong>{entry.studentName}</strong><span className="muted">{entry.level}</span></div>
+        <ul className="link-list roster-list">{result.items.map(entry => {
+          const evidence = entry.attendance?.evidence;
+          const audit: Route = { view: 'audit', auditEntityId: entry.bookingId };
+          const markedAt = entry.attendance?.markedAt;
+          return <li key={entry.bookingId}>
+          <div><strong>{entry.studentName}</strong><span className="muted">{entry.level}</span>
+            {evidence && markedAt && <>
+              <p>{t('Recorded by', '記錄者')} {evidence.recordedBy} · <time dateTime={markedAt}>{hkDate(new Date(markedAt))} {hkTime(markedAt)}</time> {t('Hong Kong time', '香港時間')}</p>
+              {evidence.hasAudit && <a href={routePath(audit)} onClick={event => follow?.(event, audit)}>{t('View attendance audit', '查看出席操作紀錄')}</a>}
+            </>}
+          </div>
           <div className="roster-actions">
             {entry.attendance ? <span className="tag" tabIndex={-1} ref={status => {
               if (status && focusRecordedBooking.current === entry.bookingId) {
@@ -138,7 +151,8 @@ export default function ClassRoster({ classId, csrfToken, expired, t }: Protecte
               </div>
             </div>}
           </div>
-        </li>)}</ul>
+        </li>;
+        })}</ul>
       </>}
   </section>;
 }
