@@ -462,6 +462,23 @@ export interface paths {
         patch: operations["updateClass"];
         trace?: never;
     };
+    "/api/v1/classes/{id}/cancellation-impact": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Administrator-only read of a selected occurrence. Full counts and one page describe current state and do not determine cancellation eligibility or credit remedies. */
+        get: operations["getCancellationImpact"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/classes/{id}/roster": {
         parameters: {
             query?: never;
@@ -1344,6 +1361,46 @@ export interface components {
             endsAt: string;
             capacity: number;
             version: number;
+        };
+        CancellationImpact: {
+            lesson: components["schemas"]["ClassSession"];
+            /** Format: date-time */
+            reviewedAt: string;
+            bookedSwimmers: number;
+            unmarkedBookings: number;
+            recordedAttendance: number;
+            pendingInbound: number;
+            pendingOutbound: number;
+            bookings: components["schemas"]["CancellationImpactBooking"][];
+            requests: components["schemas"]["CancellationImpactRequest"][];
+            nextCursor: string | null;
+        };
+        CancellationImpactBooking: {
+            bookingId: string;
+            studentId: string;
+            studentName: string;
+            enrolmentId?: string;
+            packageId: string;
+            /** Format: date */
+            expiresOn: string | null;
+            bookingValidityRule: string;
+            packageExpired: boolean;
+            packageCoversLesson: boolean;
+            /** Format: date-time */
+            attendanceMarkedAt?: string;
+        };
+        CancellationImpactRequest: {
+            id: string;
+            bookingId: string;
+            studentName: string;
+            otherClassId: string;
+            /** Format: date-time */
+            otherStartsAt: string;
+            /** Format: date-time */
+            otherEndsAt: string;
+            otherVenue: string;
+            /** Format: date-time */
+            requestedAt: string;
         };
         ClassSession: {
             id: string;
@@ -3364,6 +3421,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ClassSession"];
+                };
+            };
+            /** @description Request failed */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getCancellationImpact: {
+        parameters: {
+            query?: {
+                section?: "bookings" | "inbound" | "outbound";
+                limit?: number;
+                cursor?: string;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CancellationImpact"];
                 };
             };
             /** @description Request failed */

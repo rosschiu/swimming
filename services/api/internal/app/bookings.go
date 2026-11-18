@@ -46,6 +46,7 @@ func (a *API) bookingRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/students/{id}/bookings", a.auth(a.listStudentBookings))
 	mux.HandleFunc("POST /api/v1/students/{id}/bookings", a.auth(a.createBooking))
 	mux.HandleFunc("GET /api/v1/students/{id}/bookings/{bookingId}", a.auth(a.getStudentBooking))
+	mux.HandleFunc("GET /api/v1/classes/{id}/cancellation-impact", a.auth(a.getCancellationImpact))
 	mux.HandleFunc("GET /api/v1/classes/{id}/roster", a.auth(a.getClassRoster))
 	mux.HandleFunc("PUT /api/v1/classes/{id}/roster/{bookingId}/attendance", a.auth(a.markPresent))
 }

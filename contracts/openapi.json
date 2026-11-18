@@ -2095,6 +2095,82 @@
         ]
       }
     },
+    "/api/v1/classes/{id}/cancellation-impact": {
+      "get": {
+        "operationId": "getCancellationImpact",
+        "description": "Administrator-only read of a selected occurrence. Full counts and one page describe current state and do not determine cancellation eligibility or credit remedies.",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CancellationImpact"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "section",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "bookings",
+                "inbound",
+                "outbound"
+              ],
+              "default": "bookings"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
     "/api/v1/classes/{id}/roster": {
       "get": {
         "operationId": "getClassRoster",
@@ -6160,6 +6236,158 @@
           "endsAt",
           "capacity",
           "version"
+        ],
+        "additionalProperties": false
+      },
+      "CancellationImpact": {
+        "type": "object",
+        "properties": {
+          "lesson": {
+            "$ref": "#/components/schemas/ClassSession"
+          },
+          "reviewedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "bookedSwimmers": {
+            "type": "integer"
+          },
+          "unmarkedBookings": {
+            "type": "integer"
+          },
+          "recordedAttendance": {
+            "type": "integer"
+          },
+          "pendingInbound": {
+            "type": "integer"
+          },
+          "pendingOutbound": {
+            "type": "integer"
+          },
+          "bookings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CancellationImpactBooking"
+            }
+          },
+          "requests": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CancellationImpactRequest"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "lesson",
+          "reviewedAt",
+          "bookedSwimmers",
+          "unmarkedBookings",
+          "recordedAttendance",
+          "pendingInbound",
+          "pendingOutbound",
+          "bookings",
+          "requests",
+          "nextCursor"
+        ],
+        "additionalProperties": false
+      },
+      "CancellationImpactBooking": {
+        "type": "object",
+        "properties": {
+          "bookingId": {
+            "type": "string"
+          },
+          "studentId": {
+            "type": "string"
+          },
+          "studentName": {
+            "type": "string"
+          },
+          "enrolmentId": {
+            "type": "string"
+          },
+          "packageId": {
+            "type": "string"
+          },
+          "expiresOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "bookingValidityRule": {
+            "type": "string"
+          },
+          "packageExpired": {
+            "type": "boolean"
+          },
+          "packageCoversLesson": {
+            "type": "boolean"
+          },
+          "attendanceMarkedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "bookingId",
+          "studentId",
+          "studentName",
+          "packageId",
+          "expiresOn",
+          "bookingValidityRule",
+          "packageExpired",
+          "packageCoversLesson"
+        ],
+        "additionalProperties": false
+      },
+      "CancellationImpactRequest": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "bookingId": {
+            "type": "string"
+          },
+          "studentName": {
+            "type": "string"
+          },
+          "otherClassId": {
+            "type": "string"
+          },
+          "otherStartsAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "otherEndsAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "otherVenue": {
+            "type": "string"
+          },
+          "requestedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "bookingId",
+          "studentName",
+          "otherClassId",
+          "otherStartsAt",
+          "otherEndsAt",
+          "otherVenue",
+          "requestedAt"
         ],
         "additionalProperties": false
       },
