@@ -1,6 +1,6 @@
 # Web delivery backlog
 
-Active goal: complete web functionality with mock payments and reviewed stage PRs. AI/voice is deferred beyond first delivery (user decision, 2026-11-18). No real payments, native apps, hosting selection or public deployment.
+Active goal: complete web functionality with mock payments and reviewed stage PRs. AI/voice is deferred beyond first delivery (user decision, 2026-11-18). Real payments and native clients remain outside first delivery. The user has added automatic deployment to a designated VM; target access and release trigger are pending.
 
 ## Gates for every implementation stage
 
@@ -46,13 +46,22 @@ Update these rows in the stage PR when scope, evidence or status changes. Record
 | Operational readiness | Shipped in part, #11–13 | Restore, scale and permission checks exist. Repeat on the final workflows, verify setup/seed instructions, and close remaining accessibility and operational gaps. |
 | Typed assistant and voice | Deferred beyond first delivery | Verify authorized queries, confirmed actions, STT and optional TTS against real providers before claiming delivery. |
 
+## VM delivery
+
+| Work item | State | Acceptance |
+|---|---|---|
+| Identify the demo target | Awaiting VM connection details | Inspect its OS, existing ingress, deployment directory and persistent storage. Confirm the app URL and whether it is private. |
+| Package a tested revision | Planned | Build the web assets and Go services from the reviewed commit. Record the commit in the release artifact. |
+| Automate rollout | Planned | Deploy only the selected release after CI passes. Serialize deployments, run migrations once and retain application data. |
+| Verify and recover | Planned | Check the running version, API health and web routing from the target. Exercise recovery to the previous compatible release on the demo VM. |
+
 ## Open decisions and external dependencies
 
 - User approved credit reservation/consumption, explicit recurring renewal, administrator-entered package expiry, renewal carry-forward and assigned-coach recovery with reasons/new expiry on 2026-11-17.
 - User confirmed separate student login with own schedule/progress access; guardians control booking/payment.
 - Timing, eligibility, notifications and other unresolved questions remain in DECISIONS.md; resolve before dependent work.
 - AI/voice is deferred from first delivery. Actual language-model and STT/TTS credentials/provider access must be established before claiming that later stage complete. Do not expose credentials in logs or repository.
-- Use synthetic seed/test records only; no external messages or public deployment authorised.
+- Use synthetic demo records. Target access, public routing and email recipients require the intended VM and demo configuration.
 
 ## Evidence log
 
