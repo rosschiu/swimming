@@ -1,0 +1,35 @@
+# Absence, illness and attendance corrections
+
+Planning draft based on main at `e8c749b`. The scope is attendance outcomes for existing flexible and fixed bookings, with their credit effects. Family and school cancellations, make-up scheduling, substitution, refunds and new email workflows belong to separate stages.
+
+## Current behavior
+
+- The assigned class coach or an administrator can mark a reserved booking present when the configured attendance opening is reached. The transaction consumes its reserved credit and records an audit event. Roster and student booking queries currently assume any attendance row means present.
+- Purchases snapshot the school policy or package override. The funded credit package stores that policy, and a recovered package copies its source policy. Use the package attached to the booking, including when the booking belongs to a renewed enrolment. Subsequent policy edits cannot alter the outcome calculation for that booking.
+- Credit expiry operates on available credits only. An existing reservation can survive expiry. A retained credit released after the Hong Kong expiry date is expired, including when staff correct a consumed outcome after the date.
+
+## Acceptance criteria
+
+| Scenario | Expected result |
+|---|---|
+| Record an outcome | One original outcome per reservation. Present consumes. Absence or illness uses its independent package policy flag. Retention moves one unit out of reserved and back into the same package's available balance while valid, or into expired once due. A consuming outcome moves one reserved unit into consumed. The roster and enrolment linkage stay intact. |
+| Change an outcome | Require a visible current revision and a nonblank reason. Preserve the original evidence and record actor, time, before/after outcome and ledger effect with an append-only audit entry. A change between two consuming or two retaining outcomes creates no balance delta. A financial correction posts a compensating movement without deleting the original movement. |
+| Retained to consumed | Require one legally reversible unit in the original package. If retention expired and the unit remains recoverable in that package, decrease expired and increase consumed. If entitlement has already been used, carried forward or recovered and cannot be reversed, reject atomically with a clear explanation. Never debit a different package or create a negative balance. See the allocation question below. |
+| Access and replay | Assigned coach and administrator access follows the accepted correction authority below. Recheck current actor and booking scope after locking and before replay. Retry the same request without duplicate attendance, audit or movements. Reject changed input under a reused key and competing stale revisions. Preserve the existing present operation, including retries of a mark that has since been corrected. |
+| Timing | Use the server clock after acquiring relevant locks. Cover before, exactly at and after the applicable opening and correction deadline. Use one snapshot of settings per operation. Confirm the deadline anchor and setting-change semantics below. |
+| Reads | Assigned coach and admin see the current outcome, resulting disposition and correction eligibility on the roster. Guardian and student see current outcome and their own lesson history. Existing scope rules still block unrelated coaches, guardians and students. Keep staff-only reason and attribution in staff audit unless explicitly approved for family display. |
+| Migration | Preserve prior present records and their ledger links. Expand status and revision support with a new migration ID after #25, and update OpenAPI and generated web types. Validate on fresh and pre-existing databases. |
+| Change requests | Once a booking has attendance, it cannot be moved. If #25 leaves a pending request, the original remains the only booking eligible for attendance and an approval after attendance must fail atomically. An attendance failure must leave request state untouched. |
+
+## Decisions before implementation
+
+- **When can staff mark a no-show?** Recommend permitting present at the existing configured opening and absence or illness at class end. An earlier final absence could release a credit during class and require a later financial reversal if the swimmer arrives. Confirm whether illness can be reported before class as a distinct workflow.
+- **Who can correct and when?** Recommend the assigned class coach and administrator, with the same three-day configurable window measured from scheduled class end and no unrestricted administrator override. Confirm whether the window instead starts with the first mark, and whether policy edits change an already-open deadline. Also decide whether a very late *first* mark is permitted. The current present endpoint permits it.
+- **How should corrections reverse a pooled credit?** The ledger tracks totals by package and has no per-unit provenance once retained credits return to the pool. Recommend debiting only an available or unrecovered expired unit in the same package according to its current expiry state, and rejecting insufficient balance. Requiring the exact released unit to remain traceable would expand the ledger model. Avoid implying exact-unit provenance in copy or audit.
+- **Can staff erase a mark?** Recommend corrections between explicit outcomes only. Resetting to unmarked would require a new reservation, including a decision on expired credit and historical capacity. Keep free-text reasons operational and avoid requesting medical details.
+
+## Verification
+
+1. PostgreSQL tests for present, both absence and illness settings, recovered and renewed packages, policy snapshots, transition ledger conservation, audit rollback, stale edits, replays and access revocation. Include fixture upgrade of an existing present result.
+2. Races between two staff writes, a correction and expiry, an attempted credit recovery or renewal, and a #25 move approval. Check positive balances and exactly one effect. Exercise the Hong Kong midnight boundary and disabled expiry.
+3. Frontend states in English and Traditional Chinese for scoped controls, correction reason, credit disposition, stale revision recovery and expired or irreversible credit. Real Chromium journey starts on the assigned coach roster, records and corrects an outcome, then verifies admin audit and guardian/student booking readback.
