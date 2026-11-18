@@ -27,6 +27,23 @@ sudo systemctl enable swimming.service
 
 The first successful delivery starts the service. The deployment does not seed data. Prepare the database and intended first administrator through the approved environment setup before giving users access. Use demo seeding only for a disposable synthetic database.
 
+## Activate the target
+
+The selected virtual machine uses private NetBird SSH. Complete the operator’s SSO flow before inspecting its current service and reverse-proxy state. Confirm the dedicated Actions runner can reach SSH and retrieve its workflow artifacts before enabling delivery.
+
+The IPv4 gateway connects to both ports 80 and 443 using PROXY protocol. Limit trusted PROXY connections on both listeners to the gateway. Direct IPv6 connections on ports 80 and 443 use ordinary HTTP and TLS. Confirm that the proxy supports these two paths on the same deployment before enabling the repository delivery switch.
+
+Run the following checks from an authorized dual-stack client after applying the target proxy configuration. Both HTTP requests should redirect to the intended HTTPS origin. Both HTTPS paths should present the correct certificate, serve the web app, and return a successful API readiness check. Confirm the edge access logs report the expected client addresses on both paths.
+
+```bash
+host=swimmer.bsoltest.com
+for family in -4 -6; do
+  curl "$family" -sS -o /dev/null -D - "http://$host/"
+  curl "$family" -fsS -o /dev/null "https://$host/"
+  curl "$family" -fsS "https://$host/api/v1/ready"
+done
+```
+
 ## Enable GitHub Actions delivery
 
 1. Create a GitHub environment named `private-vm`. Restrict it to the `main` branch and configure the protection rules available for the repository. [GitHub environment setup](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments)
