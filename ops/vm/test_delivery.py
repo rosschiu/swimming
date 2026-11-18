@@ -158,10 +158,13 @@ echo "ready $release" >> "$TRACE"
         self.assert_release_modes()
 
     def test_unhealthy_retry_preserves_active_link(self):
-        result = self.install(NEW, OLD)
+        result = self.install(NEW, OLD, cached=True)
         self.assertNotEqual(result.returncode, 0)
+        self.assertIn(b"failed readiness", result.stderr)
         self.assertEqual(self.current.readlink().name, NEW)
-        self.assertNotIn("systemctl stop", self.trace.read_text())
+        trace = self.trace.read_text()
+        self.assertIn("systemctl restart swimming.service", trace)
+        self.assertNotIn("systemctl stop", trace)
 
     def test_rollback_verifies_previous_release_readiness(self):
         result = self.install(OLD, OLD)
