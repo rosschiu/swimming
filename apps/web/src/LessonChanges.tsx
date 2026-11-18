@@ -39,6 +39,43 @@ function Timestamp({ value }: { value: string }) {
   return <time dateTime={value}>{hkDate(new Date(value))} {hkTime(value)}</time>;
 }
 
+function ChangeSummary({ item, role, t }: { item: LessonChange; role?: string; t: Translate }) {
+  return <>
+    <strong>{item.studentName}</strong> <span className="tag">{statusLabel(item.status, t)}</span>
+    <p>{t('Original lesson', '原定課堂')} · {classLabel(item.originalClass)}</p>
+    <p>{t('Requested lesson', '申請的課堂')} · {classLabel(item.targetClass)}</p>
+    <p>{t('Requested at', '申請時間')} <Timestamp value={item.requestedAt}/>{role === 'admin' && <> · {t('Requester', '申請人')} {item.requestedBy}</>}</p>
+    {item.decidedAt && <p>{t('Decided at', '處理時間')} <Timestamp value={item.decidedAt}/>{role === 'admin' && item.decidedBy && <> · {t('Decided by', '處理人')} {item.decidedBy}</>}</p>}
+    {item.decisionReason && <p>{t('Decision reason', '處理原因')} · {item.decisionReason}</p>}
+  </>;
+}
+
+export function LessonChangeDetail({ studentId, changeId, expired, t }: Pick<ProtectedProps, 'expired' | 't'> & { studentId: string; changeId: string }) {
+  const api = useProtectedRequest(expired);
+  const [item, setItem] = useState<LessonChange>();
+  const [state, setState] = useState<'loading' | 'unavailable' | 'error'>();
+  const load = useCallback(async () => {
+    setState('loading');
+    setItem(undefined);
+    try {
+      setItem(await api<LessonChange>(`/students/${encodeURIComponent(studentId)}/lesson-changes/${encodeURIComponent(changeId)}`));
+      setState(undefined);
+    } catch (error) {
+      if (isAborted(error)) return;
+      setState(error instanceof APIError && (error.status === 403 || error.status === 404) ? 'unavailable' : 'error');
+    }
+  }, [api, studentId, changeId]);
+  useEffect(() => { void load(); }, [load]);
+
+  return <section className="panel section-gap">
+    <h2>{item?.status === 'pending' ? t('Lesson change request', '調課申請') : t('Lesson change decision', '調課結果')}</h2>
+    {state === 'loading' && <p role="status">{t('Loading lesson change…', '正在載入調課申請…')}</p>}
+    {state === 'unavailable' && <p role="alert">{t('This lesson change is unavailable for your current access.', '目前權限無法存取此調課申請。')}</p>}
+    {state === 'error' && <><p role="alert">{t('Could not load this lesson change.', '未能載入此調課申請。')}</p><button className="outline" onClick={() => void load()}>{t('Retry', '重試')}</button></>}
+    {item && <ChangeSummary item={item} t={t}/>}
+  </section>;
+}
+
 const changeHistory: Route = { view: 'lesson-changes' };
 
 export default function LessonChanges(props: ProtectedProps & {
@@ -99,12 +136,7 @@ export default function LessonChanges(props: ProtectedProps & {
     {result && (result.items.length === 0 ? <p role="status">{pendingOnly ? t('No pending lesson change requests.', '沒有待處理的調課申請。') : t('No lesson change requests for this view.', '此檢視沒有調課申請。')}</p>
       : <ul className="link-list">{result.items.map(item => <li key={item.id}>
         <div>
-          <strong>{item.studentName}</strong> <span className="tag">{statusLabel(item.status, t)}</span>
-          <p>{t('Original lesson', '原定課堂')} · {classLabel(item.originalClass)}</p>
-          <p>{t('Requested lesson', '申請的課堂')} · {classLabel(item.targetClass)}</p>
-          <p>{t('Requested at', '申請時間')} <Timestamp value={item.requestedAt}/>{role === 'admin' && <> · {t('Requester', '申請人')} {item.requestedBy}</>}</p>
-          {item.decidedAt && <p>{t('Decided at', '處理時間')} <Timestamp value={item.decidedAt}/>{role === 'admin' && item.decidedBy && <> · {t('Decided by', '處理人')} {item.decidedBy}</>}</p>}
-          {item.decisionReason && <p>{t('Decision reason', '處理原因')} · {item.decisionReason}</p>}
+          <ChangeSummary item={item} role={role} t={t}/>
           {role === 'coach' && item.status === 'pending' && <CoachDecision {...props} changeId={item.id} onDecision={updateDecision}/>}
         </div>
       </li>)}</ul>)}

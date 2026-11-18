@@ -4,7 +4,7 @@ import type { User } from './api';
 export type View = 'students' | 'accounts' | 'audit' | 'schedule' | 'setup' | 'availability' | 'notifications' | 'deliveries' | 'packages' | 'lesson-changes' | 'missing-attendance';
 export const deliveryStatuses = ['pending', 'leased', 'sent', 'retry', 'failed', 'suppressed'] as const;
 export type DeliveryStatus = typeof deliveryStatuses[number];
-export type Route = { view: View; studentId?: string; classId?: string; deliveryStatus?: DeliveryStatus; lessonChangeStatus?: 'pending' } | { view: 'unavailable' };
+export type Route = { view: View; studentId?: string; classId?: string; deliveryStatus?: DeliveryStatus; lessonChangeStatus?: 'pending'; lessonChangeId?: string } | { view: 'unavailable' };
 const paths: Record<View, string> = { students: '/students', accounts: '/accounts', audit: '/audit', schedule: '/schedule', setup: '/setup', availability: '/availability', notifications: '/notifications', deliveries: '/notification-deliveries', packages: '/packages', 'lesson-changes': '/lesson-changes', 'missing-attendance': '/missing-attendance' };
 
 export function parseRoute(path: string, search = ''): Route {
@@ -18,13 +18,13 @@ export function parseRoute(path: string, search = ''): Route {
   }
   if (path === '/') return { view: 'students' };
   for (const view of Object.keys(paths) as View[]) if (paths[view] === path) return { view };
-  const student = /^\/students\/([^/]+)$/.exec(path);
+  const student = /^\/students\/([^/]+)(?:\/lesson-changes\/([a-f0-9]{64}))?$/.exec(path);
   const roster = /^\/schedule\/([^/]+)\/roster$/.exec(path);
   const match = student ?? roster;
   if (match) {
     try {
       const id = decodeURIComponent(match[1]);
-      if (id && id !== '.' && id !== '..' && !/[\/\\\u0000-\u001f\u007f]/.test(id)) return student ? { view: 'students', studentId: id } : { view: 'schedule', classId: id };
+      if (id && id !== '.' && id !== '..' && !/[\/\\\u0000-\u001f\u007f]/.test(id)) return student ? { view: 'students', studentId: id, ...(student[2] && { lessonChangeId: student[2] }) } : { view: 'schedule', classId: id };
     } catch { /* Malformed URL segments have no destination. */ }
   }
   return { view: 'unavailable' };
@@ -34,11 +34,15 @@ export function routePath(route: Route): string {
   if (route.view === 'deliveries' && route.deliveryStatus) return `${paths.deliveries}?status=${route.deliveryStatus}`;
   if (route.view === 'lesson-changes' && route.lessonChangeStatus) return `${paths['lesson-changes']}?status=pending`;
   if (route.view === 'schedule' && route.classId) return `/schedule/${encodeURIComponent(route.classId)}/roster`;
-  return route.view === 'students' && route.studentId ? `/students/${encodeURIComponent(route.studentId)}` : paths[route.view];
+  if (route.view === 'students' && route.studentId) {
+    const profile = `/students/${encodeURIComponent(route.studentId)}`;
+    return route.lessonChangeId ? `${profile}/lesson-changes/${encodeURIComponent(route.lessonChangeId)}` : profile;
+  }
+  return paths[route.view];
 }
 export function canView(route: Route, role: User['role']): boolean {
   switch (route.view) {
-    case 'students': return true;
+    case 'students': return !route.lessonChangeId || role !== 'student';
     case 'schedule': return !route.classId || role === 'admin' || role === 'coach';
     case 'lesson-changes': return role === 'admin' || role === 'coach' || role === 'parent';
     case 'packages': return role === 'admin' || role === 'parent';

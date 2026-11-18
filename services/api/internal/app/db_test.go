@@ -69,3 +69,29 @@ func TestMigrateSchoolSettingsUpgrade(t *testing.T) {
 		})
 	}
 }
+
+func TestMigrateLessonDecisionNotifications(t *testing.T) {
+	db := testDB(t)
+	ctx := context.Background()
+	_, err := db.Exec(ctx, "DELETE FROM schema_migrations WHERE version=19; "+schema13+`
+		INSERT INTO notifications(id,recipient_id,student_id,kind,source_id,source_version,read_at)
+		VALUES ('existing-notice','parent','amy','booking.created','existing-booking',1,'2026-11-18')`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for range 2 {
+		if err := Migrate(ctx, db); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_, err = db.Exec(ctx, `INSERT INTO notifications(id,recipient_id,student_id,kind,source_id,source_version)
+		VALUES ('new-notice','parent','amy','lesson_change.approved','change',1)`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var preserved bool
+	if err := db.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM notifications WHERE id='existing-notice' AND kind='booking.created'
+		AND source_id='existing-booking' AND read_at IS NOT NULL)`).Scan(&preserved); err != nil || !preserved {
+		t.Fatalf("existing notification preserved: %v, %v", preserved, err)
+	}
+}
