@@ -72,10 +72,13 @@ test('coach records attendance once and administrator, guardian and student see 
   const roster = await openRoster();
   await expect(roster.getByText('Amy', { exact: true })).toBeVisible();
   const path = '/api/v1/classes/' + lesson.id + '/roster/' + booking.id + '/attendance';
+  await roster.getByRole('button', { name: 'Mark present Amy' }).click();
   const saved = page.waitForResponse(response => response.url().endsWith(path) && response.request().method() === 'PUT');
-  await roster.getByRole('button', { name: /mark present/i }).click();
+  await roster.getByRole('button', { name: 'Confirm present' }).click();
   const response = await saved;
   expect(response.status()).toBe(200);
+  const attendance = await response.json();
+  expect(attendance).toMatchObject({ status: 'present', markedAt: expect.any(String) });
   await expect(roster.getByText('Present', { exact: true })).toBeVisible();
 
   await switchRole('admin');
@@ -83,7 +86,7 @@ test('coach records attendance once and administrator, guardian and student see 
   await expect(adminRoster.getByText('Present', { exact: true })).toBeVisible();
   const replay = await page.request.put(path, { headers });
   expect(replay.status()).toBe(200);
-  expect(await replay.json()).toEqual(await response.json());
+  expect(await replay.json()).toEqual(attendance);
   const after = await credit();
   expect(after).toMatchObject({ available: 1, reserved: 0, consumed: 1 });
   expect(after.movements.filter(item => item.consumed === 1)).toHaveLength(1);
@@ -101,6 +104,6 @@ test('coach records attendance once and administrator, guardian and student see 
     expect(list.status()).toBe(200);
     const item = (await list.json()).items.find((entry: { id: string }) => entry.id === booking.id);
     expectContract('StudentBooking', item);
-    expect(item.attendance).toMatchObject({ status: 'present', markedAt: expect.any(String) });
+    expect(item.attendance).toEqual(attendance);
   }
 });
