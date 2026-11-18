@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http/httptest"
 	"testing"
+	"time"
 )
 
 func TestIntegrationEnrolmentRenewal(t *testing.T) {
@@ -55,8 +56,9 @@ func TestIntegrationEnrolmentRenewal(t *testing.T) {
 		return snapshots
 	}
 	receipts := readReceipts()
+	validityVersion := 1
 	makeInput := func(series ClassSeries, target, key string) enrolmentInput {
-		in := enrolmentInput{SeriesID: series.ID, CreditPackageID: target, IdempotencyKey: key}
+		in := enrolmentInput{SeriesID: series.ID, CreditPackageID: target, IdempotencyKey: key, BookingValidityVersion: &validityVersion}
 		for _, c := range series.Sessions {
 			in.Sessions = append(in.Sessions, enrolmentSession{c.ID, c.Version, c.ClassTypeVersion})
 		}
@@ -158,7 +160,7 @@ func TestIntegrationEnrolmentRenewal(t *testing.T) {
 	assertBalance(destination, 0, 2, 0, "2030-01-28")
 	assertBalance(nextDestination, 26, 1, 0, "2030-02-04")
 	fourthTerm := makeSeries("2030-02-11", "2030-02-11")
-	_, fourthDestination := buy(otherOffer, "disabled-next", "2030-02-11")
+	_, fourthDestination := buy(offer, "disabled-next", "2030-02-11")
 	fourth := makeInput(fourthTerm, fourthDestination, "fourth")
 	fourth.SettingsVersion, fourth.SourcePackageID = &open.Version, nextDestination
 	w = request(t, h, "POST", enrolmentPath+"/"+latest.ID+"/renewals", fourth, parent)
@@ -169,4 +171,25 @@ func TestIntegrationEnrolmentRenewal(t *testing.T) {
 	}
 	assertBalance(nextDestination, 26, 1, 0, "2030-02-04")
 	assertBalance(fourthDestination, 9, 1, 0, "2030-02-11")
+
+	fifthTerm := makeSeries("2030-02-18", "2030-02-18")
+	_, fifthDestination := buy(offer, "expired-source-next", "2030-02-18")
+	if _, err := db.Exec(ctx, "UPDATE credit_packages SET expires_on='2020-01-01' WHERE id=$1", fourthDestination); err != nil {
+		t.Fatal(err)
+	}
+	fifth := makeInput(fifthTerm, fifthDestination, "fifth")
+	fifth.SettingsVersion, fifth.SourcePackageID = &open.Version, fourthDestination
+	expiryResult := make(chan error, 1)
+	go func() { expiryResult <- (&API{db: db, now: time.Now}).processCreditExpiryBatch(ctx) }()
+	w = request(t, h, "POST", enrolmentPath+"/"+disabled.ID+"/renewals", fifth, parent)
+	expectStatus(t, w, 201)
+	if err := <-expiryResult; err != nil {
+		t.Fatal(err)
+	}
+	expired := decodeBody[Enrolment](t, w)
+	if expired.CarriedForwardCredits == nil || *expired.CarriedForwardCredits != 0 {
+		t.Fatalf("renewal with expired balance %+v", expired)
+	}
+	assertBalance(fourthDestination, 0, 1, 9, "2020-01-01")
+	assertBalance(fifthDestination, 9, 1, 0, "2030-02-18")
 }
