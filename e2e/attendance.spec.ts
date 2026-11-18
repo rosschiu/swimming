@@ -105,6 +105,10 @@ test('coach records attendance once and administrator, guardian and student see 
   expect(attendance).toMatchObject({ status: 'present', markedAt: expect.any(String) });
   await expect(roster.getByText('Present', { exact: true })).toBeVisible();
 
+  const coachRows = await (await page.request.get('/api/v1/classes/' + lesson.id + '/roster')).json();
+  expect(coachRows.items.find((entry: { bookingId: string }) => entry.bookingId === booking.id).attendance).toEqual({
+    status: 'present', markedAt: attendance.markedAt,
+  });
   await expect(roster.getByText(/Recorded by/)).toHaveCount(0);
   await expect(roster.getByRole('link', { name: 'View attendance audit' })).toHaveCount(0);
   await switchRole('admin');
@@ -126,6 +130,7 @@ test('coach records attendance once and administrator, guardian and student see 
   await expect(adminRoster.getByText('Present', { exact: true })).toBeVisible();
   await expect(adminRoster).toContainText('Recorded by');
   await expect(adminRoster).toContainText('Coach Alex');
+  await expect(adminRoster.locator('time[datetime="' + attendance.markedAt + '"]')).toBeVisible();
   const auditLink = adminRoster.getByRole('link', { name: 'View attendance audit' });
   const auditPath = '/audit?entityId=' + booking.id;
   await expect(auditLink).toHaveAttribute('href', auditPath);
@@ -172,5 +177,6 @@ test('coach records attendance once and administrator, guardian and student see 
   const legacyRoster = await openRoster();
   await expect(legacyRoster.getByText('Present', { exact: true })).toBeVisible();
   await expect(legacyRoster).toContainText('Coach Alex');
+  await expect(legacyRoster.locator('time[datetime="' + attendance.markedAt + '"]')).toBeVisible();
   await expect(legacyRoster.getByRole('link', { name: 'View attendance audit' })).toHaveCount(0);
 });
