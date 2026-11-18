@@ -423,9 +423,50 @@
       }
     },
     "/api/v1/students/{id}/enrolments": {
+      "get": {
+        "operationId": "listStudentEnrolments",
+        "description": "Administrators and current guardians may list fixed enrolments and the current school policies for a student.",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Enrolments and effective settings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudentEnrolments"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
       "post": {
         "operationId": "createEnrolment",
-        "description": "Administrators and current guardians may reserve all selected future lessons from one weekly class series with one credit per lesson from the selected paid package. A failed reservation rolls back the entire enrolment. Only administrators can override level mismatches with a reason. A stale bookingValidityVersion returns booking_validity_changed for new requests. Identical retries return the existing enrolment after checking current access.",
+        "description": "Administrators and current guardians may reserve selected future lessons from one weekly class series with one credit per lesson from the selected paid package. The default allocation is all-or-none. The alternative policy can return partial_enrolment_confirmation_required with error.details.availableSessionIds and error.details.settingsVersion. Confirm the exact proposed subset explicitly via partialConfirmation. Only administrators can override level mismatches with a reason. A stale bookingValidityVersion returns booking_validity_changed for new requests. Identical retries return the existing enrolment after checking current access.",
         "security": [
           {
             "sessionCookie": []
@@ -476,6 +517,85 @@
         "parameters": [
           {
             "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/students/{id}/enrolments/{enrolmentId}/renewals": {
+      "post": {
+        "operationId": "renewEnrolment",
+        "description": "Explicitly renew selected dates into an eligible paid package. The transaction carries forward current unreserved credits, preserves prior reservations, and applies the current school policies. When only a subset is available under the alternative allocation policy, confirm the proposed subset via partialConfirmation. Identical retries return the same renewal.",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Idempotent replay",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnrolmentRenewal"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Enrolment renewed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnrolmentRenewal"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnrolmentRenewalInput"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "enrolmentId",
             "in": "path",
             "required": true,
             "schema": {
@@ -2880,6 +3000,120 @@
         "description": "Administrators may change the school-wide rule for new bookings. A stale version returns version_conflict."
       }
     },
+    "/api/v1/settings/fixed-enrolment": {
+      "get": {
+        "operationId": "getFixedEnrolmentSettings",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FixedEnrolmentSettings"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Administrator access required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "description": "Administrators may read the school-wide fixed enrolment policies."
+      },
+      "patch": {
+        "operationId": "updateFixedEnrolmentSettings",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FixedEnrolmentSettings"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Administrator access required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Settings version changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FixedEnrolmentSettings"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "description": "Administrators may change the school-wide rule for new bookings. A stale version returns version_conflict."
+      }
+    },
     "/api/v1/availability/{id}/classes": {
       "get": {
         "operationId": "listAvailabilityClasses",
@@ -4764,6 +4998,9 @@
               "code": {
                 "type": "string"
               },
+              "details": {
+                "$ref": "#/components/schemas/PartialEnrolmentDetails"
+              },
               "message": {
                 "type": "string"
               }
@@ -5419,11 +5656,200 @@
             "minimum": 1,
             "description": "Version of the school credit validity rule shown at confirmation."
           },
+          "settingsVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "partialConfirmation": {
+            "$ref": "#/components/schemas/PartialEnrolmentConfirmation"
+          },
           "overrideReason": {
             "type": "string",
             "maxLength": 500
           }
         }
+      },
+      "StudentEnrolments": {
+        "type": "object",
+        "required": [
+          "items",
+          "settings"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "studentId",
+                "seriesId",
+                "creditPackageId",
+                "createdAt",
+                "lastLessonStartsAt",
+                "purchaseId",
+                "carryForwardEnabled",
+                "offerId"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "studentId": {
+                  "type": "string"
+                },
+                "seriesId": {
+                  "type": "string"
+                },
+                "creditPackageId": {
+                  "type": "string"
+                },
+                "createdAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "lastLessonStartsAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "purchaseId": {
+                  "type": "string"
+                },
+                "carryForwardEnabled": {
+                  "type": "boolean"
+                },
+                "offerId": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "settings": {
+            "$ref": "#/components/schemas/FixedEnrolmentSettings"
+          }
+        },
+        "additionalProperties": false
+      },
+      "EnrolmentRenewalInput": {
+        "type": "object",
+        "required": [
+          "bookingValidityVersion",
+          "seriesId",
+          "sessions",
+          "creditPackageId",
+          "idempotencyKey",
+          "sourcePackageId",
+          "settingsVersion"
+        ],
+        "properties": {
+          "seriesId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "sessions": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 14,
+            "description": "Select distinct class IDs. Input order does not affect idempotent replay.",
+            "items": {
+              "type": "object",
+              "required": [
+                "classId",
+                "classVersion",
+                "classTypeVersion"
+              ],
+              "properties": {
+                "classId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 100
+                },
+                "classVersion": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "classTypeVersion": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            }
+          },
+          "creditPackageId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "idempotencyKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "pattern": "^[!-~]{1,100}$"
+          },
+          "bookingValidityVersion": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Version of the school credit validity rule shown at confirmation."
+          },
+          "overrideReason": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "partialConfirmation": {
+            "$ref": "#/components/schemas/PartialEnrolmentConfirmation"
+          },
+          "sourcePackageId": {
+            "type": "string"
+          },
+          "settingsVersion": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "additionalProperties": false
+      },
+      "EnrolmentRenewal": {
+        "type": "object",
+        "required": [
+          "id",
+          "studentId",
+          "seriesId",
+          "bookings",
+          "createdAt",
+          "sourceEnrolmentId",
+          "carriedForwardCredits"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "studentId": {
+            "type": "string"
+          },
+          "seriesId": {
+            "type": "string"
+          },
+          "bookings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StudentBooking"
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "sourceEnrolmentId": {
+            "type": "string"
+          },
+          "carriedForwardCredits": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "additionalProperties": false
       },
       "Enrolment": {
         "type": "object",
@@ -5861,6 +6287,85 @@
           "validityRule",
           "version"
         ],
+        "additionalProperties": false
+      },
+      "FixedEnrolmentSettings": {
+        "type": "object",
+        "required": [
+          "allocationPolicy",
+          "renewalPolicy",
+          "version"
+        ],
+        "properties": {
+          "allocationPolicy": {
+            "type": "string",
+            "enum": [
+              "all_or_none",
+              "confirm_available_subset"
+            ]
+          },
+          "renewalPolicy": {
+            "type": "string",
+            "enum": [
+              "same_offer",
+              "any_paid_package"
+            ]
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "additionalProperties": false
+      },
+      "PartialEnrolmentConfirmation": {
+        "type": "object",
+        "required": [
+          "sessionIds",
+          "settingsVersion"
+        ],
+        "properties": {
+          "sessionIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "minItems": 1,
+            "maxItems": 14,
+            "uniqueItems": true
+          },
+          "settingsVersion": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "additionalProperties": false
+      },
+      "PartialEnrolmentDetails": {
+        "type": "object",
+        "required": [
+          "availableSessionIds",
+          "settingsVersion"
+        ],
+        "properties": {
+          "availableSessionIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "minItems": 0,
+            "maxItems": 14,
+            "uniqueItems": true
+          },
+          "settingsVersion": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
         "additionalProperties": false
       },
       "AvailabilityClassInput": {
@@ -7158,6 +7663,9 @@
       "CreditPackage": {
         "type": "object",
         "properties": {
+          "offerId": {
+            "type": "string"
+          },
           "id": {
             "type": "string",
             "minLength": 1,
@@ -7215,6 +7723,7 @@
           }
         },
         "required": [
+          "offerId",
           "id",
           "purchaseId",
           "credits",
@@ -7278,6 +7787,12 @@
       "CreditHistoryPackage": {
         "type": "object",
         "properties": {
+          "purchaseId": {
+            "type": "string"
+          },
+          "offerId": {
+            "type": "string"
+          },
           "id": {
             "type": "string",
             "minLength": 1,
@@ -7327,6 +7842,8 @@
           }
         },
         "required": [
+          "purchaseId",
+          "offerId",
           "id",
           "credits",
           "expiresOn",

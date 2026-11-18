@@ -15,6 +15,8 @@ const week = (id: string, days: number, seriesId: string | null = 'series') => (
 const first = week('c1', 3);
 const skipped = week('c2', 10);
 const third = week('c3', 17);
+const settings = { allocationPolicy: 'all_or_none', renewalPolicy: 'same_offer', version: 1 };
+const history = { validityRule: 'lesson_end', version: 3 };
 const response = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status });
 
 afterEach(() => vi.unstubAllGlobals());
@@ -28,6 +30,7 @@ it('confirms exactly the selected nonconsecutive weeks and safely retries the sa
       { id: 'expired-before-last', available: 2, expiresOn: date(10) },
       { id: 'one-credit', available: 1, expiresOn: null }, { id: 'exact-package', available: 2, expiresOn: null },
     ] });
+    if (!options?.method && path.endsWith('/enrolments')) return response({ items: [], settings });
     writes.push(JSON.parse(String(options?.body)));
     return writes.length === 1 ? response({}, 500) : response({ bookings: [{ class: first }, { class: third }] });
   });
@@ -57,7 +60,7 @@ it('confirms exactly the selected nonconsecutive weeks and safely retries the sa
   expect(writes[0]).toEqual({ seriesId: 'series', sessions: [
     { classId: 'c1', classVersion: 1, classTypeVersion: 2 },
     { classId: 'c3', classVersion: 1, classTypeVersion: 2 },
-  ], creditPackageId: 'exact-package', bookingValidityVersion: 3, idempotencyKey: expect.any(String) });
+  ], creditPackageId: 'exact-package', bookingValidityVersion: 3, settingsVersion: 1, idempotencyKey: expect.any(String) });
   expect(onBooked).toHaveBeenCalledWith([first.startsAt, third.startsAt]);
   expect(fetch).toHaveBeenCalledWith('/api/v1/students/amy/enrolments', expect.objectContaining({ method: 'POST', headers: expect.objectContaining({ 'X-CSRF-Token': 'csrf' }) }));
 });
@@ -68,6 +71,7 @@ it('requires an administrator reason for a level mismatch and resets stale choic
   vi.stubGlobal('fetch', vi.fn(async (path: string, options?: RequestInit) => {
     if (path.includes('/classes?')) return response({ items: [{ ...first, level: 'Advanced', classTypeVersion: writes.length + 1 }] });
     if (path.endsWith('/credit-history')) return response({ bookingValidity: { validityRule: 'lesson_end', version: writes.length + 1 }, items: [{ id: 'package', available: 1, expiresOn: null }] });
+    if (!options?.method && path.endsWith('/enrolments')) return response({ items: [], settings });
     writes.push(JSON.parse(String(options?.body)));
     return response({ error: { code: 'version_conflict' } }, 409);
   }));
@@ -91,4 +95,89 @@ it('requires an administrator reason for a level mismatch and resets stale choic
   expect(writes).toHaveLength(2);
   expect(writes[0].idempotencyKey).not.toBe(writes[1].idempotencyKey);
   expect(onBooked).not.toHaveBeenCalled();
+});
+
+
+it('requires a second confirmation for the exact available subset and retries that confirmation', async () => {
+  const writes: Record<string, unknown>[] = [];
+  const onBooked = vi.fn();
+  vi.stubGlobal('fetch', vi.fn(async (path: string, options?: RequestInit) => {
+    if (path.includes('/classes?')) return response({ items: [first, skipped] });
+    if (path.endsWith('/credit-history')) return response({ bookingValidity: history, items: [{ id: 'one', available: 1, expiresOn: date(3) }] });
+    if (!options?.method && path.endsWith('/enrolments')) return response({ items: [], settings: { ...settings, allocationPolicy: 'confirm_available_subset' } });
+    writes.push(JSON.parse(String(options?.body)));
+    if (writes.length === 1) return response({ error: { code: 'partial_enrolment_confirmation_required', details: { availableSessionIds: [first.id], settingsVersion: 1 } } }, 409);
+    if (writes.length === 2) return response({}, 500);
+    return response({ bookings: [{ class: first }] });
+  }));
+  render(<EnrolmentForm {...props} onBooked={onBooked}/>);
+  const user = userEvent.setup();
+  await user.click(screen.getByRole('button', { name: 'Enrol in weekly lessons' }));
+  await user.selectOptions(await screen.findByLabelText('Weekly series'), 'series');
+  for (const item of screen.getAllByRole('checkbox')) await user.click(item);
+  await user.selectOptions(screen.getByLabelText('Enrolment credit package'), 'one');
+  await user.click(screen.getByRole('button', { name: 'Review enrolment' }));
+  await user.click(screen.getByRole('button', { name: 'Confirm weekly enrolment' }));
+  const confirm = await screen.findByRole('button', { name: 'Confirm available weeks' });
+  expect(writes).toHaveLength(1);
+  expect(writes[0]).not.toHaveProperty('partialConfirmation');
+  expect(screen.getAllByRole('listitem')).toHaveLength(1);
+  expect(screen.getByText(/Weeks no longer available/)).toHaveTextContent(date(10));
+  await user.click(confirm);
+  await user.click(await screen.findByRole('button', { name: 'Retry same enrolment' }));
+  await screen.findByText(/Weekly enrolment confirmed/);
+  expect(writes[1]).toEqual({ ...writes[0], partialConfirmation: { sessionIds: [first.id], settingsVersion: 1 } });
+  expect(writes[2]).toEqual(writes[1]);
+  expect(onBooked).toHaveBeenCalledWith([first.startsAt]);
+});
+
+it.each([
+  { allocationPolicy: 'all_or_none', renewalPolicy: 'same_offer', carryForwardEnabled: true, destination: 'next-same', carried: 2 },
+  { allocationPolicy: 'all_or_none', renewalPolicy: 'any_paid_package', carryForwardEnabled: false, destination: 'next-other', carried: 0 },
+  { allocationPolicy: 'confirm_available_subset', renewalPolicy: 'any_paid_package', carryForwardEnabled: false, destination: 'next-other', carried: 0 },
+])('renews a different published series with $renewalPolicy and carry-forward $carryForwardEnabled', async ({ allocationPolicy, renewalPolicy, carryForwardEnabled, destination, carried }) => {
+  const writes: { path: string; body: Record<string, unknown> }[] = [];
+  const onBooked = vi.fn();
+  const next = week('cross-term', 17, 'new-term');
+  vi.stubGlobal('fetch', vi.fn(async (path: string, options?: RequestInit) => {
+    if (path.includes('/classes?')) return response({ items: [first, next] });
+    if (path.endsWith('/credit-history')) return response({ bookingValidity: history, items: [
+      { id: 'old-pack', purchaseId: 'old-purchase', offerId: 'same', available: 2, expiresOn: null },
+      { id: 'next-same', purchaseId: 'new-purchase', offerId: 'same', available: 0, expiresOn: null },
+      { id: 'next-other', purchaseId: 'other-purchase', offerId: 'different', available: 1, expiresOn: null },
+    ] });
+    if (!options?.method && path.endsWith('/enrolments')) return response({
+      items: [{ id: 'source', seriesId: 'old-term', creditPackageId: 'old-pack', purchaseId: 'old-purchase', offerId: 'same', lastLessonStartsAt: skipped.startsAt, carryForwardEnabled }],
+      settings: { allocationPolicy, renewalPolicy, version: 5 },
+    });
+    writes.push({ path, body: JSON.parse(String(options?.body)) });
+    return response({ bookings: [{ class: next }], carriedForwardCredits: carried });
+  }));
+  render(<EnrolmentForm {...props} onBooked={onBooked}/>);
+  const user = userEvent.setup();
+  await user.click(screen.getByRole('button', { name: 'Renew weekly enrolment' }));
+  await user.selectOptions(await screen.findByLabelText('Enrolment to renew'), 'source');
+  await user.selectOptions(screen.getByLabelText('Weekly series'), 'new-term');
+  expect(screen.getAllByRole('checkbox')).toHaveLength(1);
+  await user.click(screen.getByRole('checkbox'));
+  const packages = screen.getByLabelText('Enrolment credit package');
+  const review = screen.getByRole('button', { name: 'Review enrolment' });
+  if (renewalPolicy === 'same_offer') expect(screen.queryByRole('option', { name: /next-other/ })).not.toBeInTheDocument();
+  if (!carryForwardEnabled) {
+    await user.selectOptions(packages, 'next-same');
+    expect(review).toBeDisabled();
+  }
+  await user.selectOptions(packages, destination);
+  await user.click(review);
+  expect(screen.getByText(carryForwardEnabled ? /amount is calculated/ : /keeps its unused credits/)).toBeVisible();
+  expect(writes).toHaveLength(0);
+  await user.click(screen.getByRole('button', { name: 'Confirm renewal' }));
+  expect(await screen.findByText(/Renewal confirmed/)).toHaveTextContent(`${carried} credits carried forward`);
+  expect(writes).toEqual([{
+    path: '/api/v1/students/amy/enrolments/source/renewals',
+    body: {
+      seriesId: 'new-term', sourcePackageId: 'old-pack', creditPackageId: destination, bookingValidityVersion: 3, settingsVersion: 5,
+      sessions: [{ classId: next.id, classVersion: 1, classTypeVersion: 2 }], idempotencyKey: expect.any(String),
+    },
+  }]);
 });
