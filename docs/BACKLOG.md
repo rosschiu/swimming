@@ -42,7 +42,7 @@ Update these rows in the stage PR when scope, evidence or status changes. Record
 | Credit expiry and recovery | Shipped, #16 | An assigned coach restores actual expired unused credits with a reason and new expiry. |
 | Progress, milestones and teaching email | Shipped, #8–10 | Family sees scoped feedback; opt-in teaching emails have delivery history and retries. [Lesson-linked feedback](STAGE-05-LESSON-FEEDBACK.md) and external demo inbox delivery verification remain open. |
 | Booking confirmation and reminders | Confirmations shipped, #19; reminders open | In-app confirmations are deduplicated. [Scheduled reminders](STAGE-05-LESSON-REMINDERS.md) and delivery preferences need verification. |
-| Administration and navigation | Shipped in part, #14 and #20 | Role routes, pending purchase and email queues are live. Pending lesson-change counts and links merged in [#27](https://github.com/rosschiu/swimming/pull/27). [Missing attendance reporting](STAGE-05-MISSING-ATTENDANCE.md) merged in [#28](https://github.com/rosschiu/swimming/pull/28). Workspace keyboard focus is in review. |
+| Administration and navigation | Shipped in part, #14 and #20 | Role routes, pending purchase and email queues are live. Pending lesson-change counts and links merged in [#27](https://github.com/rosschiu/swimming/pull/27). [Missing attendance reporting](STAGE-05-MISSING-ATTENDANCE.md) merged in [#28](https://github.com/rosschiu/swimming/pull/28). Workspace keyboard focus merged in [#29](https://github.com/rosschiu/swimming/pull/29). |
 | Operational readiness | Shipped in part, #11–13 | Restore, scale and permission checks exist. Repeat on the final workflows, verify setup/seed instructions, and close remaining accessibility and operational gaps. |
 | Typed assistant and voice | Deferred beyond first delivery | Verify authorized queries, confirmed actions, STT and optional TTS against real providers before claiming delivery. |
 
@@ -127,6 +127,8 @@ VM delivery [PR #26](https://github.com/rosschiu/swimming/pull/26) merged at `70
 
 Missing attendance [PR #28](https://github.com/rosschiu/swimming/pull/28) merged as `54e2505`. Main matched the independently approved head `b8d8ef9`, and both full CI runs passed. PostgreSQL race tests covered role scope, end-time boundaries and partly marked rosters. Chromium verified the overnight report row, roster link, and removal after marking. The release uses the existing attendance timing and credit rules.
 
+Keyboard focus [PR #29](https://github.com/rosschiu/swimming/pull/29) merged as `01ab203`. The merged tree matched `55ed71e`. Both CI runs passed. Independent Chromium checks covered English and Traditional Chinese, narrow and desktop layouts, sign-in, recovery, skip and Back. Renewal browser tests now wait for the policy write and restore school policy with an independent context.
+
 ### Demo VM rollout evidence
 
 The first manual release was `17a83e2` at swimmer.bsoltest.com. PostgreSQL, the Go API and the static web server use loopback. Traefik terminates TLS and accepts PROXY headers from 10.70.2.10 on both public ports. The demo opens at the application sign-in screen. An unauthenticated request gets a homepage and readiness response, while the students API requires sign-in.
@@ -136,3 +138,5 @@ The manual upgrade to `d3b1a19` included [PR #23](https://github.com/rosschiu/sw
 Demo school [PR #24](https://github.com/rosschiu/swimming/pull/24) merged as `e8c749b`. Two live seed runs after a separate verified backup produced identical counts. The demo has 20 students, 3 coaches, 20 guardians, 3 venues, 15 lessons, 60 bookings, 20 attendance records and 20 mock receipts. All five original accounts and both original student profiles were preserved, and no email deliveries were created. An independent live walkthrough verified the administrator and coach rosters and the guardian and student views of Amy’s bookings and progress.
 
 VM delivery merged in [PR #26](https://github.com/rosschiu/swimming/pull/26) at `7003ab4`. The [main delivery run](https://github.com/rosschiu/swimming/actions/runs/44257297733) passed and published artifact `14407401358`. Independent verification confirmed the SHA-256 checksum and embedded revision `7003ab4`. The VM release token and timer are pending.
+
+The [reproducible lesson-change history fixture](DEMO-LESSON-CHANGE-HISTORY.md) is in review. An isolated restore of the post-history demo backup accepted the fixture and replayed without changes to the existing examples. The first run added one completion marker and no other audit, finance, account, class, or delivery records.
