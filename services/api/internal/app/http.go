@@ -68,6 +68,7 @@ func New(cfg Config, db *pgxpool.Pool) http.Handler {
 	})
 	a.identityRoutes(mux)
 	a.financeRoutes(mux)
+	a.creditRecoveryRoutes(mux)
 	a.milestoneRoutes(mux)
 	a.notificationRoutes(mux)
 	mux.HandleFunc("GET /api/v1/students/{id}/progress-notes", a.auth(a.listProgressNotes))

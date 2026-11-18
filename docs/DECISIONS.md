@@ -119,3 +119,9 @@ The user also confirmed that later availability edits or cancellation leave sche
 ## First-delivery scope update (2026-11-18)
 
 The user selected individual expiry per purchase; the previously approved administrator-entered date still applies. Package offers do not supply a shared expiry date. AI/voice and provider selection are deferred beyond the first delivery, so provider credentials are not a gate for that delivery. Full coach, guardian/student and administrator web workflows, mock payments and staged reviewed/tested PRs remain required. AI remains part of the later product plan.
+
+## Booking and recovery approvals (2026-11-18)
+
+The user requires matching swimming level for bookings, with an administrator override. Default validity must cover lesson end; fixed enrolment reserves all selected lessons or none; renewal carries unused unreserved credits while existing reservations keep their original expiry. The user additionally requires coach/admin configurability of these defaults. The precise alternative settings and coach authority scope are pending clarification; do not silently hard-code the defaults as the only supported behavior.
+
+Assigned coaches may recover only actual expired unused credits, with a reason and new expiry. Extra credit grants require an administrator. AI/voice remains deferred beyond first delivery.
