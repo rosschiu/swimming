@@ -111,3 +111,17 @@ A fresh fixture has 20 students, 20 guardians, three coaches, and three five-ses
 - **Student** Amy can see her own timetable and progress. Ben and the other swimmers remain outside her account scope.
 
 On an existing demo database, count fixture records by their `demo-` IDs where applicable. Do not expect whole-table totals to match a fresh fixture. One `demo.school.seeded` audit event records the fixture version and anchor week. A fresh disposable database is needed to demonstrate with a new anchor week.
+
+### Add the demo lesson-change examples
+
+After installing the synthetic school, confirm the database target and take a backup. Keep demo mail delivery off. Run the separate opt-in command from `services/api` against that same database.
+
+```sh
+ALLOW_DEMO_SEED=true go run ./cmd/seed -change-history
+```
+
+The fixture uses the original Hong Kong seed week and actual clock. It uses the first future Harbour Pool reservation for which the guardian request window remains open, with the replacement one day later at 17:00. If both candidate windows closed before the fixture started, the command stops without adding examples. Start with a fresh disposable school for a current anchor or plan an explicit extension to the existing demo schedule.
+
+The command leaves Amy’s request pending, approves Anson’s move, and rejects Daisy’s request using the regular guardian and coach operations. The replacement class, requests, and decisions commit in separate transactions. If interrupted, rerun the same command while the outstanding examples are still eligible. It resumes matching records and reports a conflict when an unexpected booking, decision, or class edit needs review. When it finds the exact previously installed live examples, it records completion without rewriting them.
+
+The separate `demo.change_history.seeded` audit marker records the class and request IDs. Replaying after completion makes no writes, even after the lessons pass or a demo visitor decides Amy’s request. Verify one marker, three seeded requests and at most one added class, with no additional accounts, credit movements, receipts, notifications, or deliveries. The ordinary seed without flags remains suitable for the minimal synthetic accounts.

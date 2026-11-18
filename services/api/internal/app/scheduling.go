@@ -562,7 +562,11 @@ func insertClass(ctx context.Context, tx pgx.Tx, x ClassInput, series *string) (
 	if err != nil {
 		return ClassSession{}, err
 	}
-	if _, err = tx.Exec(ctx, "INSERT INTO class_sessions(id,venue_id,class_type_id,coach_id,starts_at,ends_at,capacity,series_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8)", id, x.VenueID, x.ClassTypeID, x.CoachID, x.StartsAt, x.EndsAt, x.Capacity, series); err != nil {
+	return insertClassWithID(ctx, tx, id, x, series)
+}
+
+func insertClassWithID(ctx context.Context, tx pgx.Tx, id string, x ClassInput, series *string) (ClassSession, error) {
+	if _, err := tx.Exec(ctx, "INSERT INTO class_sessions(id,venue_id,class_type_id,coach_id,starts_at,ends_at,capacity,series_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8)", id, x.VenueID, x.ClassTypeID, x.CoachID, x.StartsAt, x.EndsAt, x.Capacity, series); err != nil {
 		return ClassSession{}, err
 	}
 	return scanClass(tx.QueryRow(ctx, "SELECT "+classColumns+classJoin+" WHERE c.id=$1", id))
