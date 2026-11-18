@@ -172,9 +172,18 @@ it('restores the failed delivery filter directly and through browser history', a
   await screen.findByRole('heading', { name: 'Notification deliveries' });
   expect(screen.getByLabelText('Delivery status')).toHaveValue('failed');
   expect(mock).toHaveBeenCalledWith('/api/v1/notification-deliveries?limit=25&status=failed', expect.anything());
-  pop('/notification-deliveries');
+  const user = userEvent.setup();
+  await user.selectOptions(screen.getByLabelText('Delivery status'), 'sent');
+  expect(window.location.search).toBe('?status=sent');
+  expect(screen.getByLabelText('Delivery status')).toHaveValue('sent');
+  expect(mock).toHaveBeenCalledWith('/api/v1/notification-deliveries?limit=25&status=sent', expect.anything());
+  await user.selectOptions(screen.getByLabelText('Delivery status'), '');
+  expect(window.location.search).toBe('');
   expect(screen.getByLabelText('Delivery status')).toHaveValue('');
-  pop('/notification-deliveries?status=failed');
+  act(() => window.history.back());
+  await waitFor(() => expect(screen.getByLabelText('Delivery status')).toHaveValue('sent'));
+  act(() => window.history.back());
+  await waitFor(() => expect(screen.getByLabelText('Delivery status')).toHaveValue('failed'));
   expect(screen.getByLabelText('Delivery status')).toHaveValue('failed');
 });
 
