@@ -1172,6 +1172,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/students/{id}/bookings/{bookingId}/cancellation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Preview cancelling one booked lesson
+         * @description Linked guardian only. Classifies the cancellation as early (up to and including the guardian change cutoff before the start) or late, and states the credit outcome under the funding package's frozen early or late cancellation policy. Self-service closes at lesson start or once attendance is recorded (409 cancellation_closed).
+         */
+        get: operations["previewBookingCancellation"];
+        put?: never;
+        /**
+         * Cancel one booked lesson
+         * @description Linked guardian only. Send the reviewed class, timing and credit outcome. The server rechecks them under lock and returns 409 cancellation_changed with the current preview as details when any differ, for example after an approved move. On success the booking becomes cancelled and leaves rosters and capacity, its reserved credit is used, returned to the same package, or returned to expired history, a pending lesson change closes, and linked guardians, the student and the class coach receive in-app notices; families may also receive a generic email per the school setting, their service email preference and the allowlist. Other occurrences of a weekly enrolment are unchanged. An exact replay returns the cancelled booking.
+         */
+        post: operations["cancelBooking"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/students/{id}/bookings/{bookingId}/change-options": {
         parameters: {
             query?: never;
@@ -1571,11 +1595,12 @@ export interface components {
             id: string;
             studentId: string;
             /** @enum {string} */
-            status: "reserved";
+            status: "reserved" | "cancelled";
             /** Format: date-time */
             createdAt: string;
             class: components["schemas"]["ClassSession"];
             attendance?: components["schemas"]["Attendance"];
+            cancellation?: components["schemas"]["BookingCancellation"];
         };
         RosterEntry: {
             bookingId: string;
@@ -1667,6 +1692,8 @@ export interface components {
              * @example 3
              */
             correctionWindowDays: number;
+            /** @description When true, guardian cancellations also queue a generic email to linked guardians and the student, subject to each recipient's service email preference and the delivery allowlist. In-app notices are always created. */
+            cancellationEmail: boolean;
             /** Format: int32 */
             version: number;
         };
@@ -1828,7 +1855,7 @@ export interface components {
             studentId: string;
             studentName: string;
             /** @enum {string} */
-            kind: "progress.created" | "progress.updated" | "milestone.achieved" | "milestone.revoked" | "booking.created" | "lesson_change.requested" | "lesson_change.approved" | "lesson_change.rejected";
+            kind: "progress.created" | "progress.updated" | "milestone.achieved" | "milestone.revoked" | "booking.created" | "lesson_change.requested" | "lesson_change.approved" | "lesson_change.rejected" | "booking.cancelled";
             sourceId: string;
             sourceVersion: number;
             /** Format: date-time */
@@ -1838,12 +1865,15 @@ export interface components {
         };
         NotificationPreferences: {
             emailEnabled: boolean;
+            /** @description Email for booking service changes such as cancellations. On by default and independent of teaching email. */
+            serviceEmailEnabled: boolean;
             /** Format: email */
             emailAddress: string;
             emailDeliveryAvailable: boolean;
         };
         NotificationPreferenceInput: {
-            emailEnabled: boolean;
+            emailEnabled?: boolean;
+            serviceEmailEnabled?: boolean;
         };
         NotificationDelivery: {
             id: string;
@@ -2185,6 +2215,42 @@ export interface components {
             status: "present" | "absent" | "ill";
             reason: string;
             revision: number;
+            idempotencyKey: string;
+        };
+        /** @description Present on cancelled bookings. lesson is the class as reviewed at cancellation, even if the class is edited later. */
+        BookingCancellation: {
+            /** @enum {string} */
+            timing: "early" | "late";
+            /** @enum {string} */
+            creditOutcome: "consumed" | "retained" | "expired";
+            /** Format: date-time */
+            cancelledAt: string;
+            lesson: components["schemas"]["ClassSession"];
+        };
+        CancellationPreview: {
+            bookingId: string;
+            lesson: components["schemas"]["ClassSession"];
+            /** @enum {string} */
+            timing: "early" | "late";
+            /** @enum {string} */
+            creditOutcome: "consumed" | "retained" | "expired";
+            /**
+             * Format: date-time
+             * @description After this instant a cancellation is late; at it the cancellation is still early.
+             */
+            lateFrom: string;
+            /**
+             * Format: date-time
+             * @description Lesson start; guardian self-service closes then.
+             */
+            closesAt: string;
+        };
+        CancellationInput: {
+            classId: string;
+            /** @enum {string} */
+            timing: "early" | "late";
+            /** @enum {string} */
+            creditOutcome: "consumed" | "retained" | "expired";
             idempotencyKey: string;
         };
     };
@@ -5651,6 +5717,76 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StudentBookingDetail"];
+                };
+            };
+            /** @description Request failed */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    previewBookingCancellation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                bookingId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Preview */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CancellationPreview"];
+                };
+            };
+            /** @description Request failed */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    cancelBooking: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-Token": string;
+            };
+            path: {
+                id: string;
+                bookingId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CancellationInput"];
+            };
+        };
+        responses: {
+            /** @description Cancelled booking */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentBooking"];
                 };
             };
             /** @description Request failed */

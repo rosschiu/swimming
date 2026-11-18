@@ -25,6 +25,7 @@ type Notification struct {
 }
 type NotificationPreferences struct {
 	EmailEnabled           bool   `json:"emailEnabled"`
+	ServiceEmailEnabled    bool   `json:"serviceEmailEnabled"`
 	EmailAddress           string `json:"emailAddress"`
 	EmailDeliveryAvailable bool   `json:"emailDeliveryAvailable"`
 }
@@ -49,7 +50,8 @@ const notificationScope = `n.recipient_id=$1 AND u.active AND u.role=$2 AND (
 	(u.role IN ('parent','student') AND n.kind<>'lesson_change.requested' AND EXISTS (
 		SELECT 1 FROM student_access sa WHERE sa.student_id=n.student_id AND sa.user_id=u.id
 		AND sa.kind=CASE u.role WHEN 'parent' THEN 'guardian' WHEN 'student' THEN 'self' END))
-	OR (u.role='coach' AND n.kind='lesson_change.requested' AND EXISTS (` + coachNotificationSource + `)))`
+	OR (u.role='coach' AND n.kind='lesson_change.requested' AND EXISTS (` + coachNotificationSource + `))
+	OR (u.role='coach' AND n.kind='booking.cancelled' AND EXISTS (SELECT 1 FROM bookings cb JOIN class_sessions cc ON cc.id=cb.class_id WHERE cb.id=n.source_id AND cc.coach_id=u.id)))`
 
 const notificationJoin = " FROM notifications n JOIN students st ON st.id=n.student_id JOIN users u ON u.id=n.recipient_id"
 const deliveryColumns = "d.id,d.notification_id,u.name,d.status,d.attempts,d.cycle_attempts,d.version,d.next_attempt_at,d.completed_at,d.last_failure,d.created_at"
@@ -186,8 +188,16 @@ func createLessonChangeRequestNotice(ctx context.Context, tx pgx.Tx, student, co
 	return err
 }
 
+// serviceKinds are booking-service notices governed by the service email preference rather than teaching email.
+var serviceKinds = []string{"booking.cancelled"}
+
 func suppressTeachingDeliveries(ctx context.Context, tx pgx.Tx, user, student, reason string) error {
-	_, err := tx.Exec(ctx, "UPDATE notification_deliveries d SET status=CASE WHEN d.status='leased' THEN 'leased' ELSE 'suppressed' END,version=d.version+1,next_attempt_at=NULL,completed_at=CASE WHEN d.status<>'leased' THEN clock_timestamp() END,last_failure=$3 FROM notifications n WHERE n.id=d.notification_id AND n.recipient_id=$1 AND ($2='' OR n.student_id=$2) AND d.status IN ('pending','retry','leased')", user, student, reason)
+	return suppressDeliveries(ctx, tx, user, student, reason, nil, false)
+}
+
+// suppressDeliveries stops queued email for a recipient; kinds limits it to those notices, or excludes them when except is set.
+func suppressDeliveries(ctx context.Context, tx pgx.Tx, user, student, reason string, kinds []string, except bool) error {
+	_, err := tx.Exec(ctx, "UPDATE notification_deliveries d SET status=CASE WHEN d.status='leased' THEN 'leased' ELSE 'suppressed' END,version=d.version+1,next_attempt_at=NULL,completed_at=CASE WHEN d.status<>'leased' THEN clock_timestamp() END,last_failure=$3 FROM notifications n WHERE n.id=d.notification_id AND n.recipient_id=$1 AND ($2='' OR n.student_id=$2) AND d.status IN ('pending','retry','leased') AND ($4::text[] IS NULL OR (n.kind = ANY($4)) <> $5)", user, student, reason, kinds, except)
 	return err
 }
 func (a *API) notificationAccount(w http.ResponseWriter, r *http.Request, s Session, tx pgx.Tx, coachInbox bool) bool {
@@ -324,7 +334,7 @@ func (a *API) markNotificationRead(w http.ResponseWriter, r *http.Request, s Ses
 }
 func (a *API) preferences(ctx context.Context, tx pgx.Tx, user string) (NotificationPreferences, error) {
 	var x NotificationPreferences
-	err := tx.QueryRow(ctx, "SELECT teaching_email_enabled,email FROM users WHERE id=$1", user).Scan(&x.EmailEnabled, &x.EmailAddress)
+	err := tx.QueryRow(ctx, "SELECT teaching_email_enabled,service_email_enabled,email FROM users WHERE id=$1", user).Scan(&x.EmailEnabled, &x.ServiceEmailEnabled, &x.EmailAddress)
 	x.EmailDeliveryAvailable = a.teachingEmailAvailable(x.EmailAddress)
 	return x, err
 }
@@ -336,14 +346,15 @@ func (a *API) updateNotificationPreferences(w http.ResponseWriter, r *http.Reque
 }
 func (a *API) notificationPreferences(w http.ResponseWriter, r *http.Request, s Session, write bool) {
 	var input struct {
-		EmailEnabled *bool `json:"emailEnabled"`
+		EmailEnabled        *bool `json:"emailEnabled"`
+		ServiceEmailEnabled *bool `json:"serviceEmailEnabled"`
 	}
 	if write {
 		if !decode(w, r, &input) {
 			return
 		}
-		if input.EmailEnabled == nil {
-			fail(w, 422, "validation_error", "Provide emailEnabled")
+		if input.EmailEnabled == nil && input.ServiceEmailEnabled == nil {
+			fail(w, 422, "validation_error", "Provide emailEnabled or serviceEmailEnabled")
 			return
 		}
 	}
@@ -357,15 +368,20 @@ func (a *API) notificationPreferences(w http.ResponseWriter, r *http.Request, s 
 		return
 	}
 	if write {
-		if _, err = tx.Exec(r.Context(), "UPDATE users SET teaching_email_enabled=$2 WHERE id=$1", s.User.ID, *input.EmailEnabled); err != nil {
+		if _, err = tx.Exec(r.Context(), "UPDATE users SET teaching_email_enabled=COALESCE($2,teaching_email_enabled),service_email_enabled=COALESCE($3,service_email_enabled) WHERE id=$1",
+			s.User.ID, input.EmailEnabled, input.ServiceEmailEnabled); err != nil {
 			internal(w, err)
 			return
 		}
-		if !*input.EmailEnabled {
-			if err = suppressTeachingDeliveries(r.Context(), tx, s.User.ID, "", "email_disabled"); err != nil {
-				internal(w, err)
-				return
-			}
+		if input.EmailEnabled != nil && !*input.EmailEnabled {
+			err = suppressDeliveries(r.Context(), tx, s.User.ID, "", "email_disabled", serviceKinds, true)
+		}
+		if err == nil && input.ServiceEmailEnabled != nil && !*input.ServiceEmailEnabled {
+			err = suppressDeliveries(r.Context(), tx, s.User.ID, "", "email_disabled", serviceKinds, false)
+		}
+		if err != nil {
+			internal(w, err)
+			return
 		}
 	}
 	x, err := a.preferences(r.Context(), tx, s.User.ID)

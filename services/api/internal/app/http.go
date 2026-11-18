@@ -78,6 +78,7 @@ func New(cfg Config, db *pgxpool.Pool) http.Handler {
 	mux.HandleFunc("PATCH /api/v1/students/{id}/progress-notes/{noteId}", a.auth(a.updateProgressNote))
 	a.schedulingRoutes(mux)
 	a.bookingRoutes(mux)
+	a.cancellationRoutes(mux)
 	a.lessonChangeRoutes(mux)
 	a.lessonSettingsRoutes(mux)
 	a.fixedEnrolmentSettingsRoutes(mux)

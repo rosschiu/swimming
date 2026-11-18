@@ -1,4 +1,5 @@
-import { attendanceSummary } from './attendanceLabels';
+import { attendanceSummary, creditLabel } from './attendanceLabels';
+import CancelLesson from './CancelLesson';
 import { useEffect, useId, useState } from 'react';
 import BookingForm from './BookingForm';
 import EnrolmentForm from './EnrolmentForm';
@@ -66,11 +67,11 @@ export default function StudentBookings({ student, expired, t, csrfToken, role, 
       <button className="outline">{t('Load booked lessons', '載入已預約課堂')}</button>
     </form>}
     {invalid && <p role="alert">{t('Choose a date range of at most 93 days.', '請選擇最多 93 日的日期範圍。')}</p>}
-    <BookingResults key={`${studentId}:${range.revision}`} studentId={studentId} role={role} csrfToken={csrfToken} expired={expired} t={t} from={range.from} to={range.to} onRetry={() => setRange(previous => ({ ...previous, revision: previous.revision + 1 }))}/>
+    <BookingResults key={`${studentId}:${range.revision}`} studentId={studentId} role={role} csrfToken={csrfToken} expired={expired} t={t} from={range.from} to={range.to} onRetry={() => setRange(previous => ({ ...previous, revision: previous.revision + 1 }))} onChanged={onBooked}/>
   </section>;
 }
 
-function BookingResults({ studentId, role, csrfToken, expired, t, from, to, onRetry }: BookingProps & { from: string; to: string; onRetry: () => void }) {
+function BookingResults({ studentId, role, csrfToken, expired, t, from, to, onRetry, onChanged }: BookingProps & { from: string; to: string; onRetry: () => void; onChanged: () => void }) {
   const api = useProtectedRequest(expired);
   const [result, setResult] = useState<StudentBooking[] | 'unavailable' | 'error' | null>(null);
 
@@ -89,13 +90,25 @@ function BookingResults({ studentId, role, csrfToken, expired, t, from, to, onRe
       : result === 'unavailable' ? <p role="alert">{t('Booked lessons are unavailable for your current access.', '目前權限無法存取已預約課堂。')}</p>
       : result === 'error' ? <div><p role="alert">{t('Could not load booked lessons.', '未能載入已預約課堂。')}</p><button className="outline" onClick={onRetry}>{t('Retry booked lessons', '重試載入已預約課堂')}</button></div>
       : result.length === 0 ? <p role="status">{t('No booked lessons on these dates.', '這段日期內沒有已預約課堂。')}</p>
-      : <ul className="link-list">{result.map(({ id, class: lesson, attendance }) => <li key={id}>
+      : <ul className="link-list">{result.map(({ id, class: current, attendance, status, cancellation }) => {
+        // A cancelled lesson keeps the details the guardian reviewed, even if the class was edited later.
+        const lesson = cancellation?.lesson ?? current;
+        const active = status === 'reserved';
+        return <li key={id}>
         <div><strong>{lesson.classTypeName}</strong>
           <p><time dateTime={lesson.startsAt}>{hkDate(new Date(lesson.startsAt))} {hkTime(lesson.startsAt)}</time>–<time dateTime={lesson.endsAt}>{hkDate(new Date(lesson.startsAt)) !== hkDate(new Date(lesson.endsAt)) && `${hkDate(new Date(lesson.endsAt))} `}{hkTime(lesson.endsAt)}</time></p>
           <p className="muted">{lesson.venueName} · {lesson.coachName}</p>
-          <p>{t('Attendance', '出席記錄')} <span className="tag">{attendanceSummary(attendance, t)}</span></p>
-          {role === 'parent' && !attendance && Date.parse(lesson.startsAt) > Date.now() && <RequestLessonChange studentId={studentId} bookingId={id} csrfToken={csrfToken} expired={expired} t={t}/>}
-        </div><span className="tag">{t('Reserved', '已預約')}</span>
-      </li>)}</ul>}
+          {active && <p>{t('Attendance', '出席記錄')} <span className="tag">{attendanceSummary(attendance, t)}</span></p>}
+          {cancellation && <p className="muted">{cancellation.timing === 'early' ? t('Cancelled on time', '準時取消') : t('Cancelled late', '逾時取消')} · {creditLabel(cancellation.creditOutcome, t)}</p>}
+          {role === 'parent' && active && !attendance && Date.parse(lesson.startsAt) > Date.now() && <div className="form-actions">
+            <RequestLessonChange studentId={studentId} bookingId={id} csrfToken={csrfToken} expired={expired} t={t}/>
+            <CancelLesson studentId={studentId} bookingId={id} csrfToken={csrfToken} expired={expired} t={t} onCancelled={booking => {
+              setResult(previous => Array.isArray(previous) ? previous.map(item => item.id === booking.id ? booking : item) : previous);
+              onChanged();
+            }}/>
+          </div>}
+        </div><span className="tag">{active ? t('Reserved', '已預約') : t('Cancelled', '已取消')}</span>
+      </li>;
+      })}</ul>}
   </>;
 }

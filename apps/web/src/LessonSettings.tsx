@@ -4,7 +4,7 @@ import { APIError } from './api';
 import { isAborted, useProtectedRequest, type ProtectedProps } from './useProtectedRequest';
 
 type Settings = components['schemas']['LessonSettings'];
-type Field = Exclude<keyof Settings, 'version'>;
+type Field = Exclude<keyof Settings, 'version' | 'cancellationEmail'>;
 type Draft = Record<Field, string>;
 
 function draftFrom(settings: Settings): Draft {
@@ -20,6 +20,7 @@ export default function LessonSettings({ csrfToken, expired, t }: ProtectedProps
   const id = useId();
   const [settings, setSettings] = useState<Settings | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
+  const [email, setEmail] = useState(true);
   const [busy, setBusy] = useState(true);
   const [stale, setStale] = useState(false);
   const [error, setError] = useState<'load' | 'save' | 'stale' | 'denied' | null>(null);
@@ -67,6 +68,7 @@ export default function LessonSettings({ csrfToken, expired, t }: ProtectedProps
           if (draft[key] !== String(settings[key])) latest[key] = draft[key];
         }
       }
+      if (!keepDraft || !settings || email === settings.cancellationEmail) setEmail(value.cancellationEmail);
       setSettings(value);
       setDraft(latest);
       setStale(false);
@@ -96,10 +98,11 @@ export default function LessonSettings({ csrfToken, expired, t }: ProtectedProps
       const value = await api<Settings>('/settings/lessons', {
         method: 'PATCH',
         headers: { 'X-CSRF-Token': csrfToken },
-        body: JSON.stringify({ ...values, version: settings.version }),
+        body: JSON.stringify({ ...values, cancellationEmail: email, version: settings.version }),
       });
       setSettings(value);
       setDraft(draftFrom(value));
+      setEmail(value.cancellationEmail);
       setSaved(true);
     } catch (error) {
       if (!isAborted(error) && !deny(error)) {
@@ -130,6 +133,9 @@ export default function LessonSettings({ csrfToken, expired, t }: ProtectedProps
           {draft[key] !== String(settings[key]) && <> {t(`Saved value: ${settings[key]}.`, `已儲存數值：${settings[key]}。`)}</>}
         </p>
       </div>)}
+      <label className="checkbox-label"><input type="checkbox" checked={email} disabled={busy} onChange={event => { setEmail(event.target.checked); setSaved(false); }}/>
+        {t('Email families when a guardian cancels a lesson', '家長取消課堂時以電郵通知家庭')}</label>
+      <p className="muted">{t('In-app notices are always sent. Each family can turn off service email in their notification settings.', '系統內通知一定會發出。每個家庭可在通知設定中關閉服務電郵。')}</p>
       <div className="form-actions">
         <button disabled={busy || stale || error === 'load'}>{t('Save lesson timing', '儲存課堂時間規則')}</button>
         <button type="button" className="outline" disabled={busy} onClick={() => void load(true)}>{t('Reload lesson timing', '重新載入課堂時間規則')}</button>

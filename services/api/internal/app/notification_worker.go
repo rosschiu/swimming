@@ -16,7 +16,7 @@ func (a *API) notificationEligibility(ctx context.Context, tx pgx.Tx, notificati
 	var email string
 	var active, enabled, linked, teaching bool
 	var role string
-	err := tx.QueryRow(ctx, `SELECT u.email,u.active,u.role,u.teaching_email_enabled,EXISTS(SELECT 1 FROM student_access sa WHERE sa.student_id=n.student_id AND sa.user_id=u.id AND sa.kind=CASE u.role WHEN 'parent' THEN 'guardian' WHEN 'student' THEN 'self' END),n.kind IN ('progress.created','progress.updated','milestone.achieved','milestone.revoked') FROM notifications n JOIN users u ON u.id=n.recipient_id WHERE n.id=$1`, notificationID).Scan(&email, &active, &role, &enabled, &linked, &teaching)
+	err := tx.QueryRow(ctx, `SELECT u.email,u.active,u.role,CASE WHEN n.kind='booking.cancelled' THEN u.service_email_enabled ELSE u.teaching_email_enabled END,EXISTS(SELECT 1 FROM student_access sa WHERE sa.student_id=n.student_id AND sa.user_id=u.id AND sa.kind=CASE u.role WHEN 'parent' THEN 'guardian' WHEN 'student' THEN 'self' END),n.kind IN ('progress.created','progress.updated','milestone.achieved','milestone.revoked','booking.cancelled') FROM notifications n JOIN users u ON u.id=n.recipient_id WHERE n.id=$1`, notificationID).Scan(&email, &active, &role, &enabled, &linked, &teaching)
 	if err != nil {
 		return "", "", err
 	}

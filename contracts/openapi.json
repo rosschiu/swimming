@@ -5340,6 +5340,126 @@
         ]
       }
     },
+    "/api/v1/students/{id}/bookings/{bookingId}/cancellation": {
+      "get": {
+        "operationId": "previewBookingCancellation",
+        "summary": "Preview cancelling one booked lesson",
+        "description": "Linked guardian only. Classifies the cancellation as early (up to and including the guardian change cutoff before the start) or late, and states the credit outcome under the funding package's frozen early or late cancellation policy. Self-service closes at lesson start or once attendance is recorded (409 cancellation_closed).",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "bookingId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Preview",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CancellationPreview"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "cancelBooking",
+        "summary": "Cancel one booked lesson",
+        "description": "Linked guardian only. Send the reviewed class, timing and credit outcome. The server rechecks them under lock and returns 409 cancellation_changed with the current preview as details when any differ, for example after an approved move. On success the booking becomes cancelled and leaves rosters and capacity, its reserved credit is used, returned to the same package, or returned to expired history, a pending lesson change closes, and linked guardians, the student and the class coach receive in-app notices; families may also receive a generic email per the school setting, their service email preference and the allowlist. Other occurrences of a weekly enrolment are unchanged. An exact replay returns the cancelled booking.",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "bookingId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancellationInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Cancelled booking",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudentBooking"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/students/{id}/bookings/{bookingId}/change-options": {
       "get": {
         "operationId": "listLessonChangeOptions",
@@ -7058,7 +7178,8 @@
           "status": {
             "type": "string",
             "enum": [
-              "reserved"
+              "reserved",
+              "cancelled"
             ]
           },
           "createdAt": {
@@ -7070,6 +7191,9 @@
           },
           "attendance": {
             "$ref": "#/components/schemas/Attendance"
+          },
+          "cancellation": {
+            "$ref": "#/components/schemas/BookingCancellation"
           }
         },
         "required": [
@@ -7304,6 +7428,7 @@
           "parentChangeCutoffHours",
           "attendanceOpenMinutes",
           "correctionWindowDays",
+          "cancellationEmail",
           "version"
         ],
         "properties": {
@@ -7327,6 +7452,10 @@
             "minimum": 0,
             "maximum": 365,
             "example": 3
+          },
+          "cancellationEmail": {
+            "type": "boolean",
+            "description": "When true, guardian cancellations also queue a generic email to linked guardians and the student, subject to each recipient's service email preference and the delivery allowlist. In-app notices are always created."
           },
           "version": {
             "type": "integer",
@@ -8037,7 +8166,8 @@
               "booking.created",
               "lesson_change.requested",
               "lesson_change.approved",
-              "lesson_change.rejected"
+              "lesson_change.rejected",
+              "booking.cancelled"
             ]
           },
           "sourceId": {
@@ -8063,12 +8193,17 @@
         "type": "object",
         "required": [
           "emailEnabled",
+          "serviceEmailEnabled",
           "emailAddress",
           "emailDeliveryAvailable"
         ],
         "properties": {
           "emailEnabled": {
             "type": "boolean"
+          },
+          "serviceEmailEnabled": {
+            "type": "boolean",
+            "description": "Email for booking service changes such as cancellations. On by default and independent of teaching email."
           },
           "emailAddress": {
             "type": "string",
@@ -8082,11 +8217,12 @@
       },
       "NotificationPreferenceInput": {
         "type": "object",
-        "required": [
-          "emailEnabled"
-        ],
+        "minProperties": 1,
         "properties": {
           "emailEnabled": {
+            "type": "boolean"
+          },
+          "serviceEmailEnabled": {
             "type": "boolean"
           }
         },
@@ -9631,6 +9767,124 @@
           "status",
           "reason",
           "revision",
+          "idempotencyKey"
+        ],
+        "additionalProperties": false
+      },
+      "BookingCancellation": {
+        "type": "object",
+        "description": "Present on cancelled bookings. lesson is the class as reviewed at cancellation, even if the class is edited later.",
+        "properties": {
+          "timing": {
+            "type": "string",
+            "enum": [
+              "early",
+              "late"
+            ]
+          },
+          "creditOutcome": {
+            "type": "string",
+            "enum": [
+              "consumed",
+              "retained",
+              "expired"
+            ]
+          },
+          "cancelledAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lesson": {
+            "$ref": "#/components/schemas/ClassSession"
+          }
+        },
+        "required": [
+          "timing",
+          "creditOutcome",
+          "cancelledAt",
+          "lesson"
+        ],
+        "additionalProperties": false
+      },
+      "CancellationPreview": {
+        "type": "object",
+        "properties": {
+          "bookingId": {
+            "type": "string"
+          },
+          "lesson": {
+            "$ref": "#/components/schemas/ClassSession"
+          },
+          "timing": {
+            "type": "string",
+            "enum": [
+              "early",
+              "late"
+            ]
+          },
+          "creditOutcome": {
+            "type": "string",
+            "enum": [
+              "consumed",
+              "retained",
+              "expired"
+            ]
+          },
+          "lateFrom": {
+            "type": "string",
+            "format": "date-time",
+            "description": "After this instant a cancellation is late; at it the cancellation is still early."
+          },
+          "closesAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Lesson start; guardian self-service closes then."
+          }
+        },
+        "required": [
+          "bookingId",
+          "lesson",
+          "timing",
+          "creditOutcome",
+          "lateFrom",
+          "closesAt"
+        ],
+        "additionalProperties": false
+      },
+      "CancellationInput": {
+        "type": "object",
+        "properties": {
+          "classId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "timing": {
+            "type": "string",
+            "enum": [
+              "early",
+              "late"
+            ]
+          },
+          "creditOutcome": {
+            "type": "string",
+            "enum": [
+              "consumed",
+              "retained",
+              "expired"
+            ]
+          },
+          "idempotencyKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "pattern": "^[!-~]{1,100}$"
+          }
+        },
+        "required": [
+          "classId",
+          "timing",
+          "creditOutcome",
           "idempotencyKey"
         ],
         "additionalProperties": false
