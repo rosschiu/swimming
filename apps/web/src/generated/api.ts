@@ -4,6 +4,26 @@
  */
 
 export interface paths {
+    "/api/v1/admin/action-queue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get administrator action queue counts
+         * @description Administrator only. Counts purchases awaiting expiry assignment and failed email deliveries.
+         */
+        get: operations["getAdminActionQueue"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/health": {
         parameters: {
             query?: never;
@@ -993,6 +1013,10 @@ export interface components {
             user: components["schemas"]["User"];
             csrfToken: string;
         };
+        AdminActionQueue: {
+            purchasesAwaitingExpiry: number;
+            failedEmailDeliveries: number;
+        };
         Error: {
             error: {
                 code: string;
@@ -1615,6 +1639,35 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    getAdminActionQueue: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current counts */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminActionQueue"];
+                };
+            };
+            /** @description Request failed */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
     health: {
         parameters: {
             query?: never;

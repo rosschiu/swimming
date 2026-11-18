@@ -2,10 +2,17 @@ import type { MouseEvent } from 'react';
 import type { User } from './api';
 
 export type View = 'students' | 'accounts' | 'audit' | 'schedule' | 'setup' | 'availability' | 'notifications' | 'deliveries' | 'packages';
-export type Route = { view: View; studentId?: string } | { view: 'unavailable' };
+export const deliveryStatuses = ['pending', 'leased', 'sent', 'retry', 'failed', 'suppressed'] as const;
+export type DeliveryStatus = typeof deliveryStatuses[number];
+export type Route = { view: View; studentId?: string; deliveryStatus?: DeliveryStatus } | { view: 'unavailable' };
 const paths: Record<View, string> = { students: '/students', accounts: '/accounts', audit: '/audit', schedule: '/schedule', setup: '/setup', availability: '/availability', notifications: '/notifications', deliveries: '/notification-deliveries', packages: '/packages' };
 
-export function parseRoute(path: string): Route {
+export function parseRoute(path: string, search = ''): Route {
+  if (path === paths.deliveries) {
+    const status = new URLSearchParams(search).get('status');
+    const deliveryStatus = deliveryStatuses.find(value => value === status);
+    return { view: 'deliveries', deliveryStatus };
+  }
   if (path === '/') return { view: 'students' };
   for (const view of Object.keys(paths) as View[]) if (paths[view] === path) return { view };
   const match = /^\/students\/([^/]+)$/.exec(path);
@@ -19,6 +26,7 @@ export function parseRoute(path: string): Route {
 }
 export function routePath(route: Route): string {
   if (route.view === 'unavailable') return '/';
+  if (route.view === 'deliveries' && route.deliveryStatus) return `${paths.deliveries}?status=${route.deliveryStatus}`;
   return route.view === 'students' && route.studentId ? `/students/${encodeURIComponent(route.studentId)}` : paths[route.view];
 }
 export function canView(route: Route, role: User['role']): boolean {
