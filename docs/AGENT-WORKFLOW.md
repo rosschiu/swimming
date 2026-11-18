@@ -12,7 +12,7 @@ Maintain a short task/evidence log during implementation. The lead owns contract
 
 ## Delegation model
 
-User-selected model roles: use `gpt-6.1-sol` for development and `gpt-6-astra` for independent review and testing. Explicitly select these models when spawning their respective agents. If unavailable, report the tool rejection; do not silently substitute another model. The lead retains integration and release responsibility.
+Use the user-selected `gpt-6.2-sol` for coding and `gpt-6.2-astra` for independent testing and review. Explicitly select the model for each delegated task. If a model is unavailable, report the tool rejection. The lead retains integration and release responsibility.
 
 With the current four-agent concurrency limit, use the lead plus up to three focused workers. Example assignments:
 

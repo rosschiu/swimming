@@ -119,14 +119,10 @@ const recoveryColumns = "id,student_id,source_package_id,destination_package_id,
 func scanRecovery(row pgx.Row) (CreditRecovery, error) {
 	var x CreditRecovery
 	err := row.Scan(&x.ID, &x.StudentID, &x.SourcePackageID, &x.DestinationPackageID, &x.Quantity, &x.Reason, &x.ExpiresOn, &x.ActorID, &x.CreatedAt)
+	x.CreatedAt = x.CreatedAt.UTC()
 	return x, err
 }
 func (a *API) recoverCredits(w http.ResponseWriter, r *http.Request, s Session) {
-	tx, ok := a.creditHistoryTx(w, r, s)
-	if !ok {
-		return
-	}
-	defer tx.Rollback(r.Context())
 	if s.User.Role != "coach" && s.User.Role != "admin" {
 		fail(w, 403, "forbidden", "Only assigned coaches and administrators recover expired credits")
 		return
@@ -141,6 +137,11 @@ func (a *API) recoverCredits(w http.ResponseWriter, r *http.Request, s Session) 
 	if !decode(w, r, &in) {
 		return
 	}
+	tx, ok := a.creditHistoryTx(w, r, s)
+	if !ok {
+		return
+	}
+	defer tx.Rollback(r.Context())
 	in.Reason = strings.TrimSpace(in.Reason)
 	if !validFinanceKey(in.IdempotencyKey) || !validFinanceKey(in.SourcePackageID) || in.Quantity < 1 || in.Quantity > 10000 || !utf8.ValidString(in.Reason) || strings.ContainsRune(in.Reason, 0) || utf8.RuneCountInString(in.Reason) > 500 || strings.TrimSpace(in.Reason) == "" {
 		fail(w, 422, "validation_error", "Provide a source, 1–10000 credits, reason of 1–500 characters and request key")
@@ -211,7 +212,7 @@ func (a *API) recoverCredits(w http.ResponseWriter, r *http.Request, s Session) 
 		internal(w, err)
 		return
 	}
-	now := a.now()
+	now := a.now().UTC().Truncate(time.Microsecond)
 	_, err = tx.Exec(r.Context(), "INSERT INTO credit_packages(id,purchase_id,student_id,credits,expires_on,policy,created_at,source_package_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8)", destination, purchase, r.PathValue("id"), in.Quantity, in.ExpiresOn, policy, now, in.SourcePackageID)
 	if err == nil {
 		_, err = tx.Exec(r.Context(), "INSERT INTO credit_recoveries(id,student_id,source_package_id,destination_package_id,quantity,reason,expires_on,actor_id,idempotency_key,request,created_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)", id, r.PathValue("id"), in.SourcePackageID, destination, in.Quantity, in.Reason, in.ExpiresOn, s.User.ID, in.IdempotencyKey, request, now)

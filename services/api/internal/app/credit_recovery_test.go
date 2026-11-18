@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -10,7 +11,7 @@ import (
 
 func TestIntegrationCreditRecoveryLineageScopeAndReplay(t *testing.T) {
 	f := prepareRecovery(t)
-	f.now = f.now.Add(24 * time.Hour)
+	f.now = f.now.Add(24 * time.Hour).Truncate(time.Microsecond).Add(789 * time.Nanosecond).In(hongKong)
 	ctx := context.Background()
 	path := "/api/v1/students/amy/credit-recoveries"
 	input := map[string]any{"sourcePackageId": f.packageID, "quantity": 4, "reason": "Illness exception", "expiresOn": f.now.Add(24 * time.Hour).In(hongKong).Format("2006-01-02"), "idempotencyKey": "recover"}
@@ -29,14 +30,15 @@ func TestIntegrationCreditRecoveryLineageScopeAndReplay(t *testing.T) {
 	expectStatus(t, request(t, f.h, "GET", "/api/v1/students/ben/credit-history", nil, f.coach), 404)
 	w := request(t, f.h, "POST", path, input, f.coach)
 	expectStatus(t, w, 201)
+	createdBody := w.Body.String()
 	r := decodeBody[CreditRecovery](t, w)
 	if r.Quantity != 4 || r.SourcePackageID != f.packageID || r.ActorID != "coach" || r.DestinationPackageID == r.SourcePackageID {
 		t.Fatal(r)
 	}
 	w = request(t, f.h, "POST", path, input, f.coach)
 	expectStatus(t, w, 200)
-	if decodeBody[CreditRecovery](t, w).ID != r.ID {
-		t.Fatal("replay duplicated recovery")
+	if w.Body.String() != createdBody {
+		t.Fatalf("replay response differs from creation: got %s, want %s", w.Body, createdBody)
 	}
 	input["quantity"] = 5
 	expectStatus(t, request(t, f.h, "POST", path, input, f.coach), 409)
@@ -154,6 +156,26 @@ func TestIntegrationCreditRecoveryValidation(t *testing.T) {
 		}
 		expectStatus(t, request(t, f.h, "POST", path, input, f.coach), 422)
 	}
+}
+
+func TestIntegrationCreditRecoveryDecodesBeforeIdentityLock(t *testing.T) {
+	f := prepareRecovery(t)
+	tx, err := f.api.beginIdentity(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback(context.Background())
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	r := httptest.NewRequestWithContext(ctx, "POST", "/api/v1/students/amy/credit-recoveries", strings.NewReader(`{"quantity":`))
+	r.AddCookie(f.coach.cookie)
+	r.Header.Set("Content-Type", "application/json")
+	r.Header.Set("Origin", testOrigin)
+	r.Header.Set("X-CSRF-Token", f.coach.csrf)
+	w := httptest.NewRecorder()
+	f.h.ServeHTTP(w, r)
+	expectStatus(t, w, 400)
 }
 
 func TestIntegrationCreditRecoveryAuditFailureRollsBackPairedMovements(t *testing.T) {
