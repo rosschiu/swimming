@@ -282,3 +282,41 @@ it('refreshes stale choices and requires a fresh confirmation before submitting 
   expect(writes[0].idempotencyKey).not.toBe(writes[1].idempotencyKey);
   expect(mock.mock.calls.filter(([path]) => String(path).includes('/classes?')).length).toBeGreaterThan(1);
 });
+
+it.each([
+  ['parent', 'A lesson was booked.', 'Unread', 'Mark read', 'Read', 'Open current student profile', 'Notifications'],
+  ['student', '已預約課堂。', '未讀', '標記已讀', '已讀', '開啟學員最新資料', '通知'],
+] as const)('shows %s a booking alert, updates the badge, and opens the scoped profile', async (role, message, unread, markRead, read, openProfile, badge) => {
+  at('/notifications');
+  if (role === 'student') window.localStorage.setItem('language', 'zh');
+  const item = {
+    id: 'new-booking', kind: 'booking.created', sourceId: 'booking', sourceVersion: 1,
+    studentId: 'amy', studentName: amy.name, createdAt: '2030-01-01T00:00:00Z', readAt: null,
+  };
+  let unreadCount = 1;
+  const mock = api(role, (path, options) => {
+    if (path === '/api/v1/notifications/new-booking/read' && options?.method === 'PUT') {
+      unreadCount = 0;
+      return response({ ...item, readAt: '2030-01-02T00:00:00Z' });
+    }
+    if (path.startsWith('/api/v1/notifications?')) return response({ items: [item], nextCursor: null, unreadCount });
+  });
+  render(<App />);
+  const user = userEvent.setup();
+  expect(await screen.findByText(message)).toBeVisible();
+  expect(screen.getByRole('link', { name: `${badge} (1)` })).toBeVisible();
+  expect(screen.getByText(unread, { exact: false })).toBeVisible();
+  expect(screen.getByRole('checkbox')).not.toBeChecked();
+  await user.click(screen.getByRole('button', { name: markRead }));
+  expect(await screen.findByRole('link', { name: `${badge} (0)` })).toBeVisible();
+  expect(screen.getByText(new RegExp(`^· ${read}$`))).toBeVisible();
+  expect(screen.queryByRole('button', { name: markRead })).not.toBeInTheDocument();
+  expect(mock).toHaveBeenCalledWith('/api/v1/notifications/new-booking/read', expect.objectContaining({
+    method: 'PUT', headers: expect.objectContaining({ 'X-CSRF-Token': `csrf-${role}` }),
+  }));
+  const profile = screen.getByRole('link', { name: openProfile });
+  expect(profile).toHaveAttribute('href', '/students/amy');
+  await user.click(profile);
+  expect(await screen.findByRole('heading', { name: amy.name })).toBeVisible();
+  expect(mock).toHaveBeenCalledWith('/api/v1/students/amy', expect.anything());
+});
