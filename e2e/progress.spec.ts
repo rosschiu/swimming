@@ -1,7 +1,7 @@
 import {test,expect,type Page} from '@playwright/test';
 import {expectContract} from './contract';
 const origin='http://localhost:18573';
-async function login(page:Page,role:string){await page.goto('/');await page.getByLabel('Email',{exact:true}).fill(`${role}@swim.test`);await page.getByLabel('Password',{exact:true}).fill('Swim-test-2026!');await page.getByRole('button',{name:'Sign in',exact:true}).click();await expect(page.getByRole('button',{name:'Sign out',exact:true})).toBeVisible();}
+async function login(page:Page,role:string){await page.goto('/');await page.getByLabel('Email',{exact:true}).fill(`${role}@swim.test`);await page.getByLabel('Password',{exact:true}).fill('Swim-test-2026!');await page.getByRole('button',{name:'Sign in',exact:true}).click();await expect(page.getByRole('button',{name:'Sign out',exact:true})).toBeVisible();await page.goto('/students');}
 test('coach shares and corrects progress; guardian/student read, unrelated family is denied and drafts isolate',async({page,browser})=>{
  await login(page,'coach');await page.getByRole('link',{name:/Amy/}).click();
  const text=`Progress ${Date.now()}: 25m 泳`;await page.getByLabel('Progress note',{exact:true}).fill(text);

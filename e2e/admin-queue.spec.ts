@@ -61,7 +61,7 @@ test('administrator clears an expiry assignment and retries a failed delivery fr
     await card.getByLabel('Expiry date (Hong Kong)').fill('2099-12-31');
     await card.getByRole('button', { name: 'Assign expiry' }).click();
     await expect(card).toHaveCount(0);
-    await page.getByRole('link', { name: 'Students', exact: true }).click();
+    await page.getByRole('link', { name: 'Home', exact: true }).click();
     await counts(before.purchasesAwaitingExpiry, before.failedEmailDeliveries + 1);
     await queue.getByRole('link', { name: 'Failed email deliveries' }).click();
     await expect(page).toHaveURL(/\/notification-deliveries\?status=failed$/);
@@ -86,7 +86,7 @@ test('administrator clears an expiry assignment and retries a failed delivery fr
     const retry = page.waitForResponse(r => r.url().endsWith('/' + offer.id + '/retry') && r.request().method() === 'POST');
     await page.getByRole('button', { name: 'Retry failed delivery' }).click();
     expect((await retry).status()).toBe(200);
-    await page.getByRole('link', { name: 'Students', exact: true }).click();
+    await page.getByRole('link', { name: 'Home', exact: true }).click();
     await counts(before.purchasesAwaitingExpiry, before.failedEmailDeliveries);
   } finally {
     expect((await parent.request.put('/api/v1/notification-preferences', { headers: parentHeaders, data: { emailEnabled: pref.emailEnabled } })).status()).toBe(200);

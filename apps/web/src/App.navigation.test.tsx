@@ -17,6 +17,7 @@ function api(role: Role, override?: Override) {
   const path = String(input); const custom = override?.(path, options); if (custom !== undefined) return custom;
   if (path.endsWith('/auth/me') || path.endsWith('/auth/login')) return response(session(role));
   if (path.endsWith('/auth/logout')) return response(null, 204);
+  if (path.endsWith('/home')) return response({ role, today: '2030-01-07', students: [], classes: [], pendingLessonChanges: 0, unreadNotifications: 0 });
   if (path.endsWith('/credit-history')) return response({ items: [], recoveries: [], bookingValidity });
   if (path.endsWith('/admin/action-queue')) return response({ purchasesAwaitingExpiry: 0, failedEmailDeliveries: 0, pendingLessonChanges: 0, classesMissingAttendance: 0 });
  if (path.endsWith('/students/amy')) return response(amy);
@@ -482,6 +483,7 @@ it('restores the failed delivery filter directly and through browser history', a
 });
 
 it('retries a failed administrator summary and shows a translated empty queue', async () => {
+  at('/');
   const failed = deferred();
   let attempts = 0;
   api('admin', path => path.endsWith('/admin/action-queue') ? ++attempts === 1 ? failed.promise : response({ purchasesAwaitingExpiry: 0, failedEmailDeliveries: 0, pendingLessonChanges: 0, classesMissingAttendance: 0 }) : undefined);
@@ -534,6 +536,7 @@ it('opens the pending lesson change queue and restores it without stale history'
 });
 
 it('loads paged missing attendance and opens the exact roster with browser history', async () => {
+  at('/');
   const first = { id: 'night-class', startsAt: '2026-10-02T15:30:00Z', endsAt: '2026-10-02T17:00:00Z',
     classTypeName: 'Night group', venueName: 'Kowloon pool', coachName: 'Coach Chan', unmarkedBookings: 2 };
   const older = { ...first, id: 'older', classTypeName: 'Older group' };

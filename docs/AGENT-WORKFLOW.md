@@ -12,19 +12,7 @@ Maintain a short task/evidence log during implementation. The lead owns contract
 
 ## Delegation model
 
-Use the user-selected `gpt-6.2-sol` for coding and `gpt-6.2-astra` for independent testing and review. Explicitly select the model for each delegated task. If a model is unavailable, report the tool rejection. The lead retains integration and release responsibility.
-
-With the current four-agent concurrency limit, use the lead plus up to three focused workers. Example assignments:
-
-| Worker | Bounded responsibility |
-|---|---|
-| Backend | Go services, database changes and relevant domain/integration tests |
-| Frontend | React screens and client tests using agreed API contracts |
-| Verification or AI | Independent review/test work, or a bounded assistant integration once dependencies are ready |
-
-Roles may change per phase. Do not run agents merely to occupy slots. Independent frontend/backend work begins after agreeing the contract; migrations and shared contract edits have one owner. Review consequential work independently when useful.
-
-Every delegated task states: objective, allowed paths, dependencies, acceptance criteria, required checks, exclusions and expected handoff. Use isolated branches/worktrees where supported; otherwise fence file ownership explicitly. Never have multiple agents edit the same files concurrently without coordination.
+Since 2026-11-18 Claude is the lead and also implements, reviews and tests each stage; the earlier `gpt-6.2-sol`/`gpt-6.2-astra` assignments are retired. Claude may use its own subagents for bounded, independent work, with explicit file ownership, and keeps integration and release responsibility. A separate review pass over the integrated diff (correctness, permissions, ledger effects, failure paths) precedes every merge and is recorded in the PR.
 
 ## Delivery loop
 

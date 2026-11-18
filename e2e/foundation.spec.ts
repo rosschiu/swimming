@@ -21,6 +21,7 @@ test('invalid login stays signed out and reports a useful error', async ({ page 
 for (const role of ['parent', 'coach', 'student']) {
   test(`${role} sees only assigned records and cannot write`, async ({ page }) => {
     await login(page, role);
+    await page.goto('/students');
     await expect(page.getByRole('link', { name: /Amy/ })).toBeVisible();
     await expect(page.getByRole('link', { name: /Ben/ })).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Add student' })).toHaveCount(0);
@@ -39,6 +40,7 @@ for (const role of ['parent', 'coach', 'student']) {
 
 test('administrator creates and edits a persistent student with stale-write protection', async ({ page }) => {
   await login(page, 'admin');
+  await page.getByRole('link', { name: 'Students', exact: true }).click();
   const name = `E2E swimmer ${Date.now()}`;
   await page.getByRole('button', { name: 'Add student' }).click();
   await page.getByLabel('Student name', { exact: true }).fill(name);
@@ -61,12 +63,14 @@ test('administrator creates and edits a persistent student with stale-write prot
 });
 
 test('second guardian sees their own child and mobile language switching works', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 });
   await login(page, 'other-parent');
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/students');
   await expect(page.getByRole('link', { name: /Ben/ })).toBeVisible();
   await expect(page.getByRole('link', { name: /Amy/ })).toHaveCount(0);
-  await page.getByRole('button', { name: '繁體中文' }).click();
+  await page.getByRole('button', { name: 'More' }).click();
+  await page.getByRole('dialog', { name: 'More' }).getByRole('button', { name: '繁體中文' }).click();
   await expect(page.locator('html')).toHaveAttribute('lang', 'zh-Hant-HK');
-  await expect(page.getByRole('button', { name: '登出' })).toBeVisible();
+  await expect(page.getByRole('dialog', { name: '更多' }).getByRole('button', { name: '登出' })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });

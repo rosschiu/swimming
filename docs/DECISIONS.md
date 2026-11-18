@@ -125,3 +125,28 @@ The user selected individual expiry per purchase; the previously approved admini
 The user requires matching swimming level for bookings, with an administrator override. Default validity must cover lesson end; fixed enrolment reserves all selected lessons or none; renewal carries unused unreserved credits while existing reservations keep their original expiry. Booking validity is school-wide and administrator-controlled. Fixed allocation and renewal eligibility are also configured school-wide by administrators.
 
 Assigned coaches may recover only actual expired unused credits, with a reason and new expiry. Extra credit grants require an administrator. AI/voice remains deferred beyond first delivery.
+
+## Mobile revamp and remaining-workflow decisions (2026-11-18)
+
+Recorded after the [application review](APP-REVIEW-2026-11-18.md). Claude now owns implementation, review and testing; the GPT-6.2 agents are no longer used.
+
+Confirmed by the user:
+
+- **Platform.** Build the web app first as a mobile web experience in phone browsers. Native and WeChat clients come later; keep the API reusable for them.
+- **Purchase expiry.** Each package offer carries a default validity applied at successful payment, so guardians can complete mock checkout without waiting for an administrator. Administrators can still edit an individual purchase's expiry. This replaces the requirement for an administrator to enter every purchase's expiry before payment.
+- **Family cancellation notices.** Recipients and channels are administrator-configurable. Default: in-app and email.
+- **Lesson reminders.** One reminder 24 hours before each lesson to linked guardians and the student, never sent after the lesson starts. Default channels: in-app and email. Configurable by administrators; recipients can opt out.
+- **Import.** The import's primary purpose is migrating an existing school's records into the system, and it must accept Excel (.xlsx) files.
+- **Pending from the user:** approved demo email recipients with SMTP access, and a read-only GitHub token for VM delivery.
+
+Proposed defaults awaiting confirmation (not yet approved):
+
+| Area | Proposed default |
+|---|---|
+| UI | Claude designs the visual identity, keeping the current teal; administrator pages stay desktop-first but usable on phones; Traditional Chinese and English, defaulting to Traditional Chinese, no Simplified Chinese yet |
+| Attendance | Absence and illness can be marked from lesson end; class coach or administrator corrects within three days of lesson end; a retained-to-consumed correction debits the same package or is rejected; marking attendance closes a pending change request |
+| Family cancellation | Reuse the 24-hour change cutoff for early versus late; guardian self-service closes at lesson start; cancelling closes a pending change request; fixed-enrolment renewal follows the last originally booked date |
+| School cancellation | Administrator enters a new expiry for an already-expired returned credit; affected change requests close as school-cancelled and the family may submit a new one; notices in-app plus email per the configurable notice setting; no make-up or compensation beyond returning the credit |
+| Substitution | Substitute must be active and free of clashes and travel-gap conflicts; no availability window or acceptance step |
+| Extra grants | Separate complimentary package with administrator-entered expiry, no receipt, available to students without purchases, not usable as the renewal package |
+| Feedback | Class coach writes notes only for swimmers marked present; multiple notes per lesson; visible to the family immediately |

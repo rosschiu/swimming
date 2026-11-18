@@ -24,7 +24,7 @@ test('demo role buttons fill editable credentials and use ordinary sign-in', asy
   expect(loginRequests).toBe(1);
   await demo.getByRole('button', { name: 'Guardian' }).click();
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page.getByRole('heading', { name: 'Your swimmers' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /^Hi, / })).toBeVisible();
   expect(loginRequests).toBe(2);
   await page.getByRole('button', { name: 'Sign out' }).click();
   await page.getByRole('button', { name: '繁體中文' }).click();

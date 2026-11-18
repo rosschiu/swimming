@@ -18,7 +18,7 @@ function mockAPI(role: 'parent' | 'coach' | 'student' | 'admin', saveStatus = 20
   });
   vi.stubGlobal('fetch', fetchMock); return fetchMock;
 }
-beforeEach(() => { window.history.replaceState(null, '', '/'); window.localStorage.clear(); vi.unstubAllGlobals(); });
+beforeEach(() => { window.history.replaceState(null, '', '/students'); window.localStorage.clear(); vi.unstubAllGlobals(); });
 
 afterEach(() => vi.unstubAllEnvs());
 

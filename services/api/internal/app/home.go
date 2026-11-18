@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -74,7 +75,7 @@ func (a *API) getHome(w http.ResponseWriter, r *http.Request, s Session) {
 				Scan(&home.PendingLessonChanges, &home.UnreadNotifications)
 		}
 	case "admin":
-		home.Classes, err = homeClasses(ctx, tx, "$1<>'' AND c.ends_at>$2 AND c.starts_at<$2::timestamptz+interval '1 day'", s.User.ID, today)
+		home.Classes, err = homeClasses(ctx, tx, "c.ends_at>$1 AND c.starts_at<$2", today, today.AddDate(0, 0, 1))
 		if err == nil {
 			var queue AdminActionQueue
 			err = tx.QueryRow(ctx, actionQueueCounts+" FROM users WHERE id=$1", s.User.ID, now).Scan(queue.fields()...)
@@ -141,11 +142,11 @@ func homeStudents(ctx context.Context, tx pgx.Tx, s Session, now, today time.Tim
 	return students, nil
 }
 
-func homeClasses(ctx context.Context, tx pgx.Tx, where, userID string, today time.Time) ([]HomeClass, error) {
+func homeClasses(ctx context.Context, tx pgx.Tx, where string, args ...any) ([]HomeClass, error) {
 	rows, err := tx.Query(ctx, "SELECT "+classColumns+`,
 		(SELECT count(*) FROM bookings b WHERE b.class_id=c.id AND b.status='reserved'),
 		(SELECT count(*) FROM bookings b LEFT JOIN booking_attendance ba ON ba.booking_id=b.id WHERE b.class_id=c.id AND b.status='reserved' AND ba.booking_id IS NULL)`+
-		classJoin+" WHERE "+where+" ORDER BY c.starts_at,c.id LIMIT $3", userID, today, homeClassLimit)
+		classJoin+" WHERE "+where+" ORDER BY c.starts_at,c.id LIMIT "+strconv.Itoa(homeClassLimit), args...)
 	if err != nil {
 		return nil, err
 	}
