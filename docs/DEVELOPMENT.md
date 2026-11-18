@@ -75,4 +75,12 @@ Apply migration9 before using Packages and payments. Administrators maintain off
 
 The mock offers pending, failed and successful outcomes. A failed attempt grants nothing; retry creates another attempt on the same purchase. Repeating a successful outcome returns the existing receipt and credits. All payment and receipt screens are simulated; no money moves. Offer and policy changes affect new purchases, while existing purchases retain their terms.
 
-Credit history shows grants and current available/expired quantities. Booking reservations, attendance, renewal/carry-forward and recovery arrive in subsequent stages. AI/voice is deferred beyond first delivery by the user's2026-11-18 decision.
+Credit history shows grants and current available/expired quantities. Booking reservations, attendance and renewal/carry-forward arrive in subsequent stages. AI/voice is deferred beyond first delivery by the user's2026-11-18 decision.
+
+## Durable expiry and credit recovery
+
+Apply migration10. The server sweeps up to100 eligible expired packages on startup and once per minute. Credit-history and finance-credit reads also process the selected student's due packages, so the displayed expiry is recorded in the ledger. Expiry moves only unused available credits; reserved and consumed quantities remain intact.
+
+Administrators and assigned coaches open a student profile's Credit history, select an expired package and enter quantity, reason and a new inclusive Hong Kong expiry date. Review and confirm the transfer. Recovery creates a linked descendant package and preserves the original receipt and source ledger. Partial recovery leaves the remaining expired quantity recoverable; a later recovery cannot reuse already-transferred credits. Guardians can read their children's history but cannot recover credits. Coach history excludes prices and receipt data.
+
+For an uncertain response, retry the same recovery. A changed quantity/reason/date needs a fresh reviewed request; current scope is checked even on replay. System expiry entries identify the system rather than a staff actor. No additional credits or refunds are created by recovery.

@@ -102,21 +102,22 @@ type CreditMovement struct {
 	Reserved  int       `json:"reserved"`
 	Consumed  int       `json:"consumed"`
 	Expired   int       `json:"expired"`
-	ActorID   string    `json:"actorId"`
+	ActorID   *string   `json:"actorId"`
 	Reason    string    `json:"reason"`
 	CreatedAt time.Time `json:"createdAt"`
 }
 type CreditPackage struct {
-	ID         string           `json:"id"`
-	PurchaseID string           `json:"purchaseId"`
-	Credits    int              `json:"credits"`
-	ExpiresOn  *string          `json:"expiresOn"`
-	Policy     CreditPolicy     `json:"policy"`
-	Available  int              `json:"available"`
-	Reserved   int              `json:"reserved"`
-	Consumed   int              `json:"consumed"`
-	Expired    int              `json:"expired"`
-	Movements  []CreditMovement `json:"movements"`
+	SourcePackageID *string          `json:"sourcePackageId"`
+	ID              string           `json:"id"`
+	PurchaseID      string           `json:"purchaseId"`
+	Credits         int              `json:"credits"`
+	ExpiresOn       *string          `json:"expiresOn"`
+	Policy          CreditPolicy     `json:"policy"`
+	Available       int              `json:"available"`
+	Reserved        int              `json:"reserved"`
+	Consumed        int              `json:"consumed"`
+	Expired         int              `json:"expired"`
+	Movements       []CreditMovement `json:"movements"`
 }
 
 func (a *API) financeRoutes(m *http.ServeMux) {
@@ -787,47 +788,53 @@ func (a *API) listCredits(w http.ResponseWriter, r *http.Request, s Session) {
 	if !financeScope(w, r, s, tx, r.PathValue("id")) {
 		return
 	}
-	rows, err := tx.Query(r.Context(), "SELECT id,purchase_id,credits,expires_on::text,policy FROM credit_packages WHERE student_id=$1 ORDER BY created_at,id", r.PathValue("id"))
+	items, err := a.loadStudentCredits(r.Context(), tx, r.PathValue("id"))
 	if err != nil {
 		internal(w, err)
 		return
+	}
+	financeCommit(w, r, tx, 200, map[string]any{"items": items})
+}
+
+func (a *API) loadStudentCredits(ctx context.Context, tx pgx.Tx, studentID string) ([]CreditPackage, error) {
+	if err := expireStudentCredits(ctx, tx, studentID, a.now()); err != nil {
+		return nil, err
+	}
+	rows, err := tx.Query(ctx, "SELECT id,purchase_id,credits,expires_on::text,policy,source_package_id FROM credit_packages WHERE student_id=$1 ORDER BY created_at,id", studentID)
+	if err != nil {
+		return nil, err
 	}
 	items := []CreditPackage{}
 	for rows.Next() {
 		var x CreditPackage
 		var data []byte
-		if err = rows.Scan(&x.ID, &x.PurchaseID, &x.Credits, &x.ExpiresOn, &data); err != nil {
+		if err = rows.Scan(&x.ID, &x.PurchaseID, &x.Credits, &x.ExpiresOn, &data, &x.SourcePackageID); err != nil {
 			rows.Close()
-			internal(w, err)
-			return
+			return nil, err
 		}
 		if err = json.Unmarshal(data, &x.Policy); err != nil {
 			rows.Close()
-			internal(w, err)
-			return
+			return nil, err
 		}
 		items = append(items, x)
 	}
 	err = rows.Err()
 	rows.Close()
 	if err != nil {
-		internal(w, err)
-		return
+		return nil, err
 	}
 	for i := range items {
 		x := &items[i]
 		x.Movements = []CreditMovement{}
-		rows, err = tx.Query(r.Context(), "SELECT id,available,reserved,consumed,expired,actor_id,reason,created_at FROM credit_movements WHERE package_id=$1 ORDER BY created_at,id", x.ID)
+		rows, err = tx.Query(ctx, "SELECT id,available,reserved,consumed,expired,actor_id,reason,created_at FROM credit_movements WHERE package_id=$1 ORDER BY created_at,id", x.ID)
 		if err != nil {
-			internal(w, err)
-			return
+			return nil, err
 		}
 		for rows.Next() {
 			var m CreditMovement
 			if err = rows.Scan(&m.ID, &m.Available, &m.Reserved, &m.Consumed, &m.Expired, &m.ActorID, &m.Reason, &m.CreatedAt); err != nil {
 				rows.Close()
-				internal(w, err)
-				return
+				return nil, err
 			}
 			x.Movements = append(x.Movements, m)
 			x.Available += m.Available
@@ -838,14 +845,8 @@ func (a *API) listCredits(w http.ResponseWriter, r *http.Request, s Session) {
 		err = rows.Err()
 		rows.Close()
 		if err != nil {
-			internal(w, err)
-			return
-		}
-		if x.ExpiresOn != nil && a.now().In(hongKong).Format("2006-01-02") > *x.ExpiresOn {
-			// shortcut: expiry is projected until lifecycle processing adds durable expiry movements; project only remaining available credits.
-			x.Expired += x.Available
-			x.Available = 0
+			return nil, err
 		}
 	}
-	financeCommit(w, r, tx, 200, map[string]any{"items": items})
+	return items, nil
 }

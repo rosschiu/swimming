@@ -4021,6 +4021,124 @@
           }
         ]
       }
+    },
+    "/api/v1/students/{id}/credit-history": {
+      "get": {
+        "operationId": "getCreditHistory",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success or idempotent replay",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreditHistory"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "description": "Current guardians, assigned coaches and administrators may read balance, expiry and recovery history; excludes purchase identifiers, prices and receipts. System expiry movements have actorId null."
+      }
+    },
+    "/api/v1/students/{id}/credit-recoveries": {
+      "post": {
+        "operationId": "recoverCredits",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success or idempotent replay",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreditRecovery"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Recovery created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreditRecovery"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreditRecoveryInput"
+              }
+            }
+          }
+        },
+        "description": "Assigned coaches and administrators transfer only actual expired unused credits into a new package. Current assignment is rechecked on idempotent replay. Expiry is inclusive in Hong Kong; reason and future-or-today date required. No extra grants."
+      }
     }
   },
   "components": {
@@ -6198,7 +6316,8 @@
           "actorId": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 100
+            "maxLength": 100,
+            "nullable": true
           },
           "reason": {
             "type": "string"
@@ -6271,6 +6390,12 @@
             "items": {
               "$ref": "#/components/schemas/CreditMovement"
             }
+          },
+          "sourcePackageId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "nullable": true
           }
         },
         "required": [
@@ -6283,10 +6408,11 @@
           "reserved",
           "consumed",
           "expired",
-          "movements"
+          "movements",
+          "sourcePackageId"
         ],
         "additionalProperties": false,
-        "description": "Balances are a read projection: expired unused available credits appear as expired without claiming an expiry job or ledger mutation."
+        "description": "Authoritative balances from immutable ledger movements, including durable expiry and recovery. Recovered packages retain purchase provenance and source package lineage."
       },
       "PackageOfferList": {
         "type": "object",
@@ -6330,6 +6456,191 @@
         },
         "required": [
           "items"
+        ],
+        "additionalProperties": false
+      },
+      "CreditHistoryPackage": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "credits": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10000
+          },
+          "expiresOn": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "available": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2147483647
+          },
+          "reserved": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2147483647
+          },
+          "consumed": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2147483647
+          },
+          "expired": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2147483647
+          },
+          "movements": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CreditMovement"
+            }
+          },
+          "sourcePackageId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "credits",
+          "expiresOn",
+          "available",
+          "reserved",
+          "consumed",
+          "expired",
+          "movements",
+          "sourcePackageId"
+        ],
+        "additionalProperties": false
+      },
+      "CreditRecovery": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "studentId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "sourcePackageId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "destinationPackageId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "quantity": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10000
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "expiresOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "actorId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "studentId",
+          "sourcePackageId",
+          "destinationPackageId",
+          "quantity",
+          "reason",
+          "expiresOn",
+          "actorId",
+          "createdAt"
+        ],
+        "additionalProperties": false
+      },
+      "CreditRecoveryInput": {
+        "type": "object",
+        "properties": {
+          "sourcePackageId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "pattern": "^[!-~]{1,100}$"
+          },
+          "quantity": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10000
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "expiresOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "idempotencyKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "pattern": "^[!-~]{1,100}$"
+          }
+        },
+        "required": [
+          "sourcePackageId",
+          "quantity",
+          "reason",
+          "expiresOn",
+          "idempotencyKey"
+        ],
+        "additionalProperties": false
+      },
+      "CreditHistory": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CreditHistoryPackage"
+            }
+          },
+          "recoveries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CreditRecovery"
+            }
+          }
+        },
+        "required": [
+          "items",
+          "recoveries"
         ],
         "additionalProperties": false
       }

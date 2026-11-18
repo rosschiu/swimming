@@ -1,0 +1,26 @@
+import {act,render,screen,waitFor} from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import {beforeEach,expect,it,vi} from 'vitest';
+import CreditHistory from './CreditHistory';
+const item={id:'expired-package',sourcePackageId:null,credits:10,expiresOn:'2020-01-01',available:0,reserved:0,consumed:0,expired:10,movements:[{id:'expiry',available:-10,reserved:0,consumed:0,expired:10,actorId:null,reason:'Credits expired',createdAt:'2020-01-02T00:00:00Z'}]};
+const props={studentId:'amy',role:'coach' as const,csrfToken:'csrf',expired:vi.fn(()=>false),t:(en:string)=>en};
+const response=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status});
+beforeEach(()=>{vi.unstubAllGlobals();props.expired.mockClear();});
+async function preview(){const user=userEvent.setup();await user.click(await screen.findByRole('button',{name:'Recover expired credits'}));await user.clear(screen.getByLabelText('Recovery quantity'));await user.type(screen.getByLabelText('Recovery quantity'),'4');await user.type(screen.getByLabelText('Recovery reason'),'Illness exception');await user.type(screen.getByLabelText('New expiry date (Hong Kong)'),'2035-12-31');await user.click(screen.getByRole('button',{name:'Review recovery'}));return user;}
+it('requires explicit confirmation and retries an uncertain result with an identical request',async()=>{
+ const bodies:unknown[]=[];vi.stubGlobal('fetch',vi.fn(async(_p:string,o?:RequestInit)=>{if(o?.method==='POST'){bodies.push(JSON.parse(String(o.body)));return response({},bodies.length===1?500:201);}return response({items:[item],recoveries:[]});}));
+ render(<CreditHistory {...props}/>);const user=await preview();expect(bodies).toHaveLength(0);expect(screen.getByText(/Transfer 4 expired unused credits/)).toBeVisible();await user.click(screen.getByRole('button',{name:'Confirm recovery'}));await screen.findByRole('button',{name:'Retry same recovery'});expect(screen.getByLabelText('Recovery quantity')).toBeDisabled();expect(screen.getByRole('button',{name:'Edit recovery'})).toBeDisabled();
+ await user.click(screen.getByRole('button',{name:'Retry same recovery'}));await screen.findByText('Expired credits recovered into a new linked package.');expect(bodies).toHaveLength(2);expect(bodies[0]).toEqual(bodies[1]);expect(bodies[0]).toEqual({sourcePackageId:item.id,quantity:4,reason:'Illness exception',expiresOn:'2035-12-31',idempotencyKey:expect.any(String)});
+});
+it('shows guardian history without recovery controls and excludes student access',async()=>{
+ const mock=vi.fn(async()=>response({items:[item],recoveries:[]}));vi.stubGlobal('fetch',mock);const view=render(<CreditHistory {...props} role="parent"/>);await screen.findByText(item.id);expect(screen.queryByRole('button',{name:'Recover expired credits'})).not.toBeInTheDocument();view.unmount();mock.mockClear();render(<CreditHistory {...props} role="student"/>);expect(mock).not.toHaveBeenCalled();expect(screen.queryByRole('heading',{name:'Credit history'})).not.toBeInTheDocument();
+});
+it.each([403,404])('clears history and recovery draft on scoped denial %i',async status=>{
+ vi.stubGlobal('fetch',vi.fn(async(_p:string,o?:RequestInit)=>o?.method==='POST'?response({},status):response({items:[item],recoveries:[]})));render(<CreditHistory {...props}/>);const user=await preview();await user.click(screen.getByRole('button',{name:'Confirm recovery'}));await screen.findByText('Credit history is unavailable for your current access.');expect(screen.queryByText(item.id)).not.toBeInTheDocument();expect(screen.queryByLabelText('Recovery reason')).not.toBeInTheDocument();
+});
+it('preserves a rejected draft but requires a new review after refreshing balance',async()=>{
+ let posted=false;vi.stubGlobal('fetch',vi.fn(async(_p:string,o?:RequestInit)=>{if(o?.method==='POST'){posted=true;return response({},409);}return response({items:[{...item,expired:posted?2:10}],recoveries:[]});}));render(<CreditHistory {...props}/>);const user=await preview();await user.click(screen.getByRole('button',{name:'Confirm recovery'}));await screen.findByRole('button',{name:'Review recovery'});expect(screen.getByLabelText('Recovery reason')).toHaveValue('Illness exception');expect(screen.queryByRole('button',{name:'Confirm recovery'})).not.toBeInTheDocument();expect(screen.getByLabelText('Recovery quantity')).toHaveAttribute('max','2');
+});
+it.each([200,401,500])('ignores old child/session completion %i after keyed replacement',async status=>{
+ let resolve!:(r:Response)=>void;const old=new Promise<Response>(r=>{resolve=r;});const mock=vi.fn(async(p:string)=>p.includes('/amy/')?old:response({items:[],recoveries:[]}));vi.stubGlobal('fetch',mock);const view=render(<CreditHistory key="parent-amy" {...props}/>);await waitFor(()=>expect(mock).toHaveBeenCalled());view.rerender(<CreditHistory key="other-ben" {...props} studentId="ben"/>);await screen.findByText('No credit history yet.');await act(async()=>{resolve(response({items:[item],recoveries:[]},status));});expect(screen.queryByText(item.id)).not.toBeInTheDocument();expect(props.expired).not.toHaveBeenCalled();
+});

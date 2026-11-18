@@ -879,6 +879,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/students/{id}/credit-history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Current guardians, assigned coaches and administrators may read balance, expiry and recovery history; excludes purchase identifiers, prices and receipts. System expiry movements have actorId null. */
+        get: operations["getCreditHistory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/students/{id}/credit-recoveries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Assigned coaches and administrators transfer only actual expired unused credits into a new package. Current assignment is rechecked on idempotent replay. Expiry is inclusive in Hong Kong; reason and future-or-today date required. No extra grants. */
+        post: operations["recoverCredits"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1401,12 +1435,12 @@ export interface components {
             reserved: number;
             consumed: number;
             expired: number;
-            actorId: string;
+            actorId: string | null;
             reason: string;
             /** Format: date-time */
             createdAt: string;
         };
-        /** @description Balances are a read projection: expired unused available credits appear as expired without claiming an expiry job or ledger mutation. */
+        /** @description Authoritative balances from immutable ledger movements, including durable expiry and recovery. Recovered packages retain purchase provenance and source package lineage. */
         CreditPackage: {
             id: string;
             purchaseId: string;
@@ -1419,6 +1453,7 @@ export interface components {
             consumed: number;
             expired: number;
             movements: components["schemas"]["CreditMovement"][];
+            sourcePackageId: string | null;
         };
         PackageOfferList: {
             items: components["schemas"]["PackageOffer"][];
@@ -1428,6 +1463,43 @@ export interface components {
         };
         CreditPackageList: {
             items: components["schemas"]["CreditPackage"][];
+        };
+        CreditHistoryPackage: {
+            id: string;
+            credits: number;
+            /** Format: date */
+            expiresOn: string | null;
+            available: number;
+            reserved: number;
+            consumed: number;
+            expired: number;
+            movements: components["schemas"]["CreditMovement"][];
+            sourcePackageId: string | null;
+        };
+        CreditRecovery: {
+            id: string;
+            studentId: string;
+            sourcePackageId: string;
+            destinationPackageId: string;
+            quantity: number;
+            reason: string;
+            /** Format: date */
+            expiresOn: string;
+            actorId: string;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        CreditRecoveryInput: {
+            sourcePackageId: string;
+            quantity: number;
+            reason: string;
+            /** Format: date */
+            expiresOn: string;
+            idempotencyKey: string;
+        };
+        CreditHistory: {
+            items: components["schemas"]["CreditHistoryPackage"][];
+            recoveries: components["schemas"]["CreditRecovery"][];
         };
     };
     responses: never;
@@ -4023,6 +4095,83 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CreditPackageList"];
+                };
+            };
+            /** @description Request failed */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getCreditHistory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success or idempotent replay */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreditHistory"];
+                };
+            };
+            /** @description Request failed */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    recoverCredits: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-Token": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreditRecoveryInput"];
+            };
+        };
+        responses: {
+            /** @description Success or idempotent replay */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreditRecovery"];
+                };
+            };
+            /** @description Recovery created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreditRecovery"];
                 };
             };
             /** @description Request failed */

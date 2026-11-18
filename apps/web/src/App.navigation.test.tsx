@@ -15,6 +15,7 @@ function api(role: Role, override?: Override) {
   const path = String(input); const custom = override?.(path, options); if (custom !== undefined) return custom;
   if (path.endsWith('/auth/me') || path.endsWith('/auth/login')) return response(session(role));
   if (path.endsWith('/auth/logout')) return response(null, 204);
+  if (path.endsWith('/credit-history')) return response({ items: [], recoveries: [] });
   if (path.endsWith('/students/amy')) return response(amy);
   if (path.endsWith('/students/ben')) return response(ben);
   if (path.endsWith('/students')) return response({ items: [amy, ben] });
