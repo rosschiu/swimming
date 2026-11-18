@@ -5291,6 +5291,77 @@
         ]
       }
     },
+    "/api/v1/students/{id}/lesson-changes/{changeId}": {
+      "get": {
+        "operationId": "getLessonChange",
+        "summary": "Read a specific authorized lesson change for a student",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "changeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LessonChange"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Role or CSRF validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Record not found in current scope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ]
+      }
+    },
     "/api/v1/lesson-changes/{id}/decision": {
       "put": {
         "operationId": "decideLessonChange",
@@ -7395,7 +7466,9 @@
               "progress.updated",
               "milestone.achieved",
               "milestone.revoked",
-              "booking.created"
+              "booking.created",
+              "lesson_change.approved",
+              "lesson_change.rejected"
             ]
           },
           "sourceId": {

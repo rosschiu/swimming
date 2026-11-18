@@ -156,6 +156,18 @@ func createBookingNotifications(ctx context.Context, tx pgx.Tx, student, booking
 	return nil
 }
 
+func createLessonChangeDecisionNotice(ctx context.Context, tx pgx.Tx, change LessonChange, decision string, at time.Time) error {
+	id, err := RandomToken()
+	if err != nil {
+		return err
+	}
+	_, err = tx.Exec(ctx, `INSERT INTO notifications(id,recipient_id,student_id,kind,source_id,source_version,created_at)
+		SELECT $1,u.id,$2,$3,$4,1,$5 FROM users u JOIN student_access sa ON sa.user_id=u.id
+		WHERE u.id=$6 AND u.active AND u.role='parent' AND sa.student_id=$2 AND sa.kind='guardian'`,
+		id, change.StudentID, "lesson_change."+decision, change.ID, at, change.RequestedBy)
+	return err
+}
+
 func suppressTeachingDeliveries(ctx context.Context, tx pgx.Tx, user, student, reason string) error {
 	_, err := tx.Exec(ctx, "UPDATE notification_deliveries d SET status=CASE WHEN d.status='leased' THEN 'leased' ELSE 'suppressed' END,version=d.version+1,next_attempt_at=NULL,completed_at=CASE WHEN d.status<>'leased' THEN clock_timestamp() END,last_failure=$3 FROM notifications n WHERE n.id=d.notification_id AND n.recipient_id=$1 AND ($2='' OR n.student_id=$2) AND d.status IN ('pending','retry','leased')", user, student, reason)
 	return err

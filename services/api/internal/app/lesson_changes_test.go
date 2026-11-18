@@ -39,6 +39,7 @@ func TestIntegrationLessonChangeApproval(t *testing.T) {
 	h := http.NewServeMux()
 	a.bookingRoutes(h)
 	a.lessonChangeRoutes(h)
+	a.notificationRoutes(h)
 	const enrolmentPath = "/api/v1/students/amy/enrolments"
 	in := enrolmentInput{SeriesID: series.ID, CreditPackageID: "change-pack", IdempotencyKey: "fixed-change-fixture"}
 	for _, class := range series.Sessions {
@@ -149,6 +150,20 @@ func TestIntegrationLessonChangeApproval(t *testing.T) {
 	check(original.ID, 0)
 	listed(parent, "pending")
 	exec("ALTER TABLE audit_events DROP CONSTRAINT fail_change_audit")
+	noticeCount := func(source string, want int) {
+		t.Helper()
+		var total int
+		if err := db.QueryRow(ctx, "SELECT count(*) FROM notifications WHERE source_id=$1 AND kind LIKE 'lesson_change.%'", source).Scan(&total); err != nil || total != want {
+			t.Fatalf("decision notices count=%d, want=%d err=%v", total, want, err)
+		}
+	}
+	noticeCount(change.ID, 0)
+	exec("ALTER TABLE notifications ADD CONSTRAINT fail_change_notice CHECK (kind<>'lesson_change.approved') NOT VALID")
+	expectStatus(t, request(t, h, "PUT", decisionPath, approve, coach), 500)
+	check(original.ID, 0)
+	listed(parent, "pending")
+	noticeCount(change.ID, 0)
+	exec("ALTER TABLE notifications DROP CONSTRAINT fail_change_notice")
 	now = original.StartsAt.Add(-time.Hour)
 	var wg sync.WaitGroup
 	results := make(chan *httptest.ResponseRecorder, 2)
@@ -164,6 +179,26 @@ func TestIntegrationLessonChangeApproval(t *testing.T) {
 	}
 	check(target.ID, 1)
 	listed(parent, "approved")
+	noticeCount(change.ID, 1)
+	detailPath := "/api/v1/students/amy/lesson-changes/" + change.ID
+	w = request(t, h, "GET", detailPath, nil, parent)
+	expectStatus(t, w, 200)
+	if detail := decodeBody[LessonChange](t, w); detail.Status != "approved" || detail.TargetClass.ID != target.ID {
+		t.Fatalf("detail %+v", detail)
+	}
+	expectStatus(t, request(t, h, "GET", "/api/v1/students/ben/lesson-changes/"+change.ID, nil, f.admin), 404)
+	expectStatus(t, request(t, h, "GET", detailPath, nil, other), 404)
+	expectStatus(t, request(t, h, "GET", detailPath, nil, student), 403)
+	var noticeID string
+	if err := db.QueryRow(ctx, "SELECT id FROM notifications WHERE source_id=$1 AND recipient_id='parent' AND kind='lesson_change.approved' AND read_at IS NULL", change.ID).Scan(&noticeID); err != nil {
+		t.Fatal(err)
+	}
+	exec("DELETE FROM student_access WHERE student_id='amy' AND user_id='parent' AND kind='guardian'")
+	expectStatus(t, request(t, h, "GET", detailPath, nil, parent), 404)
+	expectStatus(t, request(t, h, "PUT", "/api/v1/notifications/"+noticeID+"/read", nil, parent), 404)
+	expectStatus(t, request(t, h, "PUT", decisionPath, approve, coach), 200)
+	noticeCount(change.ID, 1)
+	exec("INSERT INTO student_access(student_id,user_id,kind) VALUES('amy','parent','guardian')")
 	w = request(t, h, "POST", enrolmentPath, in, parent)
 	expectStatus(t, w, 200)
 	replay := decodeBody[Enrolment](t, w)
@@ -190,7 +225,8 @@ func TestIntegrationLessonChangeApproval(t *testing.T) {
 	}
 	w = request(t, h, "POST", standalonePath, changeBody(target, "reject-new-target"), other)
 	expectStatus(t, w, 201)
-	rejectPath := "/api/v1/lesson-changes/" + decodeBody[LessonChange](t, w).ID + "/decision"
+	rejectID := decodeBody[LessonChange](t, w).ID
+	rejectPath := "/api/v1/lesson-changes/" + rejectID + "/decision"
 	rejected := request(t, h, "PUT", rejectPath, map[string]string{"decision": "rejected", "reason": "Coach unavailable"}, coach)
 	expectStatus(t, rejected, 200)
 	if result := decodeBody[LessonChange](t, rejected); result.Status != "rejected" || result.DecisionReason == nil || *result.DecisionReason != "Coach unavailable" {
@@ -200,6 +236,12 @@ func TestIntegrationLessonChangeApproval(t *testing.T) {
 	expectStatus(t, w, 200)
 	if found := decodeBody[StudentBooking](t, w); found.Class.ID != rejectedTarget.ID {
 		t.Fatalf("rejection moved booking %+v", found)
+	}
+	noticeCount(rejectID, 1)
+	var deliveries int
+	if err := db.QueryRow(ctx, `SELECT count(*) FROM notification_deliveries d JOIN notifications n ON n.id=d.notification_id
+		WHERE n.kind LIKE 'lesson_change.%'`).Scan(&deliveries); err != nil || deliveries != 0 {
+		t.Fatalf("decision delivery rows %+v, error %v", deliveries, err)
 	}
 	// The same timestamp on every request must still give stable pages and preserve the family scope.
 	exec("UPDATE lesson_change_requests SET requested_at='2030-01-01'")
@@ -287,5 +329,15 @@ func TestIntegrationLessonChangeApproval(t *testing.T) {
 		r.requested_by,r.requested_at,r.settings_version,eb.id
 	FROM extra_bookings eb JOIN lesson_change_requests r ON r.id=$3`, original.ID, pending.BookingID, pending.ID)
 	assertPendingCount(27)
+	oldDetail := "/api/v1/students/ben/lesson-changes/" + pending.ID
+	expectStatus(t, request(t, h, "GET", oldDetail, nil, other), 200)
+	noticeCount(pending.ID, 0)
+	exec("DELETE FROM student_access WHERE student_id='ben' AND user_id='other-parent' AND kind='guardian'")
+	expectStatus(t, request(t, h, "GET", oldDetail, nil, other), 404)
+	expectStatus(t, request(t, h, "PUT", "/api/v1/lesson-changes/"+pending.ID+"/decision", map[string]string{"decision": "rejected"}, coach), 200)
+	noticeCount(pending.ID, 0)
+	exec("INSERT INTO student_access(student_id,user_id,kind) VALUES('ben','other-parent','guardian')")
+	expectStatus(t, request(t, h, "PUT", "/api/v1/lesson-changes/"+pending.ID+"/decision", map[string]string{"decision": "rejected"}, coach), 200)
+	noticeCount(pending.ID, 0)
 
 }

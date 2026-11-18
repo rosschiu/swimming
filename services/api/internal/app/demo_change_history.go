@@ -96,7 +96,8 @@ func seedDemoChangeHistory(ctx context.Context, db *pgxpool.Pool, now func() tim
 		if example.desired == "rejected" {
 			args["reason"] = demoHistoryRejectReason
 		}
-		if _, err := demoHistoryService(ctx, http.MethodPut, "coach", "coach", map[string]string{"id": x.ID}, args, a.decideLessonChange, 200); err != nil {
+		if _, err := demoHistoryService(ctx, http.MethodPut, "coach", "coach", map[string]string{"id": x.ID}, args,
+			func(w http.ResponseWriter, r *http.Request, s Session) { a.saveLessonChangeDecision(w, r, s, false) }, 200); err != nil {
 			return err
 		}
 		if err := checkpoint("decision:" + example.student); err != nil {

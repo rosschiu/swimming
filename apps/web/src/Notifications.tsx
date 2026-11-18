@@ -1,13 +1,13 @@
-import { useEffect, useState } from 'react';
-import { isLocalNavigation, routePath } from './navigation';
+import { useEffect, useState, type MouseEvent } from 'react';
+import { routePath, type Route } from './navigation';
 import type { components } from './generated/api';
 import { isAborted, useProtectedRequest, type ProtectedProps } from './useProtectedRequest';
 
 type Notification = components['schemas']['Notification'];
 type Preferences = components['schemas']['NotificationPreferences'];
-type Props = ProtectedProps & { onOpenStudent: (studentId: string) => void; onUnreadCount: (count: number) => void };
+type Props = ProtectedProps & { follow: (event: MouseEvent<HTMLAnchorElement>, route: Route) => void; onUnreadCount: (count: number) => void };
 
-export default function Notifications({ csrfToken, expired, t, onOpenStudent, onUnreadCount }: Props) {
+export default function Notifications({ csrfToken, expired, t, follow, onUnreadCount }: Props) {
   const api = useProtectedRequest(expired);
   const [items, setItems] = useState<Notification[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
@@ -52,6 +52,8 @@ export default function Notifications({ csrfToken, expired, t, onOpenStudent, on
   }
   function description(kind: Notification['kind']) {
     switch (kind) {
+      case 'lesson_change.approved': return t('Your lesson change was approved.', '你的調課申請已獲批准。');
+      case 'lesson_change.rejected': return t('Your lesson change was rejected.', '你的調課申請已被拒絕。');
       case 'booking.created': return t('A lesson was booked.', '已預約課堂。');
       case 'progress.created': return t('A teaching update was shared.', '已分享教學更新。');
       case 'progress.updated': return t('A teaching update was corrected.', '教學更新已修正。');
@@ -62,7 +64,11 @@ export default function Notifications({ csrfToken, expired, t, onOpenStudent, on
   return <section><div className="page-heading"><h1>{t('Notifications', '通知')}</h1><button className="outline" disabled={loading || reading !== null} onClick={() => load()}>{t('Refresh', '重新載入')}</button></div>
     <section className="panel"><h2>{t('Email shared teaching updates', '以電郵接收已分享的教學更新')}</h2>{preferences ? <><label><input type="checkbox" checked={preferences.emailEnabled} disabled={saving} onChange={e => savePreference(e.target.checked)}/>{t('Email shared teaching updates', '以電郵接收已分享的教學更新')}</label><p>{t('Your login email:', '你的登入電郵：')} {preferences.emailAddress}</p><p className="muted">{t('Off by default. Changes apply to future teaching updates only. Invitation and password recovery emails are unaffected.', '預設關閉。更改只適用於日後的教學更新，不影響邀請及密碼重設電郵。')}</p>{!preferences.emailDeliveryAvailable && <p>{t('Demo email delivery is currently unavailable for this login address. Enabling this preference alone will not send email until delivery is available.', '此登入電郵目前無法接收示範電郵。即使開啟此設定，也須待電郵服務可用後才會寄送。')}</p>}</> : !preferenceError && <p role="status">{t('Loading email preference…', '載入電郵設定中…')}</p>}{preferenceError && <><p role="alert" className="error">{preferenceError}</p><button disabled={saving} onClick={loadPreferences}>{t('Reload email preference', '重新載入電郵設定')}</button></>}</section>
     {error && <p role="alert" className="error">{error}</p>}{loading && <p role="status">{t('Loading notifications…', '載入通知中…')}</p>}
-    <p className="muted">{t('Times shown in Hong Kong time.', '時間以香港時間顯示。')}</p><div className="record-list">{items.map(item => <article className="panel" key={item.id}><h2>{item.studentName}</h2><p>{description(item.kind)}</p><p><time dateTime={item.createdAt}>{new Date(item.createdAt).toLocaleString(undefined, { timeZone: 'Asia/Hong_Kong' })}</time> · {item.readAt ? t('Read', '已讀') : t('Unread', '未讀')}</p><div className="form-actions"><a className="action-link" href={routePath({ view: 'students', studentId: item.studentId })} onClick={event => { if (isLocalNavigation(event)) { event.preventDefault(); onOpenStudent(item.studentId); } }}>{t('Open current student profile', '開啟學員最新資料')}</a>{!item.readAt && <button className="outline" disabled={reading !== null || loading} onClick={() => markRead(item)}>{t('Mark read', '標記已讀')}</button>}</div></article>)}</div>
+    <p className="muted">{t('Times shown in Hong Kong time.', '時間以香港時間顯示。')}</p><div className="record-list">{items.map(item => {
+      const isDecision = item.kind === 'lesson_change.approved' || item.kind === 'lesson_change.rejected';
+      const destination: Route = { view: 'students', studentId: item.studentId, lessonChangeId: isDecision ? item.sourceId : undefined };
+      return <article className="panel" key={item.id}><h2>{item.studentName}</h2><p>{description(item.kind)}</p><p><time dateTime={item.createdAt}>{new Date(item.createdAt).toLocaleString(undefined, { timeZone: 'Asia/Hong_Kong' })}</time> · {item.readAt ? t('Read', '已讀') : t('Unread', '未讀')}</p><div className="form-actions"><a className="action-link" href={routePath(destination)} onClick={event => follow(event, destination)}>{isDecision ? t('View lesson change decision', '查看調課結果') : t('Open current student profile', '開啟學員最新資料')}</a>{!item.readAt && <button className="outline" disabled={reading !== null || loading} onClick={() => markRead(item)}>{t('Mark read', '標記已讀')}</button>}</div></article>;
+    })}</div>
     {!loading && !error && !items.length && <p className="panel">{t('No notifications yet.', '暫無通知。')}</p>}{cursor && <button disabled={loading || reading !== null} onClick={() => load(true)}>{t('Load more', '載入更多')}</button>}
   </section>;
 }

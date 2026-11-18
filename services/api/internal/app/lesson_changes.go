@@ -31,6 +31,9 @@ const lessonChangeSelect = `SELECT r.id,b.id,b.student_id,st.name,r.original_cla
 	FROM lesson_change_requests r JOIN bookings b ON b.id=r.booking_id
 	JOIN students st ON st.id=b.student_id JOIN class_sessions original ON original.id=r.original_class_id`
 
+const lessonChangeHistoryScope = `($1='admin' OR ($1='coach' AND original.coach_id=$2)
+	OR ($1='parent' AND EXISTS (SELECT 1 FROM student_access sa WHERE sa.student_id=b.student_id AND sa.user_id=$2 AND sa.kind='guardian')))`
+
 func scanLessonChange(row pgx.Row) (LessonChange, error) {
 	var x LessonChange
 	err := row.Scan(&x.ID, &x.BookingID, &x.StudentID, &x.StudentName, &x.OriginalClass, &x.TargetClass,
@@ -40,6 +43,7 @@ func scanLessonChange(row pgx.Row) (LessonChange, error) {
 
 func (a *API) lessonChangeRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/lesson-changes", a.auth(a.listLessonChanges))
+	mux.HandleFunc("GET /api/v1/students/{id}/lesson-changes/{changeId}", a.auth(a.getLessonChange))
 	mux.HandleFunc("GET /api/v1/students/{id}/bookings/{bookingId}/change-options", a.auth(a.lessonChangeOptions))
 	mux.HandleFunc("POST /api/v1/students/{id}/bookings/{bookingId}/change-requests", a.auth(a.requestLessonChange))
 	mux.HandleFunc("PUT /api/v1/lesson-changes/{id}/decision", a.auth(a.decideLessonChange))
@@ -71,8 +75,7 @@ func (a *API) listLessonChanges(w http.ResponseWriter, r *http.Request, s Sessio
 		return
 	}
 	rows, err := tx.Query(ctx, lessonChangeSelect+`
-		WHERE ($1='admin' OR ($1='coach' AND original.coach_id=$2)
-		OR ($1='parent' AND EXISTS (SELECT 1 FROM student_access sa WHERE sa.student_id=b.student_id AND sa.user_id=$2 AND sa.kind='guardian')))
+		WHERE `+lessonChangeHistoryScope+`
 		AND ($3='' OR (r.requested_at,r.id)<($4,$3)) AND ($6='' OR r.status=$6)
 		ORDER BY r.requested_at DESC,r.id DESC LIMIT $5`, s.User.Role, s.User.ID, cursor.ID, cursor.CreatedAt, limit+1, status)
 	if err != nil {
@@ -92,6 +95,30 @@ func (a *API) listLessonChanges(w http.ResponseWriter, r *http.Request, s Sessio
 		next = &value
 	}
 	financeCommit(w, r, tx, 200, map[string]any{"items": items, "cutoffHours": cutoff, "nextCursor": next})
+}
+
+func (a *API) getLessonChange(w http.ResponseWriter, r *http.Request, s Session) {
+	if s.User.Role != "parent" && s.User.Role != "coach" && s.User.Role != "admin" {
+		fail(w, 403, "forbidden", "Guardian, coach or administrator access is required")
+		return
+	}
+	ctx := r.Context()
+	tx, ok := a.beginBookingRead(w, r, s)
+	if !ok {
+		return
+	}
+	defer tx.Rollback(ctx)
+	change, err := scanLessonChange(tx.QueryRow(ctx, lessonChangeSelect+" WHERE "+lessonChangeHistoryScope+
+		" AND b.student_id=$3 AND r.id=$4", s.User.Role, s.User.ID, r.PathValue("id"), r.PathValue("changeId")))
+	if errors.Is(err, pgx.ErrNoRows) {
+		fail(w, 404, "not_found", "Lesson change request not found")
+		return
+	}
+	if err != nil {
+		internal(w, err)
+		return
+	}
+	financeCommit(w, r, tx, 200, change)
 }
 
 type changeBooking struct {
@@ -398,6 +425,10 @@ func (a *API) respondLessonChange(w http.ResponseWriter, r *http.Request, tx pgx
 }
 
 func (a *API) decideLessonChange(w http.ResponseWriter, r *http.Request, s Session) {
+	a.saveLessonChangeDecision(w, r, s, true)
+}
+
+func (a *API) saveLessonChangeDecision(w http.ResponseWriter, r *http.Request, s Session, notifyRequester bool) {
 	if s.User.Role != "coach" {
 		fail(w, 403, "forbidden", "The original class coach decides lesson changes")
 		return
@@ -471,6 +502,9 @@ func (a *API) decideLessonChange(w http.ResponseWriter, r *http.Request, s Sessi
 	if err == nil {
 		err = audit(ctx, tx, s.User.ID, "lesson_change."+in.Decision, id, map[string]any{"bookingId": x.BookingID, "studentId": x.StudentID,
 			"originalClassId": x.OriginalClass.ID, "targetClassId": x.TargetClass.ID, "reason": in.Reason})
+	}
+	if err == nil && notifyRequester {
+		err = createLessonChangeDecisionNotice(ctx, tx, x, in.Decision, now)
 	}
 	if err != nil {
 		internal(w, err)
