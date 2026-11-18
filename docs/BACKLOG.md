@@ -185,7 +185,7 @@ The [application review](APP-REVIEW-2026-11-18.md) found the backend sound and t
 | 3 | Attendance outcomes and corrections (migration 25) | Merged [#43](https://github.com/rosschiu/swimming/pull/43) as `c555f15` | Demo rollout pending NetBird access |
 | 4 | Family cancellation of one lesson, configurable notices (migration 26) | Merged [#44](https://github.com/rosschiu/swimming/pull/44) as `0d78593` | Demo rollout pending NetBird access |
 | 5 | School cancellation with notices (migration 27) | In review, [#45](https://github.com/rosschiu/swimming/pull/45) | Defaults approved 2026-11-18 |
-| 6 | Coach substitution (replaces the silent coach change on booked classes) | Planned | Defaults approved 2026-11-18 |
+| 6 | Coach substitution (replaces the silent coach change on booked classes; migration 28) | Built on `stage/substitution`, PR after #45 | Defaults approved 2026-11-18 |
 | 7 | Administrator extra credit grants | Planned | Defaults approved 2026-11-18 |
 | 8 | Lesson-linked feedback | Planned | Proposed defaults need confirmation |
 | 9 | Scheduled reminders, in-app and email by default, configurable | Planned | Decision confirmed; external email needs recipients |
