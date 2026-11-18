@@ -6,7 +6,7 @@ import StudentBookings from './StudentBookings';
 
 const props = { expired: () => false, t: (en: string) => en, csrfToken: 'csrf' };
 const opensAt = '2026-11-18T01:15:00Z';
-const attendance = { status: 'present', markedAt: opensAt };
+const attendance = { status: 'present', markedAt: opensAt, creditOutcome: 'consumed', revision: 1 };
 const entry = { bookingId: 'b1', studentId: 'amy', studentName: 'Amy Chan', level: 'Beginner', status: 'reserved' };
 
 afterEach(() => {
@@ -70,8 +70,47 @@ it('shows students the attendance outcome separately from the reservation', asyn
   ] })));
   render(<StudentBookings {...props} role="student" student={{ id: 'amy', name: entry.studentName, level: entry.level, version: 1 }} onBooked={vi.fn()}/>);
   const [marked, unmarked] = await screen.findAllByRole('listitem');
-  expect(within(marked).getByText('Present')).toBeVisible();
+  expect(within(marked).getByText('Present · credit used')).toBeVisible();
   expect(within(marked).getByText('Reserved')).toBeVisible();
   expect(within(unmarked).getByText('Unmarked')).toBeVisible();
   expect(screen.queryByRole('button', { name: /Mark present/ })).not.toBeInTheDocument();
+});
+
+it('marks an absence after the lesson and corrects it with a reason and the current revision', async () => {
+  const bodies: Record<string, unknown>[] = [];
+  let stale = true;
+  const absent = { status: 'absent', markedAt: opensAt, creditOutcome: 'retained', revision: 1 };
+  vi.stubGlobal('fetch', vi.fn(async (path: string, options?: RequestInit) => {
+    if (options?.method === 'PUT') { bodies.push(JSON.parse(String(options.body))); return Response.json(absent); }
+    if (options?.method === 'POST') {
+      bodies.push(JSON.parse(String(options.body)));
+      if (stale) { stale = false; return Response.json({ error: { code: 'attendance_changed' } }, { status: 409 }); }
+      return Response.json({ status: 'present', markedAt: opensAt, creditOutcome: 'consumed', revision: 2 });
+    }
+    expect(path).toBe('/api/v1/classes/c1/roster');
+    return Response.json({ classId: 'c1', attendanceOpensAt: '2020-01-01T00:00:00Z', absenceOpensAt: '2020-01-01T01:00:00Z', correctionClosesAt: '2999-01-01T00:00:00Z', items: [entry] });
+  }));
+  render(<ClassRoster classId="c1" {...props}/>);
+  const user = userEvent.setup();
+  await user.click(await screen.findByRole('button', { name: 'Mark absent Amy Chan' }));
+  expect(screen.getByText(/used or returned under the package's absence policy/)).toBeVisible();
+  await user.click(screen.getByRole('button', { name: 'Confirm absent' }));
+  expect(await screen.findByText('Absent')).toBeVisible();
+  expect(screen.getByText('credit returned')).toBeVisible();
+  expect(bodies[0]).toEqual({ status: 'absent' });
+  await user.click(screen.getByRole('button', { name: 'Correct attendance Amy Chan' }));
+  expect(screen.getAllByRole('radio').map(radio => (radio as HTMLInputElement).value)).toEqual(['present', 'ill']);
+  const save = screen.getByRole('button', { name: 'Save correction' });
+  await user.click(screen.getByRole('radio', { name: 'Present' }));
+  expect(save).toBeDisabled();
+  await user.type(screen.getByLabelText('Reason for correction'), 'Arrived late, register missed');
+  await user.click(save);
+  expect(await screen.findByRole('alert')).toHaveTextContent('Someone changed this attendance');
+  expect(screen.getByLabelText('Reason for correction')).toHaveValue('Arrived late, register missed');
+  await user.click(save);
+  expect(await screen.findByText('Attendance corrected for Amy Chan.')).toBeVisible();
+  expect(screen.getByText('Present')).toBeVisible();
+  expect(screen.getByText('credit used · corrected')).toBeVisible();
+  expect(bodies[1]).toEqual({ status: 'present', reason: 'Arrived late, register missed', revision: 1, idempotencyKey: expect.any(String) });
+  expect(bodies[2]).toEqual(bodies[1]);
 });

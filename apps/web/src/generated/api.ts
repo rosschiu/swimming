@@ -524,9 +524,26 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** @description Marks a reservation present and consumes its reserved credit. Available to administrators and the currently assigned coach at or after the attendance opening time. A replay returns the recorded result. */
+        /** @description Records a reservation's original attendance outcome for administrators and the currently assigned class coach. With no body the outcome is present. Present opens at the configured attendance opening; absent and ill open at lesson end. Present consumes the reserved credit. Absent and ill follow the funding package's frozen absence or illness policy: a retained credit returns to that package's available balance, or to expired history once the package is past its Hong Kong expiry date. Any pending lesson change for the booking closes as closed in the same transaction. Replaying the same outcome returns the record; a different outcome returns 409 attendance_recorded. */
         put: operations["markClassAttendance"];
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/classes/{id}/roster/{bookingId}/attendance/corrections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Changes a recorded outcome with a reason for administrators and the currently assigned class coach, until lesson end plus the configured correction window. Send the current revision. Changing between two outcomes that both use or both keep the credit moves nothing. Changing a used credit to kept returns it to the same package (available, or expired once past expiry). Changing a kept credit to used takes one unit back from the same package, from available first and then from unrecovered expired credits, and fails with credit_not_reversible when neither remains. The original record and every correction stay in history. An exact replay with the same request key returns the current record. */
+        post: operations["correctClassAttendance"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1575,9 +1592,16 @@ export interface components {
         };
         Attendance: {
             /** @enum {string} */
-            status: "present";
+            status: "present" | "absent" | "ill";
             /** Format: date-time */
             markedAt: string;
+            /**
+             * @description Where the booking's credit ended up: used, returned to the same package's available balance, or returned after the package's Hong Kong expiry date and therefore expired.
+             * @enum {string}
+             */
+            creditOutcome: "consumed" | "retained" | "expired";
+            /** @description Increments with each correction; corrections must send the current revision. */
+            revision: number;
             /** @description Recorded staff and audit availability. Returned only to administrators through the class roster or attendance write responses. */
             evidence?: components["schemas"]["AttendanceEvidence"];
         };
@@ -2082,7 +2106,7 @@ export interface components {
             originalClass: components["schemas"]["ClassSession"];
             targetClass: components["schemas"]["ClassSession"];
             /** @enum {string} */
-            status: "pending" | "approved" | "rejected" | "withdrawn";
+            status: "pending" | "approved" | "rejected" | "withdrawn" | "closed";
             /** Format: date-time */
             requestedAt: string;
             requestedBy: string;
@@ -2155,6 +2179,13 @@ export interface components {
             pendingLessonChanges: number;
             unreadNotifications: number;
             actionQueue?: components["schemas"]["AdminActionQueue"];
+        };
+        AttendanceCorrectionInput: {
+            /** @enum {string} */
+            status: "present" | "absent" | "ill";
+            reason: string;
+            revision: number;
+            idempotencyKey: string;
         };
     };
     responses: never;
@@ -3602,6 +3633,16 @@ export interface operations {
                         items: components["schemas"]["RosterEntry"][];
                         /** Format: date-time */
                         attendanceOpensAt: string;
+                        /**
+                         * Format: date-time
+                         * @description Lesson end; absence and illness can be recorded from then.
+                         */
+                        absenceOpensAt: string;
+                        /**
+                         * Format: date-time
+                         * @description Lesson end plus the configured correction window; corrections are accepted until and including this instant.
+                         */
+                        correctionClosesAt: string;
                     };
                 };
             };
@@ -3628,7 +3669,14 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    status: "present" | "absent" | "ill";
+                };
+            };
+        };
         responses: {
             /** @description Recorded attendance */
             200: {
@@ -3639,7 +3687,54 @@ export interface operations {
                     "application/json": components["schemas"]["Attendance"];
                 };
             };
-            /** @description Attendance has yet to open (attendance_not_open), or the reserved credit is unavailable (credit_unavailable). */
+            /** @description Attendance has yet to open (attendance_not_open), the reserved credit is unavailable (credit_unavailable) or a different outcome is already recorded (attendance_recorded). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request failed */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    correctClassAttendance: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-Token": string;
+            };
+            path: {
+                id: string;
+                bookingId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AttendanceCorrectionInput"];
+            };
+        };
+        responses: {
+            /** @description Corrected attendance */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Attendance"];
+                };
+            };
+            /** @description attendance_not_recorded, attendance_changed (stale revision), correction_closed, attendance_not_open, credit_unavailable, credit_not_reversible, or conflict for a reused request key. */
             409: {
                 headers: {
                     [name: string]: unknown;

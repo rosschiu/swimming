@@ -32,9 +32,11 @@ type RosterEntry struct {
 }
 
 type ClassRoster struct {
-	AttendanceOpensAt time.Time     `json:"attendanceOpensAt"`
-	ClassID           string        `json:"classId"`
-	Items             []RosterEntry `json:"items"`
+	AttendanceOpensAt  time.Time     `json:"attendanceOpensAt"`
+	AbsenceOpensAt     time.Time     `json:"absenceOpensAt"`
+	CorrectionClosesAt time.Time     `json:"correctionClosesAt"`
+	ClassID            string        `json:"classId"`
+	Items              []RosterEntry `json:"items"`
 }
 
 func (a *API) bookingRoutes(mux *http.ServeMux) {
@@ -49,7 +51,8 @@ func (a *API) bookingRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/classes/{id}/cancellation-impact", a.auth(a.getCancellationImpact))
 	mux.HandleFunc("GET /api/v1/home", a.auth(a.getHome))
 	mux.HandleFunc("GET /api/v1/classes/{id}/roster", a.auth(a.getClassRoster))
-	mux.HandleFunc("PUT /api/v1/classes/{id}/roster/{bookingId}/attendance", a.auth(a.markPresent))
+	mux.HandleFunc("PUT /api/v1/classes/{id}/roster/{bookingId}/attendance", a.auth(a.markAttendance))
+	mux.HandleFunc("POST /api/v1/classes/{id}/roster/{bookingId}/attendance/corrections", a.auth(a.correctAttendance))
 }
 
 func (a *API) beginBookingRead(w http.ResponseWriter, r *http.Request, s Session) (pgx.Tx, bool) {
@@ -126,7 +129,7 @@ func (a *API) listStudentBookings(w http.ResponseWriter, r *http.Request, s Sess
 	respond(w, 200, map[string]any{"items": items})
 }
 
-const studentBookingColumns = "b.id,b.student_id,b.status,b.created_at,ba.marked_at," + classColumns
+const studentBookingColumns = "b.id,b.student_id,b.status,b.created_at," + attendanceColumns + "," + classColumns
 const studentBookingJoin = classJoin + "JOIN bookings b ON b.class_id=c.id LEFT JOIN booking_attendance ba ON ba.booking_id=b.id "
 
 func (a *API) getStudentBooking(w http.ResponseWriter, r *http.Request, s Session) {
@@ -161,12 +164,12 @@ func (a *API) getStudentBooking(w http.ResponseWriter, r *http.Request, s Sessio
 func scanStudentBooking(row pgx.Row, extra ...any) (StudentBooking, error) {
 	var booking StudentBooking
 	c := &booking.Class
-	var markedAt *time.Time
-	fields := []any{&booking.ID, &booking.StudentID, &booking.Status, &booking.CreatedAt, &markedAt,
-		&c.ID, &c.VenueID, &c.ClassTypeID, &c.CoachID, &c.StartsAt, &c.EndsAt, &c.Capacity,
-		&c.VenueName, &c.Region, &c.ClassTypeName, &c.Level, &c.CoachName, &c.SeriesID, &c.Version, &c.ClassTypeVersion}
+	var attendance attendanceScan
+	fields := append([]any{&booking.ID, &booking.StudentID, &booking.Status, &booking.CreatedAt}, attendance.fields()...)
+	fields = append(fields, &c.ID, &c.VenueID, &c.ClassTypeID, &c.CoachID, &c.StartsAt, &c.EndsAt, &c.Capacity,
+		&c.VenueName, &c.Region, &c.ClassTypeName, &c.Level, &c.CoachName, &c.SeriesID, &c.Version, &c.ClassTypeVersion)
 	err := row.Scan(append(fields, extra...)...)
-	booking.Attendance = presentAttendance(markedAt)
+	booking.Attendance = attendance.value()
 	return booking, err
 }
 
@@ -183,8 +186,8 @@ func (a *API) getClassRoster(w http.ResponseWriter, r *http.Request, s Session) 
 	defer tx.Rollback(ctx)
 	id := r.PathValue("id")
 	roster := ClassRoster{ClassID: id, Items: []RosterEntry{}}
-	err := tx.QueryRow(ctx, "SELECT "+attendanceOpening+" FROM class_sessions c CROSS JOIN lesson_settings ls WHERE c.id=$1 AND ($2='admin' OR c.coach_id=$3)",
-		id, s.User.Role, s.User.ID).Scan(&roster.AttendanceOpensAt)
+	err := tx.QueryRow(ctx, "SELECT "+attendanceOpening+",c.ends_at,c.ends_at + ls.correction_window_days * interval '1 day' FROM class_sessions c CROSS JOIN lesson_settings ls WHERE c.id=$1 AND ($2='admin' OR c.coach_id=$3)",
+		id, s.User.Role, s.User.ID).Scan(&roster.AttendanceOpensAt, &roster.AbsenceOpensAt, &roster.CorrectionClosesAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		fail(w, 404, "not_found", "Class not found")
 		return
@@ -193,7 +196,7 @@ func (a *API) getClassRoster(w http.ResponseWriter, r *http.Request, s Session) 
 		internal(w, err)
 		return
 	}
-	rows, err := tx.Query(ctx, `SELECT b.id,b.student_id,st.name,st.level,b.status,ba.marked_at,marker.name,
+	rows, err := tx.Query(ctx, `SELECT b.id,b.student_id,st.name,st.level,b.status,`+attendanceColumns+`,marker.name,
 		CASE WHEN marker.id IS NOT NULL THEN `+attendanceAuditExists+` ELSE false END
 		FROM bookings b JOIN students st ON st.id=b.student_id
 		LEFT JOIN booking_attendance ba ON ba.booking_id=b.id
@@ -206,14 +209,15 @@ func (a *API) getClassRoster(w http.ResponseWriter, r *http.Request, s Session) 
 	defer rows.Close()
 	for rows.Next() {
 		var entry RosterEntry
-		var markedAt *time.Time
+		var attendance attendanceScan
 		var recordedBy *string
 		var hasAudit bool
-		if err = rows.Scan(&entry.BookingID, &entry.StudentID, &entry.StudentName, &entry.Level, &entry.Status, &markedAt, &recordedBy, &hasAudit); err != nil {
+		fields := append([]any{&entry.BookingID, &entry.StudentID, &entry.StudentName, &entry.Level, &entry.Status}, attendance.fields()...)
+		if err = rows.Scan(append(fields, &recordedBy, &hasAudit)...); err != nil {
 			internal(w, err)
 			return
 		}
-		entry.Attendance = presentAttendance(markedAt)
+		entry.Attendance = attendance.value()
 		if recordedBy != nil {
 			entry.Attendance.Evidence = &AttendanceEvidence{RecordedBy: *recordedBy, HasAudit: hasAudit}
 		}

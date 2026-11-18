@@ -1,3 +1,4 @@
+import { attendanceSummary } from './attendanceLabels';
 import { useEffect, useId, useState } from 'react';
 import BookingForm from './BookingForm';
 import EnrolmentForm from './EnrolmentForm';
@@ -92,7 +93,7 @@ function BookingResults({ studentId, role, csrfToken, expired, t, from, to, onRe
         <div><strong>{lesson.classTypeName}</strong>
           <p><time dateTime={lesson.startsAt}>{hkDate(new Date(lesson.startsAt))} {hkTime(lesson.startsAt)}</time>–<time dateTime={lesson.endsAt}>{hkDate(new Date(lesson.startsAt)) !== hkDate(new Date(lesson.endsAt)) && `${hkDate(new Date(lesson.endsAt))} `}{hkTime(lesson.endsAt)}</time></p>
           <p className="muted">{lesson.venueName} · {lesson.coachName}</p>
-          <p>{t('Attendance', '出席記錄')} <span className="tag">{attendance ? t('Present', '已出席') : t('Unmarked', '尚未記錄')}</span></p>
+          <p>{t('Attendance', '出席記錄')} <span className="tag">{attendanceSummary(attendance, t)}</span></p>
           {role === 'parent' && !attendance && Date.parse(lesson.startsAt) > Date.now() && <RequestLessonChange studentId={studentId} bookingId={id} csrfToken={csrfToken} expired={expired} t={t}/>}
         </div><span className="tag">{t('Reserved', '已預約')}</span>
       </li>)}</ul>}

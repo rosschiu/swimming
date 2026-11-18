@@ -107,7 +107,7 @@ test('coach records attendance once and administrator, guardian and student see 
 
   const coachRows = await (await page.request.get('/api/v1/classes/' + lesson.id + '/roster')).json();
   expect(coachRows.items.find((entry: { bookingId: string }) => entry.bookingId === booking.id).attendance).toEqual({
-    status: 'present', markedAt: attendance.markedAt,
+    status: 'present', markedAt: attendance.markedAt, creditOutcome: 'consumed', revision: 1,
   });
   await expect(roster.getByText(/Recorded by/)).toHaveCount(0);
   await expect(roster.getByRole('link', { name: 'View attendance audit' })).toHaveCount(0);
@@ -171,7 +171,7 @@ test('coach records attendance once and administrator, guardian and student see 
     await page.getByLabel('Bookings to date').fill(pastDate);
     await page.getByRole('button', { name: 'Load booked lessons' }).click();
     const row = page.getByRole('region', { name: 'Booked lessons' }).getByRole('listitem').filter({ hasText: kind.name });
-    await expect(row.getByText('Present', { exact: true })).toBeVisible();
+    await expect(row.getByText('Present · credit used', { exact: true })).toBeVisible();
     await expect(row.getByRole('button')).toHaveCount(0);
     const list = await page.request.get('/api/v1/students/amy/bookings?from=' + pastDate + '&to=' + pastDate);
     expect(list.status()).toBe(200);
