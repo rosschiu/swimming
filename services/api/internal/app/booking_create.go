@@ -100,7 +100,7 @@ func (a *API) createBooking(w http.ResponseWriter, r *http.Request, s Session) {
 	if !ok {
 		return
 	}
-	booking, ok = a.reserveBooking(ctx, tx, w, s, booking.StudentID, studentLevel, in, canonical, "", nil, time.Time{}, rule)
+	booking, ok = a.reserveBooking(ctx, tx, w, s, booking.StudentID, studentLevel, in, canonical, "", nil, time.Time{}, rule, nil)
 	if ok {
 		financeCommit(w, r, tx, 201, booking)
 	}
@@ -147,7 +147,10 @@ func (a *API) beginStudentBooking(w http.ResponseWriter, r *http.Request, s Sess
 	return tx, studentLevel, true
 }
 
-func (a *API) reserveBooking(ctx context.Context, tx pgx.Tx, w http.ResponseWriter, s Session, studentID, studentLevel string, in bookingInput, canonical []byte, seriesID string, enrolmentID *string, now time.Time, rule string) (StudentBooking, bool) {
+func (a *API) reserveBooking(ctx context.Context, tx pgx.Tx, w http.ResponseWriter, s Session, studentID, studentLevel string, in bookingInput, canonical []byte, seriesID string, enrolmentID *string, now time.Time, rule string, unavailable func(code, message string)) (StudentBooking, bool) {
+	if unavailable == nil {
+		unavailable = func(code, message string) { fail(w, 409, code, message) }
+	}
 	booking := StudentBooking{StudentID: studentID}
 	class, err := scanClass(tx.QueryRow(ctx, "SELECT "+classColumns+classJoin+" WHERE c.id=$1 FOR UPDATE OF c", in.ClassID))
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -169,7 +172,7 @@ func (a *API) reserveBooking(ctx context.Context, tx pgx.Tx, w http.ResponseWrit
 	}
 	err = eligibleClass(ctx, tx, class.ClassInput, nil)
 	if errors.Is(err, pgx.ErrNoRows) {
-		fail(w, 409, "class_unavailable", "This class is unavailable for booking")
+		unavailable("class_unavailable", "This class is unavailable for booking")
 		return StudentBooking{}, false
 	}
 	if err != nil {
@@ -196,7 +199,7 @@ func (a *API) reserveBooking(ctx context.Context, tx pgx.Tx, w http.ResponseWrit
 		return StudentBooking{}, false
 	}
 	if overlap {
-		fail(w, 409, "student_overlap", "Student already has a booking that overlaps this class")
+		unavailable("student_overlap", "Student already has a booking that overlaps this class")
 		return StudentBooking{}, false
 	}
 	var reserved int
@@ -206,7 +209,7 @@ func (a *API) reserveBooking(ctx context.Context, tx pgx.Tx, w http.ResponseWrit
 		return StudentBooking{}, false
 	}
 	if reserved >= class.Capacity {
-		fail(w, 409, "class_full", "This class has no places available")
+		unavailable("class_full", "This class has no places available")
 		return StudentBooking{}, false
 	}
 
@@ -225,11 +228,11 @@ func (a *API) reserveBooking(ctx context.Context, tx pgx.Tx, w http.ResponseWrit
 		now = a.now().UTC().Truncate(time.Microsecond)
 	}
 	if !class.StartsAt.After(now) {
-		fail(w, 409, "class_unavailable", "This class has already started")
+		unavailable("class_unavailable", "This class has already started")
 		return StudentBooking{}, false
 	}
 	if !bookingCreditCovers(rule, class, expiry, now) {
-		fail(w, 409, "credit_unavailable", "Credit package does not cover this lesson")
+		unavailable("credit_unavailable", "Credit package does not cover this lesson")
 		return StudentBooking{}, false
 	}
 	var available int
@@ -239,7 +242,7 @@ func (a *API) reserveBooking(ctx context.Context, tx pgx.Tx, w http.ResponseWrit
 		return StudentBooking{}, false
 	}
 	if available < 1 {
-		fail(w, 409, "credit_unavailable", "Credit package has no available credits")
+		unavailable("credit_unavailable", "Credit package has no available credits")
 		return StudentBooking{}, false
 	}
 

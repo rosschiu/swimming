@@ -211,3 +211,112 @@ func TestIntegrationFixedEnrolmentClockAfterPackageLock(t *testing.T) {
 		t.Fatalf("blocked enrolment changed state: records=%d available=%d err=%v", records, available, err)
 	}
 }
+
+func TestIntegrationFixedEnrolmentExplicitSubset(t *testing.T) {
+	db := testDB(t)
+	h := testHandler(db)
+	ctx := context.Background()
+	f := prepareScheduling(t, h)
+	parent := login(t, h, "parent@swim.test")
+	const settingsPath = "/api/v1/settings/fixed-enrolment"
+	settingsResponse := request(t, h, "GET", settingsPath, nil, f.admin)
+	expectStatus(t, settingsResponse, 200)
+	settings := decodeBody[FixedEnrolmentSettings](t, settingsResponse)
+	if settings != (FixedEnrolmentSettings{fixedAllocateAllOrNone, fixedRenewalSameOffer, 1}) {
+		t.Fatalf("unexpected defaults: %+v", settings)
+	}
+	expectStatus(t, request(t, h, "GET", settingsPath, nil, parent), 403)
+	expectStatus(t, request(t, h, "PATCH", settingsPath, settings, parent), 403)
+	invalid := settings
+	invalid.AllocationPolicy = "unknown"
+	expectStatus(t, request(t, h, "PATCH", settingsPath, invalid, f.admin), 422)
+
+	seriesResponse := request(t, h, "POST", "/api/v1/class-series", SeriesInput{
+		VenueID: f.venue.ID, ClassTypeID: f.kind.ID, CoachID: "coach",
+		StartDate: "2030-01-07", EndDate: "2030-01-21", Weekday: 1, StartTime: "10:00", EndTime: "11:00", Capacity: 1,
+	}, f.admin)
+	expectStatus(t, seriesResponse, 201)
+	series := decodeBody[ClassSeries](t, seriesResponse)
+	first, second, third := series.Sessions[0], series.Sessions[1], series.Sessions[2]
+	in := enrolmentInput{SeriesID: series.ID, CreditPackageID: "partial-package", IdempotencyKey: "fixed-subset"}
+	for _, c := range series.Sessions {
+		in.Sessions = append(in.Sessions, enrolmentSession{c.ID, c.Version, c.ClassTypeVersion})
+	}
+	seedBookingCredit(t, db, in.CreditPackageID, "amy", "parent", 2, nil)
+
+	settings.AllocationPolicy = fixedAllocateSubset
+	settings.RenewalPolicy = fixedRenewalAnyPaidPackage
+	updated := request(t, h, "PATCH", settingsPath, settings, f.admin)
+	expectStatus(t, updated, 200)
+	expectBookingError(t, request(t, h, "PATCH", settingsPath, settings, f.admin), 409, "version_conflict")
+	settings = decodeBody[FixedEnrolmentSettings](t, updated)
+
+	const path = "/api/v1/students/amy/enrolments"
+	proposed := func(w *httptest.ResponseRecorder, expected ...string) partialEnrolmentConfirmation {
+		t.Helper()
+		expectBookingError(t, w, 409, "partial_enrolment_confirmation_required")
+		details := decodeBody[struct {
+			Error struct {
+				Details struct {
+					AvailableSessionIDs []string `json:"availableSessionIds"`
+					SettingsVersion     int      `json:"settingsVersion"`
+				} `json:"details"`
+			} `json:"error"`
+		}](t, w).Error.Details
+		if details.SettingsVersion != settings.Version || !slices.Equal(details.AvailableSessionIDs, expected) {
+			t.Fatalf("unexpected subset: %+v", details)
+		}
+		return partialEnrolmentConfirmation{details.AvailableSessionIDs, details.SettingsVersion}
+	}
+	assertNoWrites := func() {
+		t.Helper()
+		var writes, available int
+		err := db.QueryRow(ctx, `SELECT
+			(SELECT count(*) FROM enrolments) +
+			(SELECT count(*) FROM bookings WHERE student_id='amy') +
+			(SELECT count(*) FROM notifications WHERE student_id='amy' AND kind='booking.created') +
+			(SELECT count(*) FROM audit_events WHERE action IN ('booking.created','enrolment.created') AND details->>'studentId'='amy'),
+			(SELECT sum(available) FROM credit_movements WHERE package_id=$1)`, in.CreditPackageID).Scan(&writes, &available)
+		if err != nil || writes != 0 || available != 2 {
+			t.Fatalf("preview wrote state: writes=%d available=%d err=%v", writes, available, err)
+		}
+	}
+	partial := proposed(request(t, h, "POST", path, in, parent), first.ID, second.ID)
+	assertNoWrites()
+
+	seedBookingCredit(t, db, "competing-package", "ben", "other-parent", 1, nil)
+	expectStatus(t, request(t, h, "POST", "/api/v1/students/ben/bookings", bookingInput{
+		ClassID: second.ID, ClassVersion: second.Version, ClassTypeVersion: second.ClassTypeVersion,
+		CreditPackageID: "competing-package", IdempotencyKey: "competing-booking", OverrideReason: "Class placement approved",
+	}, f.admin), 201)
+	in.PartialConfirmation = &partial
+	fresh := proposed(request(t, h, "POST", path, in, parent), first.ID, third.ID)
+	assertNoWrites()
+
+	updated = request(t, h, "PATCH", settingsPath, settings, f.admin)
+	expectStatus(t, updated, 200)
+	settings = decodeBody[FixedEnrolmentSettings](t, updated)
+	in.PartialConfirmation = &fresh
+	expectBookingError(t, request(t, h, "POST", path, in, parent), 409, "fixed_enrolment_settings_changed")
+	assertNoWrites()
+	in.PartialConfirmation = nil
+	fresh = proposed(request(t, h, "POST", path, in, parent), first.ID, third.ID)
+	in.PartialConfirmation = &fresh
+	created := request(t, h, "POST", path, in, parent)
+	expectStatus(t, created, 201)
+	enrolment := decodeBody[Enrolment](t, created)
+	if len(enrolment.Bookings) != 2 || enrolment.Bookings[0].Class.ID != first.ID || enrolment.Bookings[1].Class.ID != third.ID {
+		t.Fatalf("unexpected booked subset: %+v", enrolment.Bookings)
+	}
+	slices.Reverse(fresh.SessionIDs)
+	replay := request(t, h, "POST", path, in, parent)
+	expectStatus(t, replay, 200)
+	if created.Body.String() != replay.Body.String() {
+		t.Fatalf("retry changed enrolment: %s / %s", created.Body, replay.Body)
+	}
+	var changes int
+	if err := db.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE action='fixed_enrolment.settings.updated'
+		AND actor_id='admin' AND details->'before'->>'version' IN ('1','2')`).Scan(&changes); err != nil || changes != 2 {
+		t.Fatalf("expected two audited changes: got %d err=%v", changes, err)
+	}
+}
