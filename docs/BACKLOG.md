@@ -180,13 +180,13 @@ The [application review](APP-REVIEW-2026-11-18.md) found the backend sound and t
 | 0 | Merge cancellation impact preview | Merged #38 as `8f96655` | Demo rollout pending NetBird access |
 | 1 | Mobile shell and role home screens: bottom tabs with More sheet, role home (`GET /api/v1/home`), phone overflow fixes | Merged [#39](https://github.com/rosschiu/swimming/pull/39) as `b567e59` | Demo rollout pending NetBird access |
 | 2a | Package offers set expiry from the payment date (migration 23) | Merged [#40](https://github.com/rosschiu/swimming/pull/40) as `8a57d4a` | Demo rollout pending NetBird access |
-| 2b | Guardian booking: week-of-cards booking with default package, 13-week booked lesson list, enrolment shortcuts and readable package labels, withdraw a pending change request (migration 24) | In review, [#41](https://github.com/rosschiu/swimming/pull/41) | None |
+| 2b | Guardian booking: week-of-cards booking with default package, 13-week booked lesson list, enrolment shortcuts and readable package labels, withdraw a pending change request (migration 24) | Merged [#41](https://github.com/rosschiu/swimming/pull/41) as `c35b5ee` | Demo rollout pending NetBird access |
 | 2c | Remaining guardian task screens: lesson change search and checkout as focused steps, renewal labels, profile split into lessons, credits and progress | Next | None |
-| 3 | Attendance outcomes and corrections | Planned | Proposed defaults need confirmation |
-| 4 | Family cancellation of one lesson, configurable notices | Planned | Proposed defaults need confirmation |
-| 5 | School cancellation with notices | Planned | Proposed defaults need confirmation |
-| 6 | Coach substitution (replaces the silent coach change on booked classes) | Planned | Proposed defaults need confirmation |
-| 7 | Administrator extra credit grants | Planned | Proposed defaults need confirmation |
+| 3 | Attendance outcomes and corrections | Planned | Defaults approved 2026-11-18 |
+| 4 | Family cancellation of one lesson, configurable notices | Planned | Defaults approved 2026-11-18 |
+| 5 | School cancellation with notices | Planned | Defaults approved 2026-11-18 |
+| 6 | Coach substitution (replaces the silent coach change on booked classes) | Planned | Defaults approved 2026-11-18 |
+| 7 | Administrator extra credit grants | Planned | Defaults approved 2026-11-18 |
 | 8 | Lesson-linked feedback | Planned | Proposed defaults need confirmation |
 | 9 | Scheduled reminders, in-app and email by default, configurable | Planned | Decision confirmed; external email needs recipients |
 | 10 | Administrator pages on the new shell | Planned | None |
@@ -195,7 +195,7 @@ The [application review](APP-REVIEW-2026-11-18.md) found the backend sound and t
 
 ### Waiting on the owner
 
-- Confirmation of the proposed defaults recorded in DECISIONS.md (UI, attendance, family and school cancellation, substitution, grants, feedback). Work on stages 1–2 continues meanwhile.
+- Confirmation of the remaining proposed defaults in DECISIONS.md (UI and lesson feedback). Attendance, cancellation, substitution, extra grants and the import balance format were approved on 2026-11-18.
 - Approved demo email recipients with SMTP access, and a fine-grained read-only GitHub token for VM delivery (promised for the next round).
 - NetBird SSO for each demo VM rollout.
 
@@ -212,3 +212,5 @@ Stage 2a ([#40](https://github.com/rosschiu/swimming/pull/40)): package offers c
 Stage 2a merged as `8a57d4a`; hosted suites 44358037311 and 44358049058 passed on reviewed head `344c804` and the merged tree is identical to it. The same PR gave the Go race suite a 25-minute timeout: main run 44355614179 for `b567e59` had timed out at Go's default 600s, and its rerun then passed, so both #39 and the #38 tree are verified on main.
 
 Stage 2b ([#41](https://github.com/rosschiu/swimming/pull/41)): booking is a week of class cards with previous/next week controls; the valid package expiring first is preselected and every package is labelled by lessons left and expiry instead of its ID. The booked lesson list shows the next 13 weeks by default with dates behind Change dates and its own retry. Weekly enrolment reloads on date change, offers Select all weeks and defaults a new enrolment's package (renewal still requires an explicit paid package). Guardians can withdraw a pending lesson change; migration 24 adds the `withdrawn` status, the guardian is recorded as `decidedBy`, the booking and credit are untouched, the coach can no longer decide it and the family may ask again. Local evidence: PostgreSQL integration test for withdrawal scope, replay, decided requests and a withdraw-versus-approve race (three consecutive runs), 223 frontend tests, and all 48 Playwright journeys against a fresh PostgreSQL 16 database with Mailpit, including a new withdrawal journey across guardian, coach and administrator.
+
+Stage 2a main run 44361107897 passed for `8a57d4a` and published artifact `14454228826`. Stage 2b merged as `c35b5ee`; hosted suites 44362042125 and 44362107525 passed on reviewed head `8750258` and the merged tree is identical to it.
