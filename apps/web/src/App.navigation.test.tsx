@@ -319,10 +319,15 @@ it.each([
   expect(mock.mock.calls.filter(([path]) => String(path).includes('/classes?')).length).toBeGreaterThan(1);
 });
 
+const detailLesson = {
+  startsAt: '2025-01-01T15:30:00Z', endsAt: '2025-01-01T16:30:00Z',
+  classTypeName: 'Confirmation lesson', venueName: 'Harbour', coachName: 'Alex',
+};
+
 it.each([
-  ['parent', 'A lesson was booked.', 'Unread', 'Mark read', 'Read', 'Open current student profile', 'Notifications'],
-  ['student', '已預約課堂。', '未讀', '標記已讀', '已讀', '開啟學員最新資料', '通知'],
-] as const)('shows %s a booking alert, updates the badge, and opens the scoped profile', async (role, message, unread, markRead, read, openProfile, badge) => {
+  ['parent', 'A lesson was booked.', 'Unread', 'Mark read', 'Read', 'View booking', 'Booking details', 'Notifications'],
+  ['student', '已預約課堂。', '未讀', '標記已讀', '已讀', '查看預約', '預約詳情', '通知'],
+] as const)('shows %s a booking alert, updates the badge, and opens the exact booking', async (role, message, unread, markRead, read, openBooking, title, badge) => {
   at('/notifications');
   if (role === 'student') window.localStorage.setItem('language', 'zh');
   const item = {
@@ -335,6 +340,7 @@ it.each([
       unreadCount = 0;
       return response({ ...item, readAt: '2030-01-02T00:00:00Z' });
     }
+    if (path === '/api/v1/students/amy/bookings/booking') return response({ id: 'booking', studentName: amy.name, class: detailLesson });
     if (path.startsWith('/api/v1/notifications?')) return response({ items: [item], nextCursor: null, unreadCount });
   });
   render(<App />);
@@ -350,11 +356,30 @@ it.each([
   expect(mock).toHaveBeenCalledWith('/api/v1/notifications/new-booking/read', expect.objectContaining({
     method: 'PUT', headers: expect.objectContaining({ 'X-CSRF-Token': `csrf-${role}` }),
   }));
-  const profile = screen.getByRole('link', { name: openProfile });
-  expect(profile).toHaveAttribute('href', '/students/amy');
-  await user.click(profile);
+  const booking = screen.getByRole('link', { name: openBooking });
+  expect(booking).toHaveAttribute('href', '/students/amy/bookings/booking');
+  await user.click(booking);
+  expect(await screen.findByRole('heading', { name: title })).toBeVisible();
   expect(await screen.findByRole('heading', { name: amy.name })).toBeVisible();
-  expect(mock).toHaveBeenCalledWith('/api/v1/students/amy', expect.anything());
+  expect(await screen.findByText(/Confirmation lesson/)).toBeVisible();
+  expect(mock).toHaveBeenCalledWith('/api/v1/students/amy/bookings/booking', expect.anything());
+  expect(mock.mock.calls.some(([path]) => /\/(credit|purchases)/.test(String(path)))).toBe(false);
+});
+
+it('drops the previous booking response after navigating to a different student and booking', async () => {
+  at('/students/amy/bookings/old');
+  const old = deferred();
+  const mock = api('parent', path => {
+    if (path.endsWith('/amy/bookings/old')) return old.promise;
+    if (path.endsWith('/ben/bookings/current')) return response({ class: { ...detailLesson, classTypeName: 'Current lesson' } });
+  });
+  render(<App />);
+  await waitFor(() => expect(mock).toHaveBeenCalledWith('/api/v1/students/amy/bookings/old', expect.anything()));
+  pop('/students/ben/bookings/current');
+  expect(await screen.findByText(/Current lesson/)).toBeVisible();
+  await act(async () => old.resolve(response({ class: { ...detailLesson, classTypeName: 'Previous lesson' } })));
+  expect(screen.queryByText(/Previous lesson/)).not.toBeInTheDocument();
+  expect(screen.getByText(/Current lesson/)).toBeVisible();
 });
 
 it.each([

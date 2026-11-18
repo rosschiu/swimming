@@ -17,6 +17,11 @@ type StudentBooking struct {
 	Class      ClassSession       `json:"class"`
 }
 
+type StudentBookingDetail struct {
+	StudentBooking
+	StudentName string `json:"studentName"`
+}
+
 type RosterEntry struct {
 	BookingID   string             `json:"bookingId"`
 	StudentID   string             `json:"studentId"`
@@ -40,6 +45,7 @@ func (a *API) bookingRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v1/students/{id}/enrolments/{enrolmentId}/renewals", a.auth(a.createEnrolment))
 	mux.HandleFunc("GET /api/v1/students/{id}/bookings", a.auth(a.listStudentBookings))
 	mux.HandleFunc("POST /api/v1/students/{id}/bookings", a.auth(a.createBooking))
+	mux.HandleFunc("GET /api/v1/students/{id}/bookings/{bookingId}", a.auth(a.getStudentBooking))
 	mux.HandleFunc("GET /api/v1/classes/{id}/roster", a.auth(a.getClassRoster))
 	mux.HandleFunc("PUT /api/v1/classes/{id}/roster/{bookingId}/attendance", a.auth(a.markPresent))
 }
@@ -95,8 +101,8 @@ func (a *API) listStudentBookings(w http.ResponseWriter, r *http.Request, s Sess
 		fail(w, 404, "not_found", "Student not found")
 		return
 	}
-	rows, err := tx.Query(ctx, "SELECT b.id,b.student_id,b.status,b.created_at,ba.marked_at,"+classColumns+classJoin+
-		"JOIN bookings b ON b.class_id=c.id LEFT JOIN booking_attendance ba ON ba.booking_id=b.id WHERE b.student_id=$1 AND c.starts_at>=$2 AND c.starts_at<$3 ORDER BY c.starts_at,c.id,b.id", r.PathValue("id"), start, end)
+	rows, err := tx.Query(ctx, "SELECT "+studentBookingColumns+studentBookingJoin+
+		"WHERE b.student_id=$1 AND c.starts_at>=$2 AND c.starts_at<$3 ORDER BY c.starts_at,c.id,b.id", r.PathValue("id"), start, end)
 	if err != nil {
 		internal(w, err)
 		return
@@ -118,13 +124,46 @@ func (a *API) listStudentBookings(w http.ResponseWriter, r *http.Request, s Sess
 	respond(w, 200, map[string]any{"items": items})
 }
 
-func scanStudentBooking(row pgx.Row) (StudentBooking, error) {
+const studentBookingColumns = "b.id,b.student_id,b.status,b.created_at,ba.marked_at," + classColumns
+const studentBookingJoin = classJoin + "JOIN bookings b ON b.class_id=c.id LEFT JOIN booking_attendance ba ON ba.booking_id=b.id "
+
+func (a *API) getStudentBooking(w http.ResponseWriter, r *http.Request, s Session) {
+	switch s.User.Role {
+	case "admin", "parent", "student":
+	default:
+		fail(w, 403, "forbidden", "Guardian, student or administrator access is required")
+		return
+	}
+	ctx := r.Context()
+	tx, ok := a.beginBookingRead(w, r, s)
+	if !ok {
+		return
+	}
+	defer tx.Rollback(ctx)
+	var detail StudentBookingDetail
+	booking, err := scanStudentBooking(tx.QueryRow(ctx, "SELECT "+studentBookingColumns+",st.name"+studentBookingJoin+
+		"JOIN students st ON st.id=b.student_id WHERE "+studentScope+" AND st.id=$3 AND b.id=$4",
+		s.User.Role, s.User.ID, r.PathValue("id"), r.PathValue("bookingId")), &detail.StudentName)
+	if errors.Is(err, pgx.ErrNoRows) {
+		fail(w, 404, "not_found", "Booking not found")
+		return
+	}
+	if err != nil {
+		internal(w, err)
+		return
+	}
+	detail.StudentBooking = booking
+	respond(w, 200, detail)
+}
+
+func scanStudentBooking(row pgx.Row, extra ...any) (StudentBooking, error) {
 	var booking StudentBooking
 	c := &booking.Class
 	var markedAt *time.Time
-	err := row.Scan(&booking.ID, &booking.StudentID, &booking.Status, &booking.CreatedAt, &markedAt,
+	fields := []any{&booking.ID, &booking.StudentID, &booking.Status, &booking.CreatedAt, &markedAt,
 		&c.ID, &c.VenueID, &c.ClassTypeID, &c.CoachID, &c.StartsAt, &c.EndsAt, &c.Capacity,
-		&c.VenueName, &c.Region, &c.ClassTypeName, &c.Level, &c.CoachName, &c.SeriesID, &c.Version, &c.ClassTypeVersion)
+		&c.VenueName, &c.Region, &c.ClassTypeName, &c.Level, &c.CoachName, &c.SeriesID, &c.Version, &c.ClassTypeVersion}
+	err := row.Scan(append(fields, extra...)...)
 	booking.Attendance = presentAttendance(markedAt)
 	return booking, err
 }

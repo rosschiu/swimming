@@ -1100,6 +1100,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/students/{id}/bookings/{bookingId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Administrators, current guardians and self-linked students may read one booking and its current lesson by exact student and booking ID. */
+        get: operations["getStudentBooking"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/students/{id}/bookings/{bookingId}/change-options": {
         parameters: {
             query?: never;
@@ -1423,6 +1440,17 @@ export interface components {
             bookings: components["schemas"]["StudentBooking"][];
             /** Format: date-time */
             createdAt: string;
+        };
+        StudentBookingDetail: {
+            id: string;
+            studentId: string;
+            studentName: string;
+            /** @enum {string} */
+            status: "reserved";
+            /** Format: date-time */
+            createdAt: string;
+            class: components["schemas"]["ClassSession"];
+            attendance?: components["schemas"]["Attendance"];
         };
         StudentBooking: {
             id: string;
@@ -5291,6 +5319,38 @@ export interface operations {
             };
             /** @description Invalid date range */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getStudentBooking: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                bookingId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentBookingDetail"];
+                };
+            };
+            /** @description Request failed */
+            default: {
                 headers: {
                     [name: string]: unknown;
                 };
