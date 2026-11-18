@@ -167,6 +167,7 @@ it.each(['admin', 'coach'] as const)('opens the live roster for the %s and clear
   let revoked = false;
   const api = mockAPI(200, () => revoked ? response({}, 404) : response({
     classId: session.id,
+    attendanceOpensAt: session.startsAt,
     items: [{ bookingId: 'b1', studentId: 'amy', studentName: 'Amy Chan', level: 'Beginner', status: 'reserved' }],
   }));
   render(<Schedule role={role} csrfToken="csrf" expired={() => false} t={t}/>);

@@ -78,10 +78,11 @@ function BookingResults({ studentId, expired, t, from, to }: BookingProps & { fr
       : result === 'unavailable' ? <p role="alert">{t('Booked lessons are unavailable for your current access.', '目前權限無法存取已預約課堂。')}</p>
       : result === 'error' ? <p role="alert">{t('Could not load booked lessons. Use the button above to retry.', '未能載入已預約課堂。請使用上方按鈕重試。')}</p>
       : result.length === 0 ? <p role="status">{t('No booked lessons on these dates.', '這段日期內沒有已預約課堂。')}</p>
-      : <ul className="link-list">{result.map(({ id, class: lesson }) => <li key={id}>
+      : <ul className="link-list">{result.map(({ id, class: lesson, attendance }) => <li key={id}>
         <div><strong>{lesson.classTypeName}</strong>
           <p><time dateTime={lesson.startsAt}>{hkDate(new Date(lesson.startsAt))} {hkTime(lesson.startsAt)}</time>–<time dateTime={lesson.endsAt}>{hkDate(new Date(lesson.startsAt)) !== hkDate(new Date(lesson.endsAt)) && `${hkDate(new Date(lesson.endsAt))} `}{hkTime(lesson.endsAt)}</time></p>
           <p className="muted">{lesson.venueName} · {lesson.coachName}</p>
+          <p>{t('Attendance', '出席記錄')} <span className="tag">{attendance ? t('Present', '已出席') : t('Unmarked', '尚未記錄')}</span></p>
         </div><span className="tag">{t('Reserved', '已預約')}</span>
       </li>)}</ul>}
   </>;

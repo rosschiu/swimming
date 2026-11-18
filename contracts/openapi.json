@@ -1956,11 +1956,16 @@
                       "items": {
                         "$ref": "#/components/schemas/RosterEntry"
                       }
+                    },
+                    "attendanceOpensAt": {
+                      "type": "string",
+                      "format": "date-time"
                     }
                   },
                   "required": [
                     "classId",
-                    "items"
+                    "items",
+                    "attendanceOpensAt"
                   ],
                   "additionalProperties": false
                 }
@@ -1982,6 +1987,75 @@
           {
             "name": "id",
             "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/classes/{id}/roster/{bookingId}/attendance": {
+      "put": {
+        "operationId": "markClassAttendance",
+        "description": "Marks a reservation present and consumes its reserved credit. Available to administrators and the currently assigned coach at or after the attendance opening time. A replay returns the recorded result.",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Recorded attendance",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Attendance"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Attendance has yet to open (attendance_not_open), or the reserved credit is unavailable (credit_unavailable).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "bookingId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
             "required": true,
             "schema": {
               "type": "string"
@@ -5292,6 +5366,9 @@
           },
           "class": {
             "$ref": "#/components/schemas/ClassSession"
+          },
+          "attendance": {
+            "$ref": "#/components/schemas/Attendance"
           }
         },
         "required": [
@@ -5323,6 +5400,9 @@
             "enum": [
               "reserved"
             ]
+          },
+          "attendance": {
+            "$ref": "#/components/schemas/Attendance"
           }
         },
         "required": [
@@ -5331,6 +5411,26 @@
           "studentName",
           "level",
           "status"
+        ],
+        "additionalProperties": false
+      },
+      "Attendance": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "present"
+            ]
+          },
+          "markedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "status",
+          "markedAt"
         ],
         "additionalProperties": false
       },

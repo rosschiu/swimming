@@ -441,6 +441,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/classes/{id}/roster/{bookingId}/attendance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** @description Marks a reservation present and consumes its reserved credit. Available to administrators and the currently assigned coach at or after the attendance opening time. A replay returns the recorded result. */
+        put: operations["markClassAttendance"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/class-series": {
         parameters: {
             query?: never;
@@ -1178,6 +1195,7 @@ export interface components {
             /** Format: date-time */
             createdAt: string;
             class: components["schemas"]["ClassSession"];
+            attendance?: components["schemas"]["Attendance"];
         };
         RosterEntry: {
             bookingId: string;
@@ -1186,6 +1204,13 @@ export interface components {
             level: string;
             /** @enum {string} */
             status: "reserved";
+            attendance?: components["schemas"]["Attendance"];
+        };
+        Attendance: {
+            /** @enum {string} */
+            status: "present";
+            /** Format: date-time */
+            markedAt: string;
         };
         SeriesInput: {
             venueId: string;
@@ -2907,7 +2932,52 @@ export interface operations {
                     "application/json": {
                         classId: string;
                         items: components["schemas"]["RosterEntry"][];
+                        /** Format: date-time */
+                        attendanceOpensAt: string;
                     };
+                };
+            };
+            /** @description Request failed */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    markClassAttendance: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-Token": string;
+            };
+            path: {
+                id: string;
+                bookingId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Recorded attendance */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Attendance"];
+                };
+            };
+            /** @description Attendance has yet to open (attendance_not_open), or the reserved credit is unavailable (credit_unavailable). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
                 };
             };
             /** @description Request failed */

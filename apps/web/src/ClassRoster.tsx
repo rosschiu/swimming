@@ -1,37 +1,113 @@
 import { useEffect, useState } from 'react';
 import { APIError } from './api';
-import type { components } from './generated/api';
+import type { components, operations } from './generated/api';
+import { hkDate, hkTime } from './scheduling';
 import { isAborted, useProtectedRequest, type ProtectedProps } from './useProtectedRequest';
 
+type Roster = operations['getClassRoster']['responses'][200]['content']['application/json'];
 type RosterEntry = components['schemas']['RosterEntry'];
 
-export default function ClassRoster({ classId, expired, t }: Pick<ProtectedProps, 'expired' | 't'> & { classId: string }) {
+export default function ClassRoster({ classId, csrfToken, expired, t }: ProtectedProps & { classId: string }) {
   const api = useProtectedRequest(expired);
-  const [result, setResult] = useState<RosterEntry[] | 'unavailable' | 'error' | null>(null);
+  const path = `/classes/${encodeURIComponent(classId)}/roster`;
+  const [result, setResult] = useState<Roster | 'unavailable' | 'error' | null>(null);
   const [revision, setRevision] = useState(0);
+  const [reviewing, setReviewing] = useState<RosterEntry | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [failure, setFailure] = useState('');
+  const [notice, setNotice] = useState('');
+  const [, setClock] = useState(0);
+  const opensAt = result && typeof result === 'object' ? result.attendanceOpensAt : undefined;
+  const remaining = opensAt ? Date.parse(opensAt) - Date.now() : 0;
+  const isOpen = !!opensAt && remaining <= 0;
 
   useEffect(() => {
-    void api<{ classId: string; items: RosterEntry[] }>(`/classes/${encodeURIComponent(classId)}/roster`)
-      .then(({ items }) => setResult(items))
+    void api<Roster>(path)
+      .then(setResult)
       .catch(error => {
         if (!isAborted(error)) setResult(error instanceof APIError && (error.status === 403 || error.status === 404) ? 'unavailable' : 'error');
       });
-  }, [api, classId, revision]);
+  }, [api, path, revision]);
+
+  useEffect(() => {
+    if (remaining <= 0) return;
+    const timer = window.setTimeout(() => setClock(tick => tick + 1), Math.min(remaining, 2147483647));
+    return () => window.clearTimeout(timer);
+  }, [remaining]);
+
+  function reload() {
+    setResult(null);
+    setReviewing(null);
+    setFailure('');
+    setNotice('');
+    setRevision(previous => previous + 1);
+  }
+
+  async function markPresent(entry: RosterEntry) {
+    setSaving(true);
+    setFailure('');
+    setNotice('');
+    try {
+      const attendance = await api<components['schemas']['Attendance']>(`${path}/${encodeURIComponent(entry.bookingId)}/attendance`, {
+        method: 'PUT', headers: { 'X-CSRF-Token': csrfToken },
+      });
+      setResult(previous => previous && typeof previous === 'object' ? {
+        ...previous,
+        items: previous.items.map(item => item.bookingId === entry.bookingId ? { ...item, attendance } : item),
+      } : previous);
+      setReviewing(null);
+      setNotice(t(`Attendance recorded for ${entry.studentName}.`, `已記錄 ${entry.studentName} 的出席。`));
+    } catch (error) {
+      if (isAborted(error)) return;
+      if (error instanceof APIError && (error.status === 403 || error.status === 404)) {
+        setReviewing(null);
+        setResult('unavailable');
+      } else if (error instanceof APIError && error.code === 'attendance_not_open') {
+        setReviewing(null);
+        setFailure(t('Attendance has yet to open. Reload the roster for the current opening time.', '出席記錄尚未開放，請重新載入名單查看最新的開放時間。'));
+      } else if (error instanceof APIError && error.code === 'credit_unavailable') {
+        setFailure(t('Could not record attendance because the reserved lesson credit is unavailable.', '預留的課堂點數無法使用，未能記錄出席。'));
+      } else {
+        setFailure(t('Could not record attendance. Try again.', '未能記錄出席，請重試。'));
+      }
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return <section className="panel" aria-label={t('Class roster', '課堂名單')}>
     <div className="page-heading">
       <h3>{t('Class roster', '課堂名單')}</h3>
-      <button className="outline" disabled={result === null} onClick={() => { setResult(null); setRevision(previous => previous + 1); }}>
+      <button className="outline" disabled={result === null || saving} onClick={reload}>
         {t('Reload roster', '重新載入名單')}
       </button>
     </div>
+    {failure && <p className="error" role="alert">{failure}</p>}
+    {notice && <p className="success" role="status">{notice}</p>}
     {result === null ? <p role="status">{t('Loading class roster…', '正在載入課堂名單…')}</p>
       : result === 'unavailable' ? <p role="alert">{t('This roster is unavailable for your current access.', '目前權限無法存取此課堂名單。')}</p>
       : result === 'error' ? <p role="alert">{t('Could not load the roster. Reload to retry.', '未能載入名單，請重新載入。')}</p>
-      : result.length === 0 ? <p role="status">{t('No reserved places for this class.', '此課堂尚無預約。')}</p>
-      : <ul className="link-list">{result.map(entry => <li key={entry.bookingId}>
-        <div><strong>{entry.studentName}</strong><span className="muted">{entry.level}</span></div>
-        <span className="tag">{t('Reserved', '已預約')}</span>
-      </li>)}</ul>}
+      : result.items.length === 0 ? <p role="status">{t('No reserved places for this class.', '此課堂尚無預約。')}</p>
+      : <>
+        {!isOpen && opensAt && <p className="muted">{t('Attendance opens', '出席記錄開放時間')} <time dateTime={opensAt}>{hkDate(new Date(opensAt))} {hkTime(opensAt)}</time> {t('Hong Kong time', '香港時間')}</p>}
+        <ul className="link-list roster-list">{result.items.map(entry => <li key={entry.bookingId}>
+          <div><strong>{entry.studentName}</strong><span className="muted">{entry.level}</span></div>
+          <div className="roster-actions">
+            <span className="tag">{entry.attendance ? t('Present', '已出席') : t('Reserved', '已預約')}</span>
+            {!entry.attendance && <button
+              className="outline" disabled={!isOpen || saving} aria-expanded={reviewing?.bookingId === entry.bookingId} aria-label={t(`Mark present ${entry.studentName}`, `標記 ${entry.studentName} 出席`)}
+              onClick={() => { setReviewing(reviewing?.bookingId === entry.bookingId ? null : entry); setFailure(''); setNotice(''); }}>
+              {t('Mark present', '標記出席')}
+            </button>}
+            {reviewing?.bookingId === entry.bookingId && <div>
+              <p>{t(`Mark ${entry.studentName} present and use one reserved lesson credit?`, `標記 ${entry.studentName} 出席並使用一個預留的課堂點數？`)}</p>
+              <div className="form-actions">
+                <button disabled={saving} onClick={() => void markPresent(entry)}>{t('Confirm present', '確認出席')}</button>
+                <button className="outline" disabled={saving} onClick={() => { setReviewing(null); setFailure(''); }}>{t('Cancel', '取消')}</button>
+              </div>
+            </div>}
+          </div>
+        </li>)}</ul>
+      </>}
   </section>;
 }
