@@ -25,6 +25,7 @@ type CreditRecovery struct {
 type CreditHistoryPackage struct {
 	ID              string           `json:"id"`
 	PurchaseID      string           `json:"purchaseId,omitempty"`
+	Complimentary   bool             `json:"complimentary"`
 	OfferID         string           `json:"offerId,omitempty"`
 	SourcePackageID *string          `json:"sourcePackageId"`
 	Credits         int              `json:"credits"`
@@ -91,7 +92,7 @@ func (a *API) creditHistory(w http.ResponseWriter, r *http.Request, s Session) {
 	items := []CreditHistoryPackage{}
 	for _, p := range packages {
 		item := CreditHistoryPackage{
-			ID: p.ID, SourcePackageID: p.SourcePackageID, Credits: p.Credits, ExpiresOn: p.ExpiresOn,
+			ID: p.ID, SourcePackageID: p.SourcePackageID, Complimentary: p.GrantID != nil, Credits: p.Credits, ExpiresOn: p.ExpiresOn,
 			Available: p.Available, Reserved: p.Reserved, Consumed: p.Consumed, Expired: p.Expired, Movements: p.Movements,
 		}
 		if s.User.Role == "parent" || s.User.Role == "admin" {
@@ -195,9 +196,9 @@ func (a *API) recoverCredits(w http.ResponseWriter, r *http.Request, s Session) 
 		internal(w, err)
 		return
 	}
-	var purchase string
+	var purchase, grant *string
 	var policy []byte
-	err = tx.QueryRow(r.Context(), "SELECT purchase_id,policy FROM credit_packages WHERE id=$1 AND student_id=$2 FOR UPDATE", in.SourcePackageID, r.PathValue("id")).Scan(&purchase, &policy)
+	err = tx.QueryRow(r.Context(), "SELECT purchase_id,grant_id,policy FROM credit_packages WHERE id=$1 AND student_id=$2 FOR UPDATE", in.SourcePackageID, r.PathValue("id")).Scan(&purchase, &grant, &policy)
 	if errors.Is(err, pgx.ErrNoRows) {
 		fail(w, 404, "not_found", "Credit package not found")
 		return
@@ -227,7 +228,7 @@ func (a *API) recoverCredits(w http.ResponseWriter, r *http.Request, s Session) 
 		return
 	}
 	now := a.now().UTC().Truncate(time.Microsecond)
-	_, err = tx.Exec(r.Context(), "INSERT INTO credit_packages(id,purchase_id,student_id,credits,expires_on,policy,created_at,source_package_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8)", destination, purchase, r.PathValue("id"), in.Quantity, in.ExpiresOn, policy, now, in.SourcePackageID)
+	_, err = tx.Exec(r.Context(), "INSERT INTO credit_packages(id,purchase_id,grant_id,student_id,credits,expires_on,policy,created_at,source_package_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)", destination, purchase, grant, r.PathValue("id"), in.Quantity, in.ExpiresOn, policy, now, in.SourcePackageID)
 	if err == nil {
 		_, err = tx.Exec(r.Context(), "INSERT INTO credit_recoveries(id,student_id,source_package_id,destination_package_id,quantity,reason,expires_on,actor_id,idempotency_key,request,created_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)", id, r.PathValue("id"), in.SourcePackageID, destination, in.Quantity, in.Reason, in.ExpiresOn, s.User.ID, in.IdempotencyKey, request, now)
 	}
