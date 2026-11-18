@@ -31,11 +31,11 @@ it('requires a guardian to select a replacement and safely retries the same inte
   expect(fetch).not.toHaveBeenCalled();
   await user.click(screen.getByRole('button', { name: 'Find replacement lessons' }));
   expect(fetch.mock.calls[0][0]).toMatch(/^\/api\/v1\/students\/student\/bookings\/booking\/change-options\?from=\d{4}-\d{2}-\d{2}&to=\d{4}-\d{2}-\d{2}$/);
-  const replacement = await screen.findByLabelText('Replacement lesson');
+  await screen.findByRole('group', { name: 'Replacement lesson' });
   const send = screen.getByRole('button', { name: 'Send change request' });
   expect(send).toBeDisabled();
   expect(screen.getByText(/at least 24 hours/)).toBeInTheDocument();
-  await user.selectOptions(replacement, 'target');
+  await user.click(screen.getByRole('radio', { name: /Beginner/ }));
   await user.click(send);
   expect(await screen.findByRole('alert')).toHaveTextContent('Could not send the request');
   await user.click(send);
@@ -58,10 +58,11 @@ it('drops a stale guardian selection and can refresh the options in Chinese', as
   await user.click(screen.getByRole('button', { name: '申請調課' }));
   const find = screen.getByRole('button', { name: '搜尋可替換課堂' });
   await user.click(find);
-  await user.selectOptions(await screen.findByLabelText('替換課堂'), 'target');
+  await screen.findByRole('group', { name: '替換課堂' });
+  await user.click(screen.getByRole('radio'));
   await user.click(screen.getByRole('button', { name: '送出調課申請' }));
   expect(await screen.findByRole('alert')).toHaveTextContent('替換課堂已滿');
-  expect(screen.queryByLabelText('替換課堂')).not.toBeInTheDocument();
+  expect(screen.queryByRole('group', { name: '替換課堂' })).not.toBeInTheDocument();
   await user.click(find);
   expect(await screen.findByRole('status')).toHaveTextContent('沒有可替換的課堂');
 });
