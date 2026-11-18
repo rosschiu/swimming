@@ -4,7 +4,7 @@ Guardians and administrators choose a student, an existing weekly series, the ex
 
 Single and recurring bookings share the reservation rules, ledger, scope checks, eligibility overrides and family notifications. Each lesson appears in the student's schedule and the assigned class coach's roster. Completing the selected dates does not automatically reserve future dates.
 
-Renewal must be explicit. The default transfers unused, unreserved credits to the new expiry and preserves the original expiry for existing reservations. Use exact source and destination package IDs and retain purchase and receipt history. Alternative allocation modes, coach configuration scope, matching package eligibility and transfer limits remain open; this branch is not ready for release on default-path evidence alone.
+Renewal must be explicit. The default transfers unused, unreserved credits to the new expiry and preserves the original expiry for existing reservations. Use exact source and destination package IDs and retain purchase and receipt history. Administrators can enable partial booking for the school. The family must confirm the exact available dates. Renewal defaults to the same offer; administrators can allow another paid package for the same student.
 
 Verify the approved default with concurrent retries, a conflict on the last selected lesson, insufficient credits, a forged mixed-series request and a guardian/student/coach browser journey. Check all affected booking, credit, notification and audit records after a rollback.
 
