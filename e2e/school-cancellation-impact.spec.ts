@@ -1,0 +1,146 @@
+import { execFileSync } from 'node:child_process';
+import { expect, test, type Page } from '@playwright/test';
+import { expectContract } from './contract';
+
+async function login(page: Page, role: string) {
+  await page.goto('/');
+  await page.getByLabel('Email', { exact: true }).fill(role + '@swim.test');
+  await page.getByLabel('Password', { exact: true }).fill('Swim-test-2026!');
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible();
+  const session = await (await page.request.get('/api/v1/auth/me')).json();
+  return { Origin: 'http://localhost:18573', 'X-CSRF-Token': session.csrfToken };
+}
+
+test('administrator reviews both ends of a pending move without changing either class', async ({ page, browser }) => {
+  const parent = await browser.newPage({ baseURL: 'http://localhost:18573' });
+  try {
+    const adminHeaders = await login(page, 'admin');
+    const familyHeaders = await login(parent, 'parent');
+    async function create(actor: Page, path: string, data: object, status = 201) {
+      const response = await actor.request.post('/api/v1/' + path, { headers: actor === page ? adminHeaders : familyHeaders, data });
+      expect(response.status(), await response.text()).toBe(status);
+      return response.json();
+    }
+    const stamp = Date.now();
+    const date = new Date(Date.UTC(3600, 0, 1) + (stamp % 100000) * 86400000).toISOString().slice(0, 10);
+    const venue = await create(page, 'venues', { name: 'Impact pool ' + stamp, address: 'Synthetic pool', region: 'hk-island' });
+    const kind = await create(page, 'class-types', { name: 'Impact group ' + stamp, level: 'Beginner' });
+    async function lesson(hour: string, endHour: string) {
+      return create(page, 'classes', { venueId: venue.id, classTypeId: kind.id, coachId: 'coach', capacity: 2,
+        startsAt: date + 'T' + hour + ':00:00+08:00', endsAt: date + 'T' + endHour + ':00:00+08:00' });
+    }
+    const original = await lesson('10', '11');
+    const target = await lesson('13', '14');
+    const offer = await create(page, 'package-offers', { name: 'Impact credit ' + stamp, credits: 2, priceMinor: 10000, currency: 'HKD', active: true,
+      policyOverride: { expiryEnabled: false, carryForwardEnabled: false, earlyCancellationRetainsCredit: true, lateCancellationRetainsCredit: false, absenceRetainsCredit: false, illnessRetainsCredit: true } });
+    const purchase = await create(parent, 'students/amy/purchases', { offerId: offer.id, offerVersion: offer.version, idempotencyKey: offer.id });
+    const attempt = await create(parent, 'purchases/' + purchase.id + '/payment-attempts', { idempotencyKey: purchase.id });
+    await create(parent, 'payment-attempts/' + attempt.id + '/mock-outcome', { outcome: 'succeeded' }, 200);
+    const credits = await (await parent.request.get('/api/v1/students/amy/credits')).json();
+    const pack = credits.items.find((item: { purchaseId: string }) => item.purchaseId === purchase.id);
+    const booking = await create(parent, 'students/amy/bookings', { classId: original.id, classVersion: original.version, classTypeVersion: original.classTypeVersion,
+      creditPackageId: pack.id, idempotencyKey: original.id });
+    const change = await create(parent, 'students/amy/bookings/' + booking.id + '/change-requests', {
+      targetClassId: target.id, targetClassVersion: target.version, idempotencyKey: booking.id,
+    });
+    function snapshot() {
+      const tables = ['bookings', 'booking_attendance', 'class_sessions', 'credit_movements', 'lesson_change_requests', 'receipts', 'notifications', 'enrolments', 'audit_events'];
+      const sql = tables.map(table => "SELECT md5(COALESCE(string_agg(to_jsonb(t)::text, '' ORDER BY to_jsonb(t)::text),'')) FROM " + table + ' t;').join('\n');
+      return execFileSync('psql', [process.env.DATABASE_URL!, '-XqtA', '-v', 'ON_ERROR_STOP=1'], { input: sql, encoding: 'utf8' });
+    }
+    await page.getByRole('link', { name: 'Schedule', exact: true }).click();
+    await page.getByLabel('From date', { exact: true }).fill(date);
+    await page.getByLabel('To date', { exact: true }).fill(date);
+    await page.getByRole('button', { name: 'Apply filters' }).click();
+    const buttons = page.getByRole('button', { name: /Review cancellation impact/ });
+    await expect(buttons).toHaveCount(2);
+    const before = snapshot();
+    const readPath = (id: string) => '/api/v1/classes/' + id + '/cancellation-impact';
+    const writes: string[] = [];
+    page.on('request', request => {
+      if (request.url().includes('/api/v1/') && request.method() !== 'GET') writes.push(request.method() + ' ' + request.url());
+    });
+    for (const [index, id] of [original.id, target.id].entries()) {
+      const read = page.waitForResponse(response => new URL(response.url()).pathname === readPath(id));
+      await buttons.nth(index).click();
+      const response = await read;
+      expect(response.status()).toBe(200);
+      const impact = await response.json();
+      expectContract('CancellationImpact', impact);
+      expect(impact).toMatchObject({
+        lesson: { id }, bookedSwimmers: 1 - index, unmarkedBookings: 1 - index, recordedAttendance: 0,
+        pendingInbound: index, pendingOutbound: 1 - index,
+      });
+      if (index === 0) expect(impact.bookings).toMatchObject([{ bookingId: booking.id, packageId: pack.id, studentName: 'Amy' }]);
+      else expect(impact.bookings).toEqual([]);
+      const panel = page.getByRole('region', { name: 'Cancellation impact' });
+      const section = index === 0 ? 'outbound' : 'inbound';
+      const sectionRead = page.waitForResponse(response => {
+        const url = new URL(response.url());
+        return url.pathname === readPath(id) && url.searchParams.get('section') === section;
+      });
+      await panel.getByLabel('Impact details').selectOption(section);
+      const details = await (await sectionRead).json();
+      expect(details.requests).toMatchObject([{ id: change.id, bookingId: booking.id, studentName: 'Amy', otherClassId: index === 0 ? target.id : original.id }]);
+      await expect(panel).toContainText('Amy');
+      const counterpart = index === 0 ? 'Replacement lesson ' + date + ' 13:00' : 'Original lesson ' + date + ' 10:00';
+      await expect(panel.getByRole('listitem')).toContainText(counterpart);
+      await expect(panel.getByRole('listitem')).toContainText(venue.name);
+      await expect(panel.getByRole('button', { name: /Confirm cancellation|Cancel class/i })).toHaveCount(0);
+    }
+    expect(writes).toEqual([]);
+    expect(snapshot()).toBe(before);
+    for (const role of ['parent', 'student', 'coach']) {
+      if (role !== 'parent') { await parent.getByRole('button', { name: 'Sign out' }).click(); await login(parent, role); }
+      expect((await parent.request.get(readPath(original.id))).status()).toBe(403);
+      await parent.getByRole('link', { name: 'Schedule', exact: true }).click();
+      await parent.getByLabel('From date', { exact: true }).fill(date);
+      await parent.getByLabel('To date', { exact: true }).fill(date);
+      await parent.getByRole('button', { name: 'Apply filters' }).click();
+      await expect(parent.getByText(kind.name, { exact: true }).first()).toBeVisible();
+      await expect(parent.getByRole('button', { name: /Review cancellation impact/ })).toHaveCount(0);
+    }
+    const coachSession = await (await parent.request.get('/api/v1/auth/me')).json();
+    const decision = await parent.request.put('/api/v1/lesson-changes/' + change.id + '/decision', {
+      headers: { Origin: 'http://localhost:18573', 'X-CSRF-Token': coachSession.csrfToken }, data: { decision: 'approved' },
+    });
+    expect(decision.status()).toBe(200);
+    const panel = page.getByRole('region', { name: 'Cancellation impact' });
+    await panel.getByRole('button', { name: 'Refresh impact' }).click();
+    await expect(panel).toContainText('Showing 0 of 0 on this page.');
+    await expect(panel.getByText('Amy', { exact: true })).toHaveCount(0);
+    for (const [index, id] of [original.id, target.id].entries()) {
+      const read = page.waitForResponse(response => new URL(response.url()).pathname === readPath(id));
+      await buttons.nth(index).click();
+      const impact = await (await read).json();
+      expect(impact).toMatchObject({ bookedSwimmers: index, unmarkedBookings: index, recordedAttendance: 0, pendingInbound: 0, pendingOutbound: 0 });
+    }
+    const exact = await page.request.get('/api/v1/students/amy/bookings/' + booking.id);
+    expect(await exact.json()).toMatchObject({ id: booking.id, class: { id: target.id } });
+    const after = await (await page.request.get('/api/v1/students/amy/credits')).json();
+    expect(after.items.find((item: { id: string }) => item.id === pack.id)).toMatchObject({ available: 1, reserved: 1, consumed: 0 });
+
+    await buttons.nth(1).click();
+    await expect(panel).toHaveCount(0);
+    // Set the date only for this fixture, then use the normal attendance endpoint.
+    const past = execFileSync('psql', [process.env.DATABASE_URL!, '-XqtA', '-v', 'ON_ERROR_STOP=1', '-v', 'id=' + target.id], {
+      input: "UPDATE class_sessions SET starts_at=now()-interval '2 days', ends_at=now()-interval '47 hours' WHERE id=:'id' RETURNING (starts_at AT TIME ZONE 'Asia/Hong_Kong')::date;", encoding: 'utf8',
+    }).trim();
+    const marked = await page.request.put('/api/v1/classes/' + target.id + '/roster/' + booking.id + '/attendance', { headers: adminHeaders });
+    expect(marked.status()).toBe(200);
+    await page.getByLabel('From date', { exact: true }).fill(past);
+    await page.getByLabel('To date', { exact: true }).fill(past);
+    await page.getByLabel('Filter venue').selectOption(venue.id);
+    await page.getByRole('button', { name: 'Apply filters' }).click();
+    await expect(page.getByRole('status').filter({ hasText: 'Loaded dates: ' + past })).toBeVisible();
+    const historical = page.waitForResponse(response => new URL(response.url()).pathname === readPath(target.id));
+    await buttons.first().click();
+    const impact = await (await historical).json();
+    expect(impact).toMatchObject({ bookedSwimmers: 1, recordedAttendance: 1, unmarkedBookings: 0, bookings: [{ bookingId: booking.id, attendanceMarkedAt: expect.any(String) }] });
+    await expect(panel).toContainText('Ended');
+    await expect(panel).toContainText('Attendance recorded');
+  } finally {
+    await parent.close();
+  }
+});

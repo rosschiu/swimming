@@ -22,18 +22,23 @@ type bookingInput struct {
 	BookingValidityVersion *int   `json:"bookingValidityVersion,omitempty"`
 }
 
+func packageExpiryCutoff(expiry time.Time) time.Time {
+	year, month, day := expiry.Date()
+	return time.Date(year, month, day+1, 0, 0, 0, 0, hongKong)
+}
+
 func bookingCreditCovers(rule string, class ClassSession, expiry *time.Time, now time.Time) bool {
+	return (expiry == nil || now.Before(packageExpiryCutoff(*expiry))) && bookingPackageCoversLesson(rule, class, expiry)
+}
+
+func bookingPackageCoversLesson(rule string, class ClassSession, expiry *time.Time) bool {
 	if rule != bookingValidityLessonEnd && rule != bookingValidityLessonStart {
 		return false
 	}
 	if expiry == nil {
 		return true
 	}
-	year, month, day := expiry.Date()
-	cutoff := time.Date(year, month, day+1, 0, 0, 0, 0, hongKong)
-	if !now.Before(cutoff) {
-		return false
-	}
+	cutoff := packageExpiryCutoff(*expiry)
 	if rule == bookingValidityLessonStart {
 		return class.StartsAt.Before(cutoff)
 	}

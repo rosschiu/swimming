@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useRef, useState, type FormEvent, type MouseEvent } from 'react';
 import type { Route } from './navigation';
 import ClassRoster from './ClassRoster';
+import CancellationImpact from './CancellationImpact';
 import { APIError, type User } from './api';
 import { isAborted, useProtectedRequest, type ProtectedProps } from './useProtectedRequest';
 import { hkDate, hkTime, rangeEnd, regionNames, type Venue, type ClassType, type ClassSession, type ClassSeries, type AdminUser } from './scheduling';
@@ -13,6 +14,7 @@ export default function Schedule({ csrfToken, expired, t, role, follow }: Protec
   const [venueFilter, setVenueFilter] = useState('');
   const [coachFilter, setCoachFilter] = useState('');
   const [regionFilter, setRegionFilter] = useState('');
+  const [impactClassId, setImpactClassId] = useState<string | null>(null);
   const [rosterClassId, setRosterClassId] = useState<string | null>(null);
   const [classes, setClasses] = useState<ClassSession[]>([]);
   const [venues, setVenues] = useState<Venue[]>([]);
@@ -94,6 +96,7 @@ export default function Schedule({ csrfToken, expired, t, role, follow }: Protec
         const time = hkTime(c.startsAt);
         const label = `${c.classTypeName} ${day} ${time}`;
         const rosterOpen = rosterClassId === c.id;
+        const impactOpen = admin && impactClassId === c.id;
         return <Fragment key={c.id}>
           <article className="panel class-card">
             <div className="class-date"><strong>{day}</strong><span>{time}–{day !== endDay && `${endDay} `}{hkTime(c.endsAt)}</span></div>
@@ -104,10 +107,13 @@ export default function Schedule({ csrfToken, expired, t, role, follow }: Protec
             </div>
             {(admin || role === 'coach') && <div className="heading-actions">
               {admin && <button className="outline" disabled={busy} onClick={() => edit(c)} aria-label={`${t('Edit class', '編輯課堂')} ${label}`}>{t('Edit', '編輯')}</button>}
+              {admin && <button className="outline" aria-expanded={impactOpen} aria-label={`${t('Review cancellation impact', '檢視取消課堂影響')} ${label}`}
+                onClick={() => setImpactClassId(impactOpen ? null : c.id)}>{t('Review cancellation impact', '檢視取消課堂影響')}</button>}
               <button className="outline" aria-expanded={rosterOpen} aria-label={`${t('View roster', '查看名單')} ${label}`}
                 onClick={() => setRosterClassId(rosterOpen ? null : c.id)}>{t('View roster', '查看名單')}</button>
             </div>}
           </article>
+          {impactOpen && <CancellationImpact classId={c.id} expired={expired} t={t}/>}
           {rosterOpen && <ClassRoster follow={follow} classId={c.id} csrfToken={csrfToken} expired={expired} t={t}/>}
         </Fragment>;
       })}</div>
