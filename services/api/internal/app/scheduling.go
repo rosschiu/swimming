@@ -51,7 +51,15 @@ type ClassSession struct {
 	SeriesID         *string `json:"seriesId"`
 	Version          int     `json:"version"`
 	ClassTypeVersion int     `json:"classTypeVersion"`
+	// CancelledAt is set when the school cancels this occurrence; its bookings are cancelled with it.
+	CancelledAt *time.Time `json:"cancelledAt,omitempty"`
 }
+
+// fields pairs with classColumns so every hand-written scan stays in step with the column list.
+func (x *ClassSession) fields() []any {
+	return []any{&x.ID, &x.VenueID, &x.ClassTypeID, &x.CoachID, &x.StartsAt, &x.EndsAt, &x.Capacity, &x.VenueName, &x.Region, &x.ClassTypeName, &x.Level, &x.CoachName, &x.SeriesID, &x.Version, &x.ClassTypeVersion, &x.CancelledAt}
+}
+
 type SeriesInput struct {
 	VenueID     string `json:"venueId"`
 	ClassTypeID string `json:"classTypeId"`
@@ -168,7 +176,7 @@ func (a *API) updateSchedulingSettings(w http.ResponseWriter, r *http.Request, s
 		return
 	}
 	var conflict string
-	err = tx.QueryRow(r.Context(), `SELECT a.id||' and '||b.id FROM class_sessions a JOIN class_sessions b ON a.coach_id=b.coach_id AND a.id<b.id WHERE a.ends_at>$1 AND b.ends_at>$1 AND a.starts_at < b.ends_at + CASE WHEN a.venue_id<>b.venue_id THEN $2*interval '1 minute' ELSE interval '0' END AND b.starts_at < a.ends_at + CASE WHEN a.venue_id<>b.venue_id THEN $2*interval '1 minute' ELSE interval '0' END LIMIT 1`, a.now(), *input.TravelGapMinutes).Scan(&conflict)
+	err = tx.QueryRow(r.Context(), `SELECT a.id||' and '||b.id FROM class_sessions a JOIN class_sessions b ON a.coach_id=b.coach_id AND a.id<b.id WHERE a.ends_at>$1 AND b.ends_at>$1 AND a.cancelled_at IS NULL AND b.cancelled_at IS NULL AND a.starts_at < b.ends_at + CASE WHEN a.venue_id<>b.venue_id THEN $2*interval '1 minute' ELSE interval '0' END AND b.starts_at < a.ends_at + CASE WHEN a.venue_id<>b.venue_id THEN $2*interval '1 minute' ELSE interval '0' END LIMIT 1`, a.now(), *input.TravelGapMinutes).Scan(&conflict)
 	if err == nil {
 		fail(w, 409, "scheduling_conflict", "Travel gap conflicts with classes "+conflict)
 		return
@@ -455,12 +463,12 @@ func (a *API) updateClassType(w http.ResponseWriter, r *http.Request, s Session)
 	respond(w, 200, x)
 }
 
-const classColumns = "c.id,c.venue_id,c.class_type_id,c.coach_id,c.starts_at,c.ends_at,c.capacity,v.name,v.region,t.name,t.level,u.name,c.series_id,c.version,t.version"
+const classColumns = "c.id,c.venue_id,c.class_type_id,c.coach_id,c.starts_at,c.ends_at,c.capacity,v.name,v.region,t.name,t.level,u.name,c.series_id,c.version,t.version,c.cancelled_at"
 const classJoin = " FROM class_sessions c JOIN venues v ON v.id=c.venue_id JOIN class_types t ON t.id=c.class_type_id JOIN users u ON u.id=c.coach_id "
 
 func scanClass(row pgx.Row) (ClassSession, error) {
 	var x ClassSession
-	err := row.Scan(&x.ID, &x.VenueID, &x.ClassTypeID, &x.CoachID, &x.StartsAt, &x.EndsAt, &x.Capacity, &x.VenueName, &x.Region, &x.ClassTypeName, &x.Level, &x.CoachName, &x.SeriesID, &x.Version, &x.ClassTypeVersion)
+	err := row.Scan(x.fields()...)
 	return x, err
 }
 func (a *API) listClasses(w http.ResponseWriter, r *http.Request, s Session) {
@@ -532,7 +540,7 @@ func eligibleClass(ctx context.Context, tx pgx.Tx, x ClassInput, previous *Class
 }
 func classConflict(ctx context.Context, tx pgx.Tx, x ClassInput, exceptID string) (string, error) {
 	var id string
-	err := tx.QueryRow(ctx, `SELECT c.id FROM class_sessions c CROSS JOIN scheduling_settings st WHERE c.coach_id=$1 AND c.id<>$2 AND c.starts_at < $4::timestamptz + CASE WHEN c.venue_id<>$5 THEN st.travel_gap_minutes*interval '1 minute' ELSE interval '0' END AND c.ends_at + CASE WHEN c.venue_id<>$5 THEN st.travel_gap_minutes*interval '1 minute' ELSE interval '0' END > $3::timestamptz LIMIT 1`, x.CoachID, exceptID, x.StartsAt, x.EndsAt, x.VenueID).Scan(&id)
+	err := tx.QueryRow(ctx, `SELECT c.id FROM class_sessions c CROSS JOIN scheduling_settings st WHERE c.coach_id=$1 AND c.id<>$2 AND c.cancelled_at IS NULL AND c.starts_at < $4::timestamptz + CASE WHEN c.venue_id<>$5 THEN st.travel_gap_minutes*interval '1 minute' ELSE interval '0' END AND c.ends_at + CASE WHEN c.venue_id<>$5 THEN st.travel_gap_minutes*interval '1 minute' ELSE interval '0' END > $3::timestamptz LIMIT 1`, x.CoachID, exceptID, x.StartsAt, x.EndsAt, x.VenueID).Scan(&id)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", nil
 	}
@@ -641,6 +649,10 @@ func (a *API) updateClass(w http.ResponseWriter, r *http.Request, s Session) {
 	}
 	if err != nil {
 		internal(w, err)
+		return
+	}
+	if before.CancelledAt != nil {
+		fail(w, 409, "class_cancelled", "A cancelled class cannot be edited")
 		return
 	}
 	if before.Version != input.Version {

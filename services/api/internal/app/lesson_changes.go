@@ -141,7 +141,7 @@ func loadChangeClass(ctx context.Context, tx pgx.Tx, id string) (ClassSession, e
 }
 
 func lessonChangeTarget(ctx context.Context, tx pgx.Tx, b changeBooking, target ClassSession, expiry *time.Time, rule string, now time.Time) (string, error) {
-	if target.ID == b.ClassID || !target.StartsAt.After(now) {
+	if target.ID == b.ClassID || !target.StartsAt.After(now) || target.CancelledAt != nil {
 		return "class_unavailable", nil
 	}
 	if target.Level != b.Level {
@@ -265,7 +265,7 @@ func (a *API) lessonChangeOptions(w http.ResponseWriter, r *http.Request, s Sess
 			return
 		}
 		rows, err := tx.Query(ctx, "SELECT "+classColumns+classJoin+`
-			WHERE c.starts_at>=$1 AND c.starts_at<$2 AND c.starts_at>$3 AND c.id<>$4 AND t.level=$5
+			WHERE c.starts_at>=$1 AND c.starts_at<$2 AND c.starts_at>$3 AND c.id<>$4 AND t.level=$5 AND c.cancelled_at IS NULL
 			AND v.active AND t.active AND u.active AND u.role='coach'
 			AND (SELECT count(*) FROM bookings WHERE class_id=c.id AND status='reserved')<c.capacity
 			AND NOT EXISTS (SELECT 1 FROM bookings b JOIN class_sessions booked ON booked.id=b.class_id

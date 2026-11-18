@@ -79,6 +79,7 @@ func New(cfg Config, db *pgxpool.Pool) http.Handler {
 	a.schedulingRoutes(mux)
 	a.bookingRoutes(mux)
 	a.cancellationRoutes(mux)
+	a.schoolCancellationRoutes(mux)
 	a.lessonChangeRoutes(mux)
 	a.lessonSettingsRoutes(mux)
 	a.fixedEnrolmentSettingsRoutes(mux)
