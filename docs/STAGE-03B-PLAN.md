@@ -29,3 +29,5 @@ Select the exact package ID when reserving credit. A recovered package can share
 Use the same booking records for guardian and student lesson lists and the current class coach's roster. Keep package identifiers, prices and override reasons out of roster and student responses. Verify reassignment transfers roster access and guardian unlinking prevents replay.
 
 Test a booking using a recovered package while other credits share the original purchase. Include a stale class type edit, overlap at adjacent lesson boundaries and concurrent requests for the last place and last credit. Record the effective policy and compared levels on each booking so later changes can be applied prospectively.
+
+A lesson occupies the half-open interval from its start to its end. Under the default validity rule, a package covers a lesson ending exactly at midnight after the package's last valid Hong Kong date. Extending that lesson beyond midnight requires later validity. Regression tests should exercise both sides of the boundary.
