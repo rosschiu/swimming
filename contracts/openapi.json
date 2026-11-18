@@ -422,6 +422,160 @@
         ]
       }
     },
+    "/api/v1/students/{id}/bookings": {
+      "get": {
+        "operationId": "listStudentBookings",
+        "description": "Administrators, current guardians and self-linked students may list bookings by the class start date.",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/StudentBooking"
+                      }
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "Inclusive Asia/Hong_Kong calendar date; range must span at most 93 days."
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "Inclusive Asia/Hong_Kong calendar date; range must span at most 93 days."
+          }
+        ]
+      },
+      "post": {
+        "operationId": "createBooking",
+        "description": "Administrators and current guardians may reserve one place and one credit for a future class. Only administrators may override a level mismatch, which requires a reason. An identical idempotent replay rechecks current student access.",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Idempotent replay",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudentBooking"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Booking created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudentBooking"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Booking conflict. booking_validity_changed indicates that the school rule changed after review.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BookingInput"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
     "/api/v1/users": {
       "get": {
         "operationId": "listUsers",
@@ -1692,6 +1846,7 @@
       },
       "patch": {
         "operationId": "updateClass",
+        "description": "A class with reservations must retain its venue, class type, and start and end times. Capacity cannot fall below the current reservation count. Conflicting edits return 409 booked_class_conflict.",
         "security": [
           {
             "sessionCookie": []
@@ -1741,6 +1896,65 @@
           {
             "name": "X-CSRF-Token",
             "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/classes/{id}/roster": {
+      "get": {
+        "operationId": "getClassRoster",
+        "description": "Administrators and the class's currently assigned coach may read its roster.",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "classId": {
+                      "type": "string"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/RosterEntry"
+                      }
+                    }
+                  },
+                  "required": [
+                    "classId",
+                    "items"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
             "required": true,
             "schema": {
               "type": "string"
@@ -2383,6 +2597,120 @@
             }
           }
         ]
+      }
+    },
+    "/api/v1/settings/booking-validity": {
+      "get": {
+        "operationId": "getBookingValiditySettings",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookingValiditySettings"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Administrator access required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "description": "Administrators may read the school-wide booking validity rule."
+      },
+      "patch": {
+        "operationId": "updateBookingValiditySettings",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookingValiditySettings"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Administrator access required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Settings version changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BookingValiditySettings"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "description": "Administrators may change the school-wide rule for new bookings. A stale version returns version_conflict."
       }
     },
     "/api/v1/availability/{id}/classes": {
@@ -4791,6 +5119,10 @@
             "type": "string",
             "nullable": true
           },
+          "classTypeVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
           "version": {
             "type": "integer",
             "minimum": 1
@@ -4810,7 +5142,117 @@
           "level",
           "coachName",
           "seriesId",
+          "classTypeVersion",
           "version"
+        ],
+        "additionalProperties": false
+      },
+      "BookingInput": {
+        "type": "object",
+        "properties": {
+          "classId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "classVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "classTypeVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "creditPackageId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "idempotencyKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "pattern": "^[!-~]{1,100}$"
+          },
+          "overrideReason": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "bookingValidityVersion": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Version of the booking validity rule presented for review. A stale version returns booking_validity_changed for a new request."
+          }
+        },
+        "required": [
+          "classId",
+          "classVersion",
+          "classTypeVersion",
+          "creditPackageId",
+          "idempotencyKey"
+        ],
+        "additionalProperties": false
+      },
+      "StudentBooking": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "studentId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "reserved"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "class": {
+            "$ref": "#/components/schemas/ClassSession"
+          }
+        },
+        "required": [
+          "id",
+          "studentId",
+          "status",
+          "createdAt",
+          "class"
+        ],
+        "additionalProperties": false
+      },
+      "RosterEntry": {
+        "type": "object",
+        "properties": {
+          "bookingId": {
+            "type": "string"
+          },
+          "studentId": {
+            "type": "string"
+          },
+          "studentName": {
+            "type": "string"
+          },
+          "level": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "reserved"
+            ]
+          }
+        },
+        "required": [
+          "bookingId",
+          "studentId",
+          "studentName",
+          "level",
+          "status"
         ],
         "additionalProperties": false
       },
@@ -5095,6 +5537,28 @@
         },
         "required": [
           "lockHours",
+          "version"
+        ],
+        "additionalProperties": false
+      },
+      "BookingValiditySettings": {
+        "type": "object",
+        "properties": {
+          "validityRule": {
+            "type": "string",
+            "enum": [
+              "lesson_end",
+              "lesson_start"
+            ],
+            "description": "Default lesson_end requires validity through the end of the lesson. lesson_start requires validity when the lesson starts. The expiry cutoff is midnight after the expiry date in Asia/Hong_Kong. Lesson end may equal the cutoff. Lesson start must precede it."
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "validityRule",
           "version"
         ],
         "additionalProperties": false
@@ -6687,11 +7151,15 @@
             "items": {
               "$ref": "#/components/schemas/CreditRecovery"
             }
+          },
+          "bookingValidity": {
+            "$ref": "#/components/schemas/BookingValiditySettings"
           }
         },
         "required": [
           "items",
-          "recoveries"
+          "recoveries",
+          "bookingValidity"
         ],
         "additionalProperties": false
       }

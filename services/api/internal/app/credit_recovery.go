@@ -111,7 +111,12 @@ func (a *API) creditHistory(w http.ResponseWriter, r *http.Request, s Session) {
 		internal(w, err)
 		return
 	}
-	financeCommit(w, r, tx, 200, map[string]any{"items": items, "recoveries": recoveries})
+	validity, err := effectiveBookingValidity(r.Context(), tx)
+	if err != nil {
+		internal(w, err)
+		return
+	}
+	financeCommit(w, r, tx, 200, map[string]any{"items": items, "recoveries": recoveries, "bookingValidity": validity})
 }
 
 const recoveryColumns = "id,student_id,source_package_id,destination_package_id,quantity,reason,expires_on::text,actor_id,created_at"

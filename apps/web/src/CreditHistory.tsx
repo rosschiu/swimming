@@ -6,7 +6,7 @@ import { hkDate } from './scheduling';
 type Package = components['schemas']['CreditHistoryPackage'];
 type Recovery = components['schemas']['CreditRecovery'];
 type RecoveryInput = components['schemas']['CreditRecoveryInput'];
-export default function CreditHistory({studentId, role, csrfToken, expired, t}: ProtectedProps & {studentId: string; role: User['role']}) {
+export default function CreditHistory({studentId, role, csrfToken, expired, t, revision = 0}: ProtectedProps & {studentId: string; role: User['role']; revision?: number}) {
   const api = useProtectedRequest(expired); const id = useId(); const sequence = useRef(0); const submitting = useRef(false);
   const [items, setItems] = useState<Package[]>([]); const [recoveries, setRecoveries] = useState<Recovery[]>([]);
   const [loading, setLoading] = useState(true); const [loadError, setLoadError] = useState(false); const [denied, setDenied] = useState(false);
@@ -20,7 +20,7 @@ export default function CreditHistory({studentId, role, csrfToken, expired, t}: 
     catch (e) {if (current === sequence.current && !isAborted(e)) {if (e instanceof APIError && (e.status === 403 || e.status === 404)) deny(); else {setItems([]); setRecoveries([]); setLoadError(true);} } }
     finally {if (current === sequence.current) setLoading(false);}
   }
-  useEffect(() => {if (role !== 'student') void load();}, [api, studentId]);
+  useEffect(() => {if (role !== 'student') void load();}, [api, studentId, revision]);
   if (role === 'student') return null;
   function begin(item: Package) {setSourceId(item.id); setQuantity('1'); setReason(''); setDate(''); setReview(false); setError(''); setNotice('');}
   function preview(event: FormEvent) {

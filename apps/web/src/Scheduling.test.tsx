@@ -9,9 +9,9 @@ const t = (en: string) => en;
 const venue = { id: 'v1', name: 'Harbour Pool', address: '1 Pool Road', region: 'hk-island', active: true, version: 1 };
 const classType = { id: 't1', name: 'Youth beginners', level: 'Beginner', active: true, version: 1 };
 const coach = { id: 'coach', name: 'Alex', email: 'coach@swim.test', role: 'coach', active: true, version: 1, invitationPending: false };
-const session = { id: 'c1', venueId: 'v1', classTypeId: 't1', coachId: 'coach', startsAt: '2026-11-18T01:00:00Z', endsAt: '2026-11-18T02:00:00Z', capacity: 6, venueName: 'Harbour Pool', region: 'hk-island', classTypeName: 'Youth beginners', level: 'Beginner', coachName: 'Alex', seriesId: null, version: 1 };
+const session = { id: 'c1', venueId: 'v1', classTypeId: 't1', classTypeVersion: 1, coachId: 'coach', startsAt: '2026-11-18T01:00:00Z', endsAt: '2026-11-18T02:00:00Z', capacity: 6, venueName: 'Harbour Pool', region: 'hk-island', classTypeName: 'Youth beginners', level: 'Beginner', coachName: 'Alex', seriesId: null, version: 1 };
 function response(body: unknown, status = 200) { return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } }); }
-function mockAPI(status = 200) {
+function mockAPI(status = 200, roster?: () => Response) {
   const mock = vi.fn(async (path: string, options?: RequestInit) => {
     if (options?.method === 'POST' || options?.method === 'PATCH') {
       if (status !== 200) return response({ error: { code: 'conflict', message: 'Schedule conflict' } }, status);
@@ -23,8 +23,10 @@ function mockAPI(status = 200) {
     if (path.endsWith('/class-types')) return response({ items: [classType] });
     if (path.includes('/users')) return response({ items: [coach] });
     if (path.includes('/class-series')) return response({ items: [] });
+    if (path.endsWith('/roster') && roster) return roster();
     if (path.includes('/classes')) return response({ items: [session] });
     if (path.endsWith('/settings/availability')) return response({ lockHours: 72, version: 1 });
+    if (path.endsWith('/settings/booking-validity')) return response({ validityRule: 'lesson_end', version: 1 });
     if (path.endsWith('/settings/scheduling')) return response({ travelGapMinutes: 30, version: 1 });
     throw new Error(`Unexpected ${path}`);
   }); vi.stubGlobal('fetch', mock); return mock;
@@ -40,6 +42,7 @@ it.each(['parent', 'student'] as const)('shows %s a catalogue without booking or
   mockAPI(); render(<Schedule role={role} csrfToken="csrf" expired={() => false} t={t}/>);
   expect(await screen.findByRole('heading', { name: 'Youth beginners' })).toBeVisible();
   expect(screen.getByText('This is the school’s class catalogue, not your bookings.')).toBeVisible();
+  expect(screen.queryByRole('button', { name: /View roster/ })).not.toBeInTheDocument();
   expect(screen.queryByRole('button', { name: 'Add class' })).not.toBeInTheDocument();
   expect(screen.queryByRole('button', { name: /Edit class/ })).not.toBeInTheDocument();
 });
@@ -158,4 +161,27 @@ it('offers all 20 venues and 10 coaches and submits the selected date and catalo
   await user.clear(screen.getByLabelText('To date')); await user.type(screen.getByLabelText('To date'), '2030-04-09');
   await user.click(screen.getByRole('button', { name: 'Apply filters' }));
   await waitFor(() => expect(api.mock.calls.some(([path]) => { const q = new URL(path, 'http://test').searchParams; return path.includes('/classes?') && q.get('from') === '2030-01-07' && q.get('to') === '2030-04-09' && q.get('venueId') === 'v19' && q.get('coachId') === 'coach9'; })).toBe(true));
+});
+
+it.each(['admin', 'coach'] as const)('opens the live roster for the %s and clears names if access changes', async role => {
+  let revoked = false;
+  const api = mockAPI(200, () => revoked ? response({}, 404) : response({
+    classId: session.id,
+    items: [{ bookingId: 'b1', studentId: 'amy', studentName: 'Amy Chan', level: 'Beginner', status: 'reserved' }],
+  }));
+  render(<Schedule role={role} csrfToken="csrf" expired={() => false} t={t}/>);
+  const toggle = await screen.findByRole('button', { name: /View roster Youth beginners/ });
+  expect(api.mock.calls.some(([path]) => path.endsWith('/roster'))).toBe(false);
+  const user = userEvent.setup();
+  await user.click(toggle);
+  expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  expect(await screen.findByText('Amy Chan')).toBeVisible();
+  expect(api).toHaveBeenCalledWith('/api/v1/classes/c1/roster', expect.objectContaining({ signal: expect.any(AbortSignal) }));
+  revoked = true;
+  await user.click(screen.getByRole('button', { name: 'Reload roster' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('This roster is unavailable for your current access.');
+  expect(screen.queryByText('Amy Chan')).not.toBeInTheDocument();
+  await user.click(toggle);
+  expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  expect(screen.queryByRole('region', { name: 'Class roster' })).not.toBeInTheDocument();
 });

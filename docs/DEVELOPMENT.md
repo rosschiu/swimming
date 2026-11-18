@@ -84,3 +84,10 @@ Apply migration10. The server sweeps up to100 eligible expired packages on start
 Administrators and assigned coaches open a student profile's Credit history, select an expired package and enter quantity, reason and a new inclusive Hong Kong expiry date. Review and confirm the transfer. Recovery creates a linked descendant package and preserves the original receipt and source ledger. Partial recovery leaves the remaining expired quantity recoverable; a later recovery cannot reuse already-transferred credits. Guardians can read their children's history but cannot recover credits. Coach history excludes prices and receipt data.
 
 For an uncertain response, retry the same recovery. A changed quantity/reason/date needs a fresh reviewed request; current scope is checked even on replay. System expiry entries identify the system rather than a staff actor. No additional credits or refunds are created by recovery.
+
+## Exercise flexible booking with synthetic accounts
+
+1. As an administrator, schedule a future class at the student's level and link the student to a guardian. Use mock checkout to give the student a paid package with an available credit.
+2. As the guardian, open the student's profile and select **Book a lesson**. Select the class and the package to charge. Review the selection, then confirm. The lesson should appear under **Booked lessons**, and one credit should move from available to reserved. If the result is uncertain, **Retry same booking** checks the original request.
+3. Sign in as the student's linked account and open the profile to view the lesson. Sign in as the assigned class coach, find the same class on the schedule, and select **View roster**.
+4. As an administrator, open audit history to inspect the `booking.created` event. An administrator booking across a level mismatch must supply a reason. Once a class has reservations, it retains its time, venue and type. Administrators can reassign the coach or adjust capacity while preserving enough places for existing reservations.
