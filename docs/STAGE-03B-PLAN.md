@@ -1,6 +1,6 @@
 # Stage03b: flexible booking design
 
-Preparation only, based on merged finance stage0f8e029. User requires level matching with administrator override, and configurable coach/admin booking-validity defaults. The precise coach configuration scope and supported alternate validity rules are pending; do not silently implement default-only behavior as complete.
+Students must match the class level unless an administrator records an override. Administrators configure credit validity school-wide.
 
 ## Intended workflow
 
@@ -14,9 +14,9 @@ Roster permission follows current class coach assignment, independently of gener
 
 Eligibility must retain the compared student/class levels and any administrator override reason/actor. A class with reservations keeps its venue, class type and start and end times. Administrators can reassign the coach and adjust capacity as long as it covers every reservation. Later changes to swimming levels leave the eligibility recorded at booking intact.
 
-## Pending configuration
+## School-wide credit validity
 
-Proposed admin school defaults with assigned-coach student overrides, and validity choices lesson-end(default) versus lesson-start, are awaiting user confirmation. The user has already approved the defaults and configurability; only concrete alternatives/scope remain open. Recurring partial-allocation and reserved-credit transfer alternatives are separate03c questions.
+One administrator-selected rule applies to every student and coach. By default a credit must cover the whole lesson. Administrators may instead require validity at lesson start. Each reservation records the effective rule at booking time. Changes apply prospectively. Recurring partial-allocation and reserved-credit transfer alternatives are separate03c questions.
 
 ## Acceptance
 

@@ -47,6 +47,9 @@ var schema11 string
 //go:embed schema12.sql
 var schema12 string
 
+//go:embed schema16.sql
+var schema16 string
+
 func RandomToken() (string, error) {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
@@ -67,14 +70,21 @@ func Migrate(ctx context.Context, db *pgxpool.Pool) error {
 	if _, err = tx.Exec(ctx, "CREATE TABLE IF NOT EXISTS schema_migrations (version integer PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())"); err != nil {
 		return err
 	}
-	for i, sql := range []string{schema, schema2, schema3, schema4, schema5, schema6, schema7, schema8, schema9, schema10, schema11, schema12} {
-		version := i + 1
+	migrations := []struct {
+		version int
+		sql     string
+	}{
+		{1, schema}, {2, schema2}, {3, schema3}, {4, schema4}, {5, schema5}, {6, schema6},
+		{7, schema7}, {8, schema8}, {9, schema9}, {10, schema10}, {11, schema11}, {12, schema12}, {16, schema16},
+	}
+	for _, migration := range migrations {
+		version := migration.version
 		var exists bool
 		if err = tx.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM schema_migrations WHERE version=$1)", version).Scan(&exists); err != nil {
 			return err
 		}
 		if !exists {
-			if _, err = tx.Exec(ctx, sql); err != nil {
+			if _, err = tx.Exec(ctx, migration.sql); err != nil {
 				return fmt.Errorf("migration %d: %w", version, err)
 			}
 			if _, err = tx.Exec(ctx, "INSERT INTO schema_migrations(version) VALUES($1)", version); err != nil {
