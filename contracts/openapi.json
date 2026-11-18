@@ -5011,11 +5011,52 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Invalid date range",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "security": [
           {
             "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Opaque cursor from the prior page."
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "pending"
+              ]
+            },
+            "description": "Return pending requests only."
           }
         ]
       }
@@ -8536,11 +8577,16 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 8760
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true
           }
         },
         "required": [
           "items",
-          "cutoffHours"
+          "cutoffHours",
+          "nextCursor"
         ],
         "additionalProperties": false
       },
@@ -8577,11 +8623,16 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 100
+          },
+          "targetClassVersion": {
+            "type": "integer",
+            "minimum": 1
           }
         },
         "required": [
           "targetClassId",
-          "idempotencyKey"
+          "idempotencyKey",
+          "targetClassVersion"
         ],
         "additionalProperties": false
       },

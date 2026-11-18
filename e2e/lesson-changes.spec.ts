@@ -86,10 +86,18 @@ test('fixed booking stays reserved on a full replacement and follows coach appro
     await bookings.getByRole('listitem').filter({ hasText: day(0) }).getByRole('button', { name: 'Request lesson change' }).click();
     await page.getByLabel('New lesson from date').fill(day(1));
     await page.getByLabel('New lesson to date').fill(day(1));
-    const choices = page.waitForResponse(res => res.url().includes('/change-options?'));
-    await page.getByRole('button', { name: 'Find replacement lessons' }).click();
-    expectContract('LessonChangeOptions', await (await choices).json());
-    await page.getByLabel('Replacement lesson', { exact: true }).selectOption(target.id);
+    async function selectTarget() {
+      const choices = page.waitForResponse(res => res.url().includes('/change-options?'));
+      await page.getByRole('button', { name: 'Find replacement lessons' }).click();
+      expectContract('LessonChangeOptions', await (await choices).json());
+      await page.getByLabel('Replacement lesson', { exact: true }).selectOption(target.id);
+    }
+    await selectTarget();
+    const shifted = { ...targetInput, startsAt: day(1) + 'T12:00:00+08:00', endsAt: day(1) + 'T13:00:00+08:00' };
+    const updated = await write(admin, 'classes/' + target.id, { ...shifted, version: target.version }, 'PATCH', 200);
+    await page.getByRole('button', { name: 'Send change request' }).click();
+    await expect(page.getByRole('alert')).toHaveText('The replacement lesson changed. Search again to review the latest details.');
+    await selectTarget();
     const requested = page.waitForResponse(res => res.url().endsWith('/change-requests'));
     await page.getByRole('button', { name: 'Send change request' }).click();
     const saved = await requested;
@@ -98,7 +106,7 @@ test('fixed booking stays reserved on a full replacement and follows coach appro
     expectContract('LessonChange', change);
     await expect(page.getByText(/Lesson change request received/)).toBeVisible();
     await assertBookings(page, original.class.id);
-    await write(page, 'students/' + other.id + '/bookings', { ...versions(target), creditPackageId: otherCredit.id, idempotencyKey: target.id });
+    const rescheduled = await write(admin, 'classes/' + target.id, { ...targetInput, version: updated.version }, 'PATCH', 200);
 
     async function switchRole(role: string) {
       await page.getByRole('button', { name: 'Sign out' }).click();
@@ -112,6 +120,12 @@ test('fixed booking stays reserved on a full replacement and follows coach appro
       return result.items.map(item => item.bookingId);
     }
     await request.getByRole('button', { name: 'Approve change' }).click();
+    await expect(request.getByRole('alert')).toHaveText('The replacement lesson changed. Reject this request so the guardian can review the new details and submit again.');
+    await assertBookings(admin, original.class.id);
+    expect(await credit('amy', amy.purchaseId!, admin)).toEqual(before);
+    const restored = await write(admin, 'classes/' + target.id, { ...shifted, version: rescheduled.version }, 'PATCH', 200);
+    await write(admin, 'students/' + other.id + '/bookings', { ...versions(restored), creditPackageId: otherCredit.id, idempotencyKey: target.id });
+    await request.getByRole('button', { name: 'Approve change' }).click();
     await expect(request.getByRole('alert')).toHaveText('The replacement lesson is full. Try again if a place opens.');
     await expect(request.getByText('Pending', { exact: true })).toBeVisible();
     await assertBookings(admin, original.class.id);
@@ -119,8 +133,11 @@ test('fixed booking stays reserved on a full replacement and follows coach appro
     expect(await roster(original.class.id)).toEqual([original.id]);
     expect(await roster(target.id)).not.toContain(original.id);
 
-    await write(admin, 'classes/' + target.id, { ...targetInput, version: target.version, capacity: 2 }, 'PATCH', 200);
+    await write(admin, 'classes/' + target.id, { ...shifted, version: restored.version, capacity: 2 }, 'PATCH', 200);
     await request.getByRole('button', { name: 'Approve change' }).click();
+    await expect(page.getByText('Lesson change approved.', { exact: true })).toBeVisible();
+    await expect(request).toHaveCount(0);
+    await page.getByRole('checkbox', { name: 'Show pending requests only' }).uncheck();
     await expect(request.getByText('Approved', { exact: true })).toBeVisible();
     await assertBookings(admin, target.id);
     expect(await roster(original.class.id)).toEqual([]);

@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -60,7 +62,16 @@ func TestIntegrationLessonChangeApproval(t *testing.T) {
 	expectStatus(t, request(t, h, "GET", options, nil, other), 404)
 	expectStatus(t, request(t, h, "GET", options, nil, student), 403)
 
-	body := map[string]string{"targetClassId": target.ID, "idempotencyKey": "move-fixed-lesson"}
+	changeBody := func(lesson ClassSession, key string) map[string]any {
+		return map[string]any{"targetClassId": lesson.ID, "targetClassVersion": lesson.Version, "idempotencyKey": key}
+	}
+	body := changeBody(target, "move-fixed-lesson")
+	if _, err := db.Exec(ctx, "UPDATE class_sessions SET version=version+1 WHERE id=$1", target.ID); err != nil {
+		t.Fatal(err)
+	}
+	expectBookingError(t, request(t, h, "POST", path+"/change-requests", body, parent), 409, "target_changed")
+	target.Version++
+	body = changeBody(target, "move-fixed-lesson")
 	w = request(t, h, "POST", path+"/change-requests", body, parent)
 	expectStatus(t, w, 201)
 	change := decodeBody[LessonChange](t, w)
@@ -78,15 +89,13 @@ func TestIntegrationLessonChangeApproval(t *testing.T) {
 	for _, actor := range []authState{parent, coach, f.admin} {
 		listed(actor, "pending")
 	}
-	forged := map[string]string{"targetClassId": rejectedTarget.ID, "idempotencyKey": "move-fixed-lesson"}
+	forged := changeBody(rejectedTarget, "move-fixed-lesson")
 	expectBookingError(t, request(t, h, "POST", path+"/change-requests", forged, parent), 409, "conflict")
 	forged["idempotencyKey"] = "second-pending"
 	expectBookingError(t, request(t, h, "POST", path+"/change-requests", forged, parent), 409, "change_pending")
 	now = now.Add(time.Microsecond)
 	expectStatus(t, request(t, h, "POST", path+"/change-requests", body, parent), 200)
-	expectBookingError(t, request(t, h, "POST", "/api/v1/students/amy/bookings/"+enrolment.Bookings[1].ID+"/change-requests", map[string]string{
-		"targetClassId": original.ID, "idempotencyKey": "initial-verification",
-	}, parent), 409, "student_overlap")
+	expectBookingError(t, request(t, h, "POST", "/api/v1/students/amy/bookings/"+enrolment.Bookings[1].ID+"/change-requests", changeBody(original, "initial-verification"), parent), 409, "student_overlap")
 
 	decisionPath := "/api/v1/lesson-changes/" + change.ID + "/decision"
 	approve := map[string]string{"decision": "approved"}
@@ -126,6 +135,11 @@ func TestIntegrationLessonChangeApproval(t *testing.T) {
 	check(original.ID, 0)
 	listed(parent, "pending")
 	exec("UPDATE class_sessions SET capacity=2 WHERE id=$1", target.ID)
+	exec("UPDATE class_sessions SET starts_at=starts_at+interval '2 hours',ends_at=ends_at+interval '2 hours' WHERE id=$1", target.ID)
+	expectBookingError(t, request(t, h, "PUT", decisionPath, approve, coach), 409, "target_changed")
+	check(original.ID, 0)
+	listed(parent, "pending")
+	exec("UPDATE class_sessions SET starts_at=$2,ends_at=$3 WHERE id=$1", target.ID, target.StartsAt, target.EndsAt)
 	exec("UPDATE credit_packages SET expires_on='2030-01-07' WHERE id='change-pack'")
 	expectBookingError(t, request(t, h, "PUT", decisionPath, approve, coach), 409, "credit_unavailable")
 	check(original.ID, 0)
@@ -159,13 +173,13 @@ func TestIntegrationLessonChangeApproval(t *testing.T) {
 	expectBookingError(t, request(t, h, "PUT", decisionPath, map[string]string{"decision": "rejected"}, coach), 409, "change_conflict")
 	now = target.StartsAt.Add(-time.Hour)
 	expectBookingError(t, request(t, h, "POST", path+"/change-requests",
-		map[string]string{"targetClassId": rejectedTarget.ID, "idempotencyKey": "after-cutoff"}, parent), 409, "change_cutoff")
+		changeBody(rejectedTarget, "after-cutoff"), parent), 409, "change_cutoff")
 
 	// Move a standalone booking and replay its original create operation.
 	now = original.StartsAt.Add(-25 * time.Hour)
 	standalone := bookingBody(target, "other-pack", "take-place")
 	standalonePath := "/api/v1/students/ben/bookings/" + blocker.ID + "/change-requests"
-	w = request(t, h, "POST", standalonePath, map[string]string{"targetClassId": rejectedTarget.ID, "idempotencyKey": "move-standalone"}, other)
+	w = request(t, h, "POST", standalonePath, changeBody(rejectedTarget, "move-standalone"), other)
 	expectStatus(t, w, 201)
 	standaloneChange := decodeBody[LessonChange](t, w)
 	expectStatus(t, request(t, h, "PUT", "/api/v1/lesson-changes/"+standaloneChange.ID+"/decision", approve, coach), 200)
@@ -174,7 +188,7 @@ func TestIntegrationLessonChangeApproval(t *testing.T) {
 	if found := decodeBody[StudentBooking](t, w); found.ID != blocker.ID || found.Class.ID != rejectedTarget.ID {
 		t.Fatalf("standalone booking replay %+v", found)
 	}
-	w = request(t, h, "POST", standalonePath, map[string]string{"targetClassId": target.ID, "idempotencyKey": "reject-new-target"}, other)
+	w = request(t, h, "POST", standalonePath, changeBody(target, "reject-new-target"), other)
 	expectStatus(t, w, 201)
 	rejectPath := "/api/v1/lesson-changes/" + decodeBody[LessonChange](t, w).ID + "/decision"
 	rejected := request(t, h, "PUT", rejectPath, map[string]string{"decision": "rejected", "reason": "Coach unavailable"}, coach)
@@ -187,4 +201,61 @@ func TestIntegrationLessonChangeApproval(t *testing.T) {
 	if found := decodeBody[StudentBooking](t, w); found.Class.ID != rejectedTarget.ID {
 		t.Fatalf("rejection moved booking %+v", found)
 	}
+	// The same timestamp on every request must still give stable pages and preserve the family scope.
+	exec("UPDATE lesson_change_requests SET requested_at='2030-01-01'")
+	type page struct {
+		Items      []LessonChange `json:"items"`
+		NextCursor *string        `json:"nextCursor"`
+	}
+	const history = "/api/v1/lesson-changes"
+	listPage := func(actor authState, cursor string) page {
+		t.Helper()
+		w := request(t, h, "GET", history+"?limit=1&cursor="+url.QueryEscape(cursor), nil, actor)
+		expectStatus(t, w, 200)
+		return decodeBody[page](t, w)
+	}
+	wantIDs := []string{change.ID, standaloneChange.ID, decodeBody[LessonChange](t, rejected).ID}
+	slices.Sort(wantIDs)
+	slices.Reverse(wantIDs)
+	cursor := ""
+	for i, id := range wantIDs {
+		result := listPage(f.admin, cursor)
+		if len(result.Items) != 1 || result.Items[0].ID != id || (result.NextCursor == nil) != (i == len(wantIDs)-1) {
+			t.Fatalf("history page %d: %+v", i, result)
+		}
+		if result.NextCursor != nil {
+			cursor = *result.NextCursor
+		}
+	}
+	otherCursor := listPage(other, "").NextCursor
+	if otherCursor == nil {
+		t.Fatal("other family's history was not paginated")
+	}
+	if result := listPage(other, *otherCursor); len(result.Items) != 1 || result.Items[0].StudentID != "ben" || result.NextCursor != nil {
+		t.Fatalf("scope failed on the second page: %+v", result)
+	}
+	lie := encodeTimestampCursor(time.Date(2030, 1, 2, 0, 0, 0, 0, time.UTC), wantIDs[0])
+	if result := listPage(parent, lie); len(result.Items) != 1 || result.Items[0].ID != change.ID || result.NextCursor != nil {
+		t.Fatalf("family scope failed with an unrelated cursor: %+v", result)
+	}
+	w = request(t, h, "POST", standalonePath, changeBody(target, "new-pending"), other)
+	expectStatus(t, w, 201)
+	pending := decodeBody[LessonChange](t, w)
+	exec("UPDATE lesson_change_requests SET requested_at='2029-01-01' WHERE id=$1", pending.ID)
+	if latest := listPage(coach, ""); len(latest.Items) != 1 || latest.Items[0].ID == pending.ID {
+		t.Fatalf("expected an older pending change beneath the first history page: %+v", latest)
+	}
+	w = request(t, h, "GET", history+"?status=pending&limit=1", nil, coach)
+	expectStatus(t, w, 200)
+	if result := decodeBody[page](t, w); len(result.Items) != 1 || result.Items[0].ID != pending.ID || result.NextCursor != nil {
+		t.Fatalf("pending filter omitted or included changes: %+v", result)
+	}
+	w = request(t, h, "GET", history+"?status=pending&limit=1", nil, secondCoach)
+	expectStatus(t, w, 200)
+	if result := decodeBody[page](t, w); len(result.Items) != 0 {
+		t.Fatalf("unassigned coach saw pending changes: %+v", result)
+	}
+	expectStatus(t, request(t, h, "GET", history+"?limit=101", nil, f.admin), 422)
+	expectStatus(t, request(t, h, "GET", history+"?cursor=bad", nil, f.admin), 422)
+
 }

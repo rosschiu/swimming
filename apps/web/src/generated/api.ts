@@ -1911,6 +1911,7 @@ export interface components {
         LessonChangeList: {
             items: components["schemas"]["LessonChange"][];
             cutoffHours: number;
+            nextCursor: string | null;
         };
         LessonChangeOptions: {
             items: components["schemas"]["ClassSession"][];
@@ -1919,6 +1920,7 @@ export interface components {
         LessonChangeRequest: {
             targetClassId: string;
             idempotencyKey: string;
+            targetClassVersion: number;
         };
         LessonChangeDecision: {
             /** @enum {string} */
@@ -5191,7 +5193,13 @@ export interface operations {
     };
     listLessonChanges: {
         parameters: {
-            query?: never;
+            query?: {
+                limit?: number;
+                /** @description Opaque cursor from the prior page. */
+                cursor?: string;
+                /** @description Return pending requests only. */
+                status?: "pending";
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -5218,6 +5226,15 @@ export interface operations {
             };
             /** @description Role or CSRF validation failed */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Invalid date range */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

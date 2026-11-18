@@ -5,7 +5,7 @@ import LessonChanges, { RequestLessonChange } from './LessonChanges';
 
 const props = { csrfToken: 'csrf-value', expired: () => false, t: (en: string) => en };
 const originalClass = {
-  id: 'original', startsAt: '2027-01-05T03:00:00Z', endsAt: '2027-01-05T04:00:00Z',
+  id: 'original', version: 1, startsAt: '2027-01-05T03:00:00Z', endsAt: '2027-01-05T04:00:00Z',
   classTypeName: 'Beginner', venueName: 'Kowloon Pool', coachName: 'Coach A',
 };
 const targetClass = { ...originalClass, id: 'target', startsAt: '2027-01-06T03:00:00Z', endsAt: '2027-01-06T04:00:00Z' };
@@ -43,7 +43,7 @@ it('requires a guardian to select a replacement and safely retries the same inte
   const [path, request] = fetch.mock.calls[1];
   expect(path).toBe('/api/v1/students/student/bookings/booking/change-requests');
   expect(request).toMatchObject({ method: 'POST', headers: { 'X-CSRF-Token': 'csrf-value' } });
-  expect(JSON.parse(request.body)).toEqual({ targetClassId: 'target', idempotencyKey: expect.any(String) });
+  expect(JSON.parse(request.body)).toEqual({ targetClassId: 'target', targetClassVersion: 1, idempotencyKey: expect.any(String) });
   expect(fetch.mock.calls[2][1].body).toBe(request.body);
 });
 
@@ -79,7 +79,8 @@ it('keeps a coach request actionable after failed approval and sends an explicit
   expect(screen.getByText('Pending')).toBeInTheDocument();
   await user.type(screen.getByLabelText('Decision reason (optional)'), 'Series finished');
   await user.click(screen.getByRole('button', { name: 'Reject change' }));
-  expect(await screen.findByText('Rejected')).toBeInTheDocument();
+  expect(await screen.findByText('Lesson change rejected.')).toHaveAttribute('role', 'status');
+  expect(screen.queryByText('Amy Chan')).not.toBeInTheDocument();
   expect(fetch.mock.calls[1][1].body).toBe(JSON.stringify({ decision: 'approved' }));
   expect(fetch.mock.calls[2]).toEqual(['/api/v1/lesson-changes/change/decision', expect.objectContaining({
     method: 'PUT', headers: expect.objectContaining({ 'X-CSRF-Token': 'csrf-value' }),
@@ -99,4 +100,29 @@ it('shows read-only administrator history with attribution and can retry a list 
   expect(screen.getByText(/coach-id/)).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: 'Approve change' })).not.toBeInTheDocument();
   expect(fetch.mock.calls.map(([path]) => path)).toEqual(['/api/v1/lesson-changes', '/api/v1/lesson-changes']);
+});
+
+it('loads older history with an opaque cursor and retains loaded rows', async () => {
+  const fetch = vi.fn().mockResolvedValueOnce(response({ items: [pending], nextCursor: 'opaque+cursor', cutoffHours: 24 }))
+    .mockResolvedValueOnce(response({ items: [{ ...rejected, id: 'past' }], nextCursor: null, cutoffHours: 24 }));
+  vi.stubGlobal('fetch', fetch);
+  render(<LessonChanges {...props} role="admin"/>);
+  await userEvent.setup().click(await screen.findByRole('button', { name: 'Load more requests' }));
+  expect(await screen.findByText('Rejected')).toBeInTheDocument();
+  expect(screen.getByText('Pending')).toBeInTheDocument();
+  expect(fetch.mock.calls[1][0]).toBe('/api/v1/lesson-changes?cursor=opaque%2Bcursor');
+  expect(screen.queryByRole('button', { name: 'Load more requests' })).not.toBeInTheDocument();
+});
+
+it('starts with the coach pending queue and can switch to the complete history', async () => {
+  const fetch = vi.fn().mockResolvedValueOnce(response({ items: [], nextCursor: null, cutoffHours: 24 }))
+    .mockResolvedValueOnce(response({ items: [rejected], nextCursor: null, cutoffHours: 24 }));
+  vi.stubGlobal('fetch', fetch);
+  render(<LessonChanges {...props} role="coach"/>);
+  await screen.findByText('No lesson change requests for this view.');
+  const filter = screen.getByRole('checkbox', { name: 'Show pending requests only' });
+  expect(filter).toBeChecked();
+  await userEvent.setup().click(filter);
+  expect(await screen.findByText('Rejected')).toBeInTheDocument();
+  expect(fetch.mock.calls.map(([path]) => path)).toEqual(['/api/v1/lesson-changes?status=pending', '/api/v1/lesson-changes']);
 });

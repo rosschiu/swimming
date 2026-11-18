@@ -21,3 +21,4 @@ CREATE TABLE lesson_change_requests (
 
 CREATE UNIQUE INDEX lesson_change_one_pending ON lesson_change_requests(booking_id) WHERE status='pending';
 CREATE INDEX lesson_change_original_class ON lesson_change_requests(original_class_id);
+CREATE INDEX lesson_change_history ON lesson_change_requests(requested_at DESC, id DESC);

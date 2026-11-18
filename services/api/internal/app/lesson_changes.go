@@ -50,6 +50,15 @@ func (a *API) listLessonChanges(w http.ResponseWriter, r *http.Request, s Sessio
 		fail(w, 403, "forbidden", "Guardian, coach or administrator access is required")
 		return
 	}
+	limit, cursor, ok := timestampPaging(w, r)
+	if !ok {
+		return
+	}
+	status := r.URL.Query().Get("status")
+	if status != "" && status != "pending" {
+		fail(w, 422, "validation_error", "Status must be pending")
+		return
+	}
 	ctx := r.Context()
 	tx, ok := a.beginBookingRead(w, r, s)
 	if !ok {
@@ -62,9 +71,10 @@ func (a *API) listLessonChanges(w http.ResponseWriter, r *http.Request, s Sessio
 		return
 	}
 	rows, err := tx.Query(ctx, lessonChangeSelect+`
-		WHERE $1='admin' OR ($1='coach' AND original.coach_id=$2)
-		OR ($1='parent' AND EXISTS (SELECT 1 FROM student_access sa WHERE sa.student_id=b.student_id AND sa.user_id=$2 AND sa.kind='guardian'))
-		ORDER BY r.requested_at DESC,r.id`, s.User.Role, s.User.ID)
+		WHERE ($1='admin' OR ($1='coach' AND original.coach_id=$2)
+		OR ($1='parent' AND EXISTS (SELECT 1 FROM student_access sa WHERE sa.student_id=b.student_id AND sa.user_id=$2 AND sa.kind='guardian')))
+		AND ($3='' OR (r.requested_at,r.id)<($4,$3)) AND ($6='' OR r.status=$6)
+		ORDER BY r.requested_at DESC,r.id DESC LIMIT $5`, s.User.Role, s.User.ID, cursor.ID, cursor.CreatedAt, limit+1, status)
 	if err != nil {
 		internal(w, err)
 		return
@@ -74,7 +84,14 @@ func (a *API) listLessonChanges(w http.ResponseWriter, r *http.Request, s Sessio
 		internal(w, err)
 		return
 	}
-	financeCommit(w, r, tx, 200, map[string]any{"items": items, "cutoffHours": cutoff})
+	var next *string
+	if len(items) > limit {
+		items = items[:limit]
+		last := items[limit-1]
+		value := encodeTimestampCursor(last.RequestedAt, last.ID)
+		next = &value
+	}
+	financeCommit(w, r, tx, 200, map[string]any{"items": items, "cutoffHours": cutoff, "nextCursor": next})
 }
 
 type changeBooking struct {
@@ -251,14 +268,15 @@ func (a *API) requestLessonChange(w http.ResponseWriter, r *http.Request, s Sess
 		return
 	}
 	var in struct {
-		TargetClassID  string `json:"targetClassId"`
-		IdempotencyKey string `json:"idempotencyKey"`
+		TargetClassID      string `json:"targetClassId"`
+		TargetClassVersion int    `json:"targetClassVersion"`
+		IdempotencyKey     string `json:"idempotencyKey"`
 	}
 	if !decode(w, r, &in) {
 		return
 	}
-	if !validFinanceKey(in.IdempotencyKey) || !validFinanceKey(in.TargetClassID) {
-		fail(w, 422, "validation_error", "Provide a target class and a request key")
+	if !validFinanceKey(in.IdempotencyKey) || !validFinanceKey(in.TargetClassID) || in.TargetClassVersion < 1 {
+		fail(w, 422, "validation_error", "Provide a target class, its version and a request key")
 		return
 	}
 	ctx := r.Context()
@@ -270,7 +288,7 @@ func (a *API) requestLessonChange(w http.ResponseWriter, r *http.Request, s Sess
 	studentID, bookingID := r.PathValue("id"), r.PathValue("bookingId")
 	x, err := scanLessonChange(tx.QueryRow(ctx, lessonChangeSelect+" WHERE r.requested_by=$1 AND r.idempotency_key=$2", s.User.ID, in.IdempotencyKey))
 	if err == nil {
-		if x.StudentID != studentID || x.BookingID != bookingID || x.TargetClass.ID != in.TargetClassID {
+		if x.StudentID != studentID || x.BookingID != bookingID || x.TargetClass.ID != in.TargetClassID || x.TargetClass.Version != in.TargetClassVersion {
 			fail(w, 409, "conflict", "Request key already used with different lesson change details")
 			return
 		}
@@ -316,6 +334,10 @@ func (a *API) requestLessonChange(w http.ResponseWriter, r *http.Request, s Sess
 	}
 	if err != nil {
 		internal(w, err)
+		return
+	}
+	if target.Version != in.TargetClassVersion {
+		fail(w, 409, "target_changed", "Refresh the options to review the current replacement lesson")
 		return
 	}
 	expiry, err := lockBookingPackage(ctx, tx, b.PackageID, b.StudentID)
@@ -475,6 +497,13 @@ func (a *API) approveLessonChange(ctx context.Context, tx pgx.Tx, w http.Respons
 	target, err := loadChangeClass(ctx, tx, x.TargetClass.ID)
 	if err != nil {
 		internal(w, err)
+		return time.Time{}, false
+	}
+	reviewed := x.TargetClass
+	if !target.StartsAt.Equal(reviewed.StartsAt) || !target.EndsAt.Equal(reviewed.EndsAt) ||
+		target.VenueID != reviewed.VenueID || target.CoachID != reviewed.CoachID ||
+		target.ClassTypeID != reviewed.ClassTypeID || target.Level != reviewed.Level {
+		fail(w, 409, "target_changed", "The replacement changed after the request. The guardian must review it again")
 		return time.Time{}, false
 	}
 	expiry, err := lockBookingPackage(ctx, tx, b.PackageID, b.StudentID)

@@ -180,18 +180,18 @@ func (a *API) notificationAccount(w http.ResponseWriter, r *http.Request, s Sess
 	return true
 }
 
-type notificationCursor struct {
+type timestampCursor struct {
 	CreatedAt time.Time `json:"at"`
 	ID        string    `json:"id"`
 }
 
-func encodeNotificationCursor(at time.Time, id string) string {
-	b, _ := json.Marshal(notificationCursor{at, id})
+func encodeTimestampCursor(at time.Time, id string) string {
+	b, _ := json.Marshal(timestampCursor{at, id})
 	return base64.RawURLEncoding.EncodeToString(b)
 }
-func notificationPaging(w http.ResponseWriter, r *http.Request) (int, notificationCursor, bool) {
+func timestampPaging(w http.ResponseWriter, r *http.Request) (int, timestampCursor, bool) {
 	limit := 25
-	var c notificationCursor
+	var c timestampCursor
 	if v := r.URL.Query().Get("limit"); v != "" {
 		n, err := strconv.Atoi(v)
 		if err != nil || n < 1 || n > 100 {
@@ -203,14 +203,14 @@ func notificationPaging(w http.ResponseWriter, r *http.Request) (int, notificati
 	if v := r.URL.Query().Get("cursor"); v != "" {
 		b, err := base64.RawURLEncoding.DecodeString(v)
 		if len(v) > 512 || err != nil || json.Unmarshal(b, &c) != nil || c.CreatedAt.IsZero() || len(c.ID) != 64 || strings.Trim(c.ID, "0123456789abcdef") != "" {
-			fail(w, 422, "validation_error", "Invalid notification cursor")
+			fail(w, 422, "validation_error", "Invalid page cursor")
 			return 0, c, false
 		}
 	}
 	return limit, c, true
 }
 func (a *API) listNotifications(w http.ResponseWriter, r *http.Request, s Session) {
-	limit, c, ok := notificationPaging(w, r)
+	limit, c, ok := timestampPaging(w, r)
 	if !ok {
 		return
 	}
@@ -250,7 +250,7 @@ func (a *API) listNotifications(w http.ResponseWriter, r *http.Request, s Sessio
 	var next *string
 	if len(items) > limit {
 		items = items[:limit]
-		v := encodeNotificationCursor(items[limit-1].CreatedAt, items[limit-1].ID)
+		v := encodeTimestampCursor(items[limit-1].CreatedAt, items[limit-1].ID)
 		next = &v
 	}
 	respond(w, 200, map[string]any{"items": items, "unreadCount": unread, "nextCursor": next})
@@ -351,7 +351,7 @@ func validDeliveryStatus(status string) bool {
 	return false
 }
 func (a *API) listNotificationDeliveries(w http.ResponseWriter, r *http.Request, s Session) {
-	limit, c, ok := notificationPaging(w, r)
+	limit, c, ok := timestampPaging(w, r)
 	if !ok {
 		return
 	}
@@ -391,7 +391,7 @@ func (a *API) listNotificationDeliveries(w http.ResponseWriter, r *http.Request,
 	var next *string
 	if len(items) > limit {
 		items = items[:limit]
-		v := encodeNotificationCursor(items[limit-1].CreatedAt, items[limit-1].ID)
+		v := encodeTimestampCursor(items[limit-1].CreatedAt, items[limit-1].ID)
 		next = &v
 	}
 	respond(w, 200, map[string]any{"items": items, "nextCursor": next})
