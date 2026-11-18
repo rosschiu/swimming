@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { APIError, type Student } from './api';
 import type { components } from './generated/api';
-import { hkDate, hkTime, rangeEnd, type ClassSession } from './scheduling';
+import { classLabel, hkDate, rangeEnd, type ClassSession } from './scheduling';
 import { isAborted, useProtectedRequest, type ProtectedProps } from './useProtectedRequest';
 
 type CreditPackage = components['schemas']['CreditHistoryPackage'];
@@ -54,12 +54,6 @@ export default function BookingForm({ csrfToken, expired, t, student, admin, onB
   const lesson = options?.classes.find(item => item.id === classId);
   const creditPackage = options?.packages.find(item => item.id === packageId);
   const override = admin && !!lesson && lesson.level !== student.level;
-  function label(value: ClassSession) {
-    const day = hkDate(new Date(value.startsAt));
-    const endDay = hkDate(new Date(value.endsAt));
-    const end = day === endDay ? hkTime(value.endsAt) : `${endDay} ${hkTime(value.endsAt)}`;
-    return `${day} ${hkTime(value.startsAt)}–${end} · ${value.classTypeName} · ${value.venueName} · ${value.coachName}`;
-  }
   const packageLabel = (value: CreditPackage) => `${value.id} · ${t('Available', '可用堂數')} ${value.available} · ${value.expiresOn ? `${t('Expires', '到期日')} ${value.expiresOn}` : t('No expiry', '無到期日')}`;
 
   async function submit() {
@@ -113,7 +107,7 @@ export default function BookingForm({ csrfToken, expired, t, student, admin, onB
       {failure && <p role="alert" className="error">{Object.hasOwn(messages, failure) ? messages[failure] : t('Could not book the lesson. Review the refreshed options and try again.', '未能預約課堂。請檢查最新選項後再試。')}</p>}
       {input && lesson && creditPackage ? <div>
         <h4>{t('Review booking', '檢查預約')}</h4>
-        <p>{student.name} · {label(lesson)}</p>
+        <p>{student.name} · {classLabel(lesson)}</p>
         <p>{packageLabel(creditPackage)}</p>
         <p>{t('Confirm to reserve one place and one credit.', '確認後將預留一個名額及一堂套票堂數。')}</p>
         {input.overrideReason && <p>{t('Level override reason', '程度例外原因')} · {input.overrideReason}</p>}
@@ -143,7 +137,7 @@ export default function BookingForm({ csrfToken, expired, t, student, admin, onB
           <label htmlFor={`${id}-class`}>{t('Class to book', '預約課堂')}</label>
           <select id={`${id}-class`} required value={classId} onChange={event => { setClassId(event.target.value); setReason(''); }}>
             <option value="">{t('Choose a class', '選擇課堂')}</option>
-            {options.classes.map(value => <option key={value.id} value={value.id}>{label(value)} · {value.level}</option>)}
+            {options.classes.map(value => <option key={value.id} value={value.id}>{classLabel(value)} · {value.level}</option>)}
           </select>
           {!options.classes.length && <p role="status">{t('No eligible classes on these dates.', '這段日期內沒有符合預約條件的課堂。')}</p>}
           <label htmlFor={`${id}-package`}>{t('Credit package', '堂數套票')}</label>

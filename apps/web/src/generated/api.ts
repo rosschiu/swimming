@@ -116,6 +116,23 @@ export interface paths {
         patch: operations["updateStudent"];
         trace?: never;
     };
+    "/api/v1/students/{id}/enrolments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Administrators and current guardians may reserve all selected future lessons from one weekly class series with one credit per lesson from the selected paid package. A failed reservation rolls back the entire enrolment. Only administrators can override level mismatches with a reason. Identical retries return the existing enrolment after checking current access. */
+        post: operations["createEnrolment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/students/{id}/bookings": {
         parameters: {
             query?: never;
@@ -1133,6 +1150,26 @@ export interface components {
             idempotencyKey: string;
             overrideReason?: string;
         };
+        EnrolmentInput: {
+            seriesId: string;
+            /** @description Select distinct class IDs. Input order does not affect idempotent replay. */
+            sessions: {
+                classId: string;
+                classVersion: number;
+                classTypeVersion: number;
+            }[];
+            creditPackageId: string;
+            idempotencyKey: string;
+            overrideReason?: string;
+        };
+        Enrolment: {
+            id: string;
+            studentId: string;
+            seriesId: string;
+            bookings: components["schemas"]["StudentBooking"][];
+            /** Format: date-time */
+            createdAt: string;
+        };
         StudentBooking: {
             id: string;
             studentId: string;
@@ -1892,6 +1929,52 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Student"];
+                };
+            };
+            /** @description Request failed */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    createEnrolment: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-Token": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EnrolmentInput"];
+            };
+        };
+        responses: {
+            /** @description Idempotent replay */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Enrolment"];
+                };
+            };
+            /** @description Enrolment created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Enrolment"];
                 };
             };
             /** @description Request failed */

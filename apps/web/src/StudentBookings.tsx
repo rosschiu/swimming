@@ -1,5 +1,6 @@
 import { useEffect, useId, useState } from 'react';
 import BookingForm from './BookingForm';
+import EnrolmentForm from './EnrolmentForm';
 import { APIError, type Student } from './api';
 import type { components } from './generated/api';
 import { hkDate, hkTime, rangeEnd } from './scheduling';
@@ -16,22 +17,29 @@ export default function StudentBookings({ student, expired, t, csrfToken, role, 
   const [range, setRange] = useState(() => ({ from, to, revision: 0 }));
   const [invalid, setInvalid] = useState(false);
 
+  function refreshBookings(startsAt: string[]) {
+    const days = startsAt.map(time => hkDate(new Date(time))).sort();
+    const first = days[0];
+    const last = days[days.length - 1];
+    if (first < range.from || last > range.to) {
+      const end = last > rangeEnd(first) ? last : rangeEnd(first);
+      setFrom(first);
+      setTo(end);
+      setRange(previous => ({ from: first, to: end, revision: previous.revision + 1 }));
+    } else {
+      setRange(previous => ({ ...previous, revision: previous.revision + 1 }));
+    }
+    setInvalid(false);
+    onBooked();
+  }
+
   return <section className="section-gap" aria-labelledby={`${id}-title`}>
     <h2 id={`${id}-title`}>{t('Booked lessons', '已預約課堂')}</h2>
     <p className="muted">{t('All dates and times are Hong Kong time.', '所有日期及時間均為香港時間。')}</p>
-    {role !== 'student' && <BookingForm student={student} admin={role === 'admin'} csrfToken={csrfToken} expired={expired} t={t} onBooked={startsAt => {
-      const day = hkDate(new Date(startsAt));
-      if (day < range.from || day > range.to) {
-        const end = rangeEnd(day);
-        setFrom(day);
-        setTo(end);
-        setRange(previous => ({ from: day, to: end, revision: previous.revision + 1 }));
-      } else {
-        setRange(previous => ({ ...previous, revision: previous.revision + 1 }));
-      }
-      setInvalid(false);
-      onBooked();
-    }}/>}
+    {role !== 'student' && <>
+      <BookingForm student={student} admin={role === 'admin'} csrfToken={csrfToken} expired={expired} t={t} onBooked={startsAt => refreshBookings([startsAt])}/>
+      <EnrolmentForm student={student} admin={role === 'admin'} csrfToken={csrfToken} expired={expired} t={t} onBooked={refreshBookings}/>
+    </>}
     <form className="schedule-filters" onSubmit={event => {
       event.preventDefault();
       const valid = from && to && to >= from && Date.parse(to) - Date.parse(from) <= 92 * 86400000;
