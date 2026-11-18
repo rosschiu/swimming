@@ -47,6 +47,7 @@ func (a *API) lessonChangeRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/students/{id}/bookings/{bookingId}/change-options", a.auth(a.lessonChangeOptions))
 	mux.HandleFunc("POST /api/v1/students/{id}/bookings/{bookingId}/change-requests", a.auth(a.requestLessonChange))
 	mux.HandleFunc("PUT /api/v1/lesson-changes/{id}/decision", a.auth(a.decideLessonChange))
+	mux.HandleFunc("POST /api/v1/students/{id}/lesson-changes/{changeId}/withdraw", a.auth(a.withdrawLessonChange))
 }
 
 func (a *API) listLessonChanges(w http.ResponseWriter, r *http.Request, s Session) {
@@ -432,6 +433,49 @@ func (a *API) respondLessonChange(w http.ResponseWriter, r *http.Request, tx pgx
 		return
 	}
 	financeCommit(w, r, tx, status, x)
+}
+
+// withdrawLessonChange lets a linked guardian close a pending request; the original booking was never moved.
+func (a *API) withdrawLessonChange(w http.ResponseWriter, r *http.Request, s Session) {
+	if s.User.Role != "parent" {
+		fail(w, 403, "forbidden", "Guardian access is required")
+		return
+	}
+	ctx := r.Context()
+	tx, _, ok := a.beginStudentBooking(w, r, s)
+	if !ok {
+		return
+	}
+	defer tx.Rollback(ctx)
+	id := r.PathValue("changeId")
+	x, err := scanLessonChange(tx.QueryRow(ctx, lessonChangeSelect+" WHERE r.id=$1 AND b.student_id=$2 FOR UPDATE OF r", id, r.PathValue("id")))
+	if errors.Is(err, pgx.ErrNoRows) {
+		fail(w, 404, "not_found", "Lesson change request not found")
+		return
+	}
+	if err != nil {
+		internal(w, err)
+		return
+	}
+	if x.Status == "withdrawn" {
+		financeCommit(w, r, tx, 200, x)
+		return
+	}
+	if x.Status != "pending" {
+		fail(w, 409, "change_conflict", "The coach has already decided this lesson change")
+		return
+	}
+	now := a.now().UTC().Truncate(time.Microsecond)
+	_, err = tx.Exec(ctx, "UPDATE lesson_change_requests SET status='withdrawn',decided_by=$2,decided_at=$3 WHERE id=$1", id, s.User.ID, now)
+	if err == nil {
+		err = audit(ctx, tx, s.User.ID, "lesson_change.withdrawn", id, map[string]any{"bookingId": x.BookingID, "studentId": x.StudentID,
+			"originalClassId": x.OriginalClass.ID, "targetClassId": x.TargetClass.ID})
+	}
+	if err != nil {
+		internal(w, err)
+		return
+	}
+	a.respondLessonChange(w, r, tx, id, 200)
 }
 
 func (a *API) decideLessonChange(w http.ResponseWriter, r *http.Request, s Session) {

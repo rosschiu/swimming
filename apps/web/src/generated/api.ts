@@ -1206,6 +1206,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/students/{id}/lesson-changes/{changeId}/withdraw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Withdraw a pending lesson change request
+         * @description Linked guardian only. Closes a pending request as withdrawn with the guardian recorded as decidedBy; the original booking and credit are unchanged. Replaying a withdrawal returns the withdrawn request; a request the coach has already decided returns 409 change_conflict. A family can submit a new request afterwards.
+         */
+        post: operations["withdrawLessonChange"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/lesson-changes/{id}/decision": {
         parameters: {
             query?: never;
@@ -2062,7 +2082,7 @@ export interface components {
             originalClass: components["schemas"]["ClassSession"];
             targetClass: components["schemas"]["ClassSession"];
             /** @enum {string} */
-            status: "pending" | "approved" | "rejected";
+            status: "pending" | "approved" | "rejected" | "withdrawn";
             /** Format: date-time */
             requestedAt: string;
             requestedBy: string;
@@ -5746,6 +5766,40 @@ export interface operations {
             };
             /** @description Record not found in current scope */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    withdrawLessonChange: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-Token": string;
+            };
+            path: {
+                id: string;
+                changeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Withdrawn request */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LessonChange"];
+                };
+            };
+            /** @description Request failed */
+            default: {
                 headers: {
                     [name: string]: unknown;
                 };

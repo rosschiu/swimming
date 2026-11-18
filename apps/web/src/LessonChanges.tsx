@@ -22,6 +22,7 @@ function errorMessage(error: unknown, t: Translate, fallback: string, deciding =
         : t('The replacement lesson changed. Search again to review the latest details.', '替換課堂已更改。請重新搜尋以查看最新資料。');
       case 'change_cutoff': return t('The deadline to request a change has passed.', '已過調課申請期限。');
       case 'change_pending': return t('This booking already has a pending change request.', '此預約已有待處理的調課申請。');
+      case 'change_conflict': if (!deciding) return t('The coach has already decided this request. Refresh to see the outcome.', '教練已處理此申請。請重新載入查看結果。');
     }
     return t('This lesson or request has changed. Refresh to check its latest status.', '課堂或申請已更改。請重新載入以查看最新狀態。');
   }
@@ -32,7 +33,7 @@ function errorMessage(error: unknown, t: Translate, fallback: string, deciding =
 }
 
 function statusLabel(status: LessonChange['status'], t: Translate) {
-  return { pending: t('Pending', '待處理'), approved: t('Approved', '已批准'), rejected: t('Rejected', '已拒絕') }[status];
+  return { pending: t('Pending', '待處理'), approved: t('Approved', '已批准'), rejected: t('Rejected', '已拒絕'), withdrawn: t('Withdrawn', '已撤回') }[status];
 }
 
 function Timestamp({ value }: { value: string }) {
@@ -45,7 +46,7 @@ function ChangeSummary({ item, role, t }: { item: LessonChange; role?: string; t
     <p>{t('Original lesson', '原定課堂')} · {classLabel(item.originalClass)}</p>
     <p>{t('Requested lesson', '申請的課堂')} · {classLabel(item.targetClass)}</p>
     <p>{t('Requested at', '申請時間')} <Timestamp value={item.requestedAt}/>{role === 'admin' && <> · {t('Requester', '申請人')} {item.requestedBy}</>}</p>
-    {item.decidedAt && <p>{t('Decided at', '處理時間')} <Timestamp value={item.decidedAt}/>{role === 'admin' && item.decidedBy && <> · {t('Decided by', '處理人')} {item.decidedBy}</>}</p>}
+    {item.decidedAt && <p>{item.status === 'withdrawn' ? t('Withdrawn at', '撤回時間') : t('Decided at', '處理時間')} <Timestamp value={item.decidedAt}/>{role === 'admin' && item.decidedBy && <> · {t('Decided by', '處理人')} {item.decidedBy}</>}</p>}
     {item.decisionReason && <p>{t('Decision reason', '處理原因')} · {item.decisionReason}</p>}
   </>;
 }
@@ -94,7 +95,7 @@ export default function LessonChanges(props: ProtectedProps & {
   const [failed, setFailed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [pendingOnly, setPendingOnly] = useState(props.initialPending || role === 'coach');
-  const [decision, setDecision] = useState<Decision['decision']>();
+  const [decision, setDecision] = useState<LessonChange['status']>();
 
   const load = useCallback(async (cursor?: string) => {
     setLoading(true);
@@ -135,7 +136,7 @@ export default function LessonChanges(props: ProtectedProps & {
     {role !== 'coach' && pendingOnly && <a className="text-button" href={routePath(changeHistory)} onClick={event => props.follow(event, changeHistory)}>{t('View all lesson changes', '查看所有調課申請')}</a>}
     {role === 'coach' && <label className="checkbox-label"><input type="checkbox" checked={pendingOnly} disabled={loading} onChange={event => setPendingOnly(event.target.checked)}/> {t('Show pending requests only', '只顯示待處理申請')}</label>}
     <button type="button" className="outline" disabled={loading} onClick={() => void load()}>{t('Refresh requests', '重新載入申請')}</button>
-    {decision && <p role="status">{decision === 'approved' ? t('Lesson change approved.', '已批准調課申請。') : t('Lesson change rejected.', '已拒絕調課申請。')}</p>}
+    {decision && <p role="status">{decision === 'approved' ? t('Lesson change approved.', '已批准調課申請。') : decision === 'withdrawn' ? t('Request withdrawn. The original lesson stays booked.', '已撤回申請，原定課堂維持不變。') : t('Lesson change rejected.', '已拒絕調課申請。')}</p>}
     {failed && <p role="alert">{t('Could not load lesson changes.', '未能載入調課申請。')}</p>}
     {loading && <p role="status">{t('Loading lesson changes…', '正在載入調課申請…')}</p>}
     {result && (result.items.length === 0 ? <p role="status">{pendingOnly ? t('No pending lesson change requests.', '沒有待處理的調課申請。') : t('No lesson change requests for this view.', '此檢視沒有調課申請。')}</p>
@@ -143,10 +144,38 @@ export default function LessonChanges(props: ProtectedProps & {
         <div>
           <ChangeSummary item={item} role={role} t={t}/>
           {role === 'coach' && item.status === 'pending' && <CoachDecision {...props} changeId={item.id} onDecision={updateDecision}/>}
+          {role === 'parent' && item.status === 'pending' && <WithdrawRequest {...props} item={item} onWithdrawn={updateDecision}/>}
         </div>
       </li>)}</ul>)}
     {cursor && <button type="button" className="outline" disabled={loading} onClick={() => void load(cursor)}>{t('Load more requests', '載入更多申請')}</button>}
   </section>;
+}
+
+function WithdrawRequest({ item, onWithdrawn, csrfToken, expired, t }: ProtectedProps & { item: LessonChange; onWithdrawn: (item: LessonChange) => void }) {
+  const api = useProtectedRequest(expired);
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  async function withdraw() {
+    setBusy(true);
+    setError('');
+    try {
+      onWithdrawn(await api<LessonChange>(`/students/${encodeURIComponent(item.studentId)}/lesson-changes/${encodeURIComponent(item.id)}/withdraw`, {
+        method: 'POST', headers: { 'X-CSRF-Token': csrfToken },
+      }));
+    } catch (cause) {
+      if (!isAborted(cause)) setError(errorMessage(cause, t, t('Could not withdraw the request. Try again.', '未能撤回申請。請再試。')));
+    } finally { setBusy(false); }
+  }
+  if (!confirming) return <button type="button" className="outline" onClick={() => setConfirming(true)}>{t('Withdraw request', '撤回申請')}</button>;
+  return <div>
+    <p>{t('Withdraw this request? The original lesson stays booked and no credit changes.', '要撤回此申請嗎？原定課堂維持不變，堂數亦不受影響。')}</p>
+    <div className="form-actions">
+      <button type="button" disabled={busy} onClick={() => void withdraw()}>{busy ? t('Withdrawing…', '正在撤回…') : t('Confirm withdrawal', '確認撤回')}</button>
+      <button type="button" className="outline" disabled={busy} onClick={() => { setConfirming(false); setError(''); }}>{t('Keep request', '保留申請')}</button>
+    </div>
+    {error && <p role="alert">{error}</p>}
+  </div>;
 }
 
 function CoachDecision({ changeId, onDecision, csrfToken, expired, t }: ProtectedProps & { changeId: string; onDecision: (item: LessonChange) => void }) {
