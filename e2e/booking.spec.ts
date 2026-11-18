@@ -177,7 +177,7 @@ test('paid credits reserve a guardian lesson and an administrator override, visi
     const exact = await page.request.get('/api/v1' + permanentPath);
     expect(exact.status()).toBe(200);
     const current = await exact.json();
-    expectContract('StudentBooking', current);
+    expectContract('StudentBookingDetail', current);
     expect(current).toMatchObject({ id: firstBooking, class: { id: replacement.id } });
     expect((await page.request.get('/api/v1/students/' + sibling.id + '/bookings/' + firstBooking)).status()).toBe(404);
   }
