@@ -67,6 +67,7 @@ func New(cfg Config, db *pgxpool.Pool) http.Handler {
 		respond(w, 200, map[string]string{"status": "ok"})
 	})
 	a.identityRoutes(mux)
+	mux.HandleFunc("GET /api/v1/admin/action-queue", a.auth(a.getAdminActionQueue))
 	a.financeRoutes(mux)
 	a.creditRecoveryRoutes(mux)
 	a.milestoneRoutes(mux)
