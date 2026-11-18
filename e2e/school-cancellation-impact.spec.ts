@@ -69,6 +69,7 @@ test('administrator reviews both ends of a pending move without changing either 
       const counts = index === 0 ? [1, 1, 0, 0, 1] : [0, 0, 0, 1, 0];
       expect(impact.counts).toMatchObject(Object.fromEntries(['bookedSwimmers', 'unmarkedBookings', 'recordedAttendance', 'pendingInbound', 'pendingOutbound'].map((key, i) => [key, counts[i]])));
       const panel = page.getByRole('region', { name: 'Cancellation impact' });
+      await panel.getByLabel('Impact details').selectOption(index === 0 ? 'outbound' : 'inbound');
       await expect(panel).toContainText('Amy');
       await expect(panel.getByRole('button', { name: /Confirm cancellation|Cancel class/i })).toHaveCount(0);
     }
@@ -82,9 +83,19 @@ test('administrator reviews both ends of a pending move without changing either 
     }
     const coachSession = await (await parent.request.get('/api/v1/auth/me')).json();
     const decision = await parent.request.put('/api/v1/lesson-changes/' + change.id + '/decision', {
-      headers: { Origin: 'http://localhost:18573', 'X-CSRF-Token': coachSession.csrfToken }, data: { decision: 'rejected', reason: 'Close synthetic test request' },
+      headers: { Origin: 'http://localhost:18573', 'X-CSRF-Token': coachSession.csrfToken }, data: { decision: 'approved' },
     });
     expect(decision.status()).toBe(200);
+    for (const [index, id] of [original.id, target.id].entries()) {
+      const read = page.waitForResponse(response => new URL(response.url()).pathname === readPath(id));
+      await buttons.nth(index).click();
+      const impact = await (await read).json();
+      expect(impact.counts).toMatchObject({ bookedSwimmers: index, unmarkedBookings: index, recordedAttendance: 0, pendingInbound: 0, pendingOutbound: 0 });
+    }
+    const exact = await page.request.get('/api/v1/students/amy/bookings/' + booking.id);
+    expect(await exact.json()).toMatchObject({ id: booking.id, class: { id: target.id } });
+    const after = await (await page.request.get('/api/v1/students/amy/credits')).json();
+    expect(after.items.find((item: { id: string }) => item.id === pack.id)).toMatchObject({ available: 1, reserved: 1, consumed: 0 });
   } finally {
     await parent.close();
   }
