@@ -5,10 +5,10 @@ import { isAborted, useProtectedRequest, type ProtectedProps } from './useProtec
 
 type Delivery = components['schemas']['NotificationDelivery'];
 const statuses = ['pending', 'leased', 'sent', 'retry', 'failed', 'suppressed'] as const;
-export default function NotificationDeliveries({ csrfToken, expired, t }: ProtectedProps) {
+export default function NotificationDeliveries({ csrfToken, expired, t, initialStatus = '' }: ProtectedProps & { initialStatus?: 'failed' | '' }) {
   const api = useProtectedRequest(expired);
   const [items, setItems] = useState<Delivery[]>([]);
-  const [status, setStatus] = useState('');
+  const [status, setStatus] = useState<string>(initialStatus);
   const [cursor, setCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -33,7 +33,7 @@ export default function NotificationDeliveries({ csrfToken, expired, t }: Protec
     } catch (e) { if (!isAborted(e)) setError(t('Could not load deliveries. Previously loaded statuses may be out of date. Please retry.', '未能載入寄送紀錄。先前載入的狀態可能已過時，請重試。')); }
     finally { setLoading(false); }
   }
-  useEffect(() => { void load(''); }, [api]);
+  useEffect(() => { void load(initialStatus); }, [api, initialStatus]);
   async function retry(event: FormEvent) {
     event.preventDefault(); if (!selected || stale || !reason.trim()) return;
     if ([...reason.trim()].length > 500) { setError(t('Enter a retry reason of 1–500 characters.', '請輸入 1 至 500 字的重試原因。')); return; }

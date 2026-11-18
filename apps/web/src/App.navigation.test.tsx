@@ -16,7 +16,8 @@ function api(role: Role, override?: Override) {
   if (path.endsWith('/auth/me') || path.endsWith('/auth/login')) return response(session(role));
   if (path.endsWith('/auth/logout')) return response(null, 204);
   if (path.endsWith('/credit-history')) return response({ items: [], recoveries: [] });
-  if (path.endsWith('/students/amy')) return response(amy);
+  if (path.endsWith('/admin/action-queue')) return response({ purchasesAwaitingExpiry: 0, failedEmailDeliveries: 0 });
+ if (path.endsWith('/students/amy')) return response(amy);
   if (path.endsWith('/students/ben')) return response(ben);
   if (path.endsWith('/students')) return response({ items: [amy, ben] });
   if (path.endsWith('/settings/credits')) return response({ policy: {expiryEnabled:true,carryForwardEnabled:true,earlyCancellationRetainsCredit:true,lateCancellationRetainsCredit:true,absenceRetainsCredit:true,illnessRetainsCredit:true}, version:1 });
@@ -133,4 +134,71 @@ it('cancel after a version conflict refetches the scoped profile without changin
  let changed=false;at('/students/amy');api('admin',(p,o)=>{if(p.endsWith('/students/amy')&&o?.method==='PATCH'){changed=true;return response({},409);}if(p.endsWith('/students/amy')&&changed)return response({...amy,level:'Advanced',version:2});return undefined;});render(<App/>);const user=userEvent.setup();
  await user.click(await screen.findByRole('button',{name:'Edit student'}));await user.click(screen.getByRole('button',{name:'Save student'}));await screen.findByRole('alert');await user.click(screen.getByRole('button',{name:'Cancel'}));
  await screen.findByText('Advanced');expect(window.location.pathname).toBe('/students/amy');expect(screen.queryByRole('button',{name:'Add student'})).not.toBeInTheDocument();
+});
+
+it('opens both current work queues from the administrator landing summary', async () => {
+  at('/');
+  const delivery = { id: 'd1', recipientName: 'Amy’s guardian', status: 'failed', version: 2, createdAt: '2030-01-01T00:00:00Z' };
+  const mock = api('admin', path => {
+    if (path.endsWith('/admin/action-queue')) return response({ purchasesAwaitingExpiry: 7, failedEmailDeliveries: 3 });
+    if (path.endsWith('status=failed')) return response({ items: [delivery], nextCursor: null });
+  });
+  render(<App />);
+  const user = userEvent.setup();
+  const purchase = await screen.findByRole('link', { name: 'Purchases awaiting expiry' });
+  expect(purchase.closest('li')).toHaveTextContent('7');
+  await user.click(purchase);
+  expect(await screen.findByLabelText('Purchase queue')).toHaveValue('awaiting_expiry');
+  expect(mock).toHaveBeenCalledWith('/api/v1/purchases?status=awaiting_expiry', expect.anything());
+
+  pop('/');
+  const failure = await screen.findByRole('link', { name: 'Failed email deliveries' });
+  expect(failure.closest('li')).toHaveTextContent('3');
+  expect(failure).toHaveAttribute('href', '/notification-deliveries?status=failed');
+  await user.click(failure);
+  expect(screen.getByLabelText('Delivery status')).toHaveValue('failed');
+  await user.click(await screen.findByRole('button', { name: 'Review retry' }));
+  expect(screen.getByLabelText('Reason for retry')).toBeVisible();
+  expect(mock).toHaveBeenCalledWith('/api/v1/notification-deliveries?limit=25&status=failed', expect.anything());
+  await user.click(screen.getByRole('link', { name: 'Notification deliveries' }));
+  expect(screen.getByLabelText('Delivery status')).toHaveValue('');
+  expect(window.location.search).toBe('');
+});
+
+it('restores the failed delivery filter directly and through browser history', async () => {
+  at('/notification-deliveries?status=failed');
+  const mock = api('admin');
+  render(<App />);
+  await screen.findByRole('heading', { name: 'Notification deliveries' });
+  expect(screen.getByLabelText('Delivery status')).toHaveValue('failed');
+  expect(mock).toHaveBeenCalledWith('/api/v1/notification-deliveries?limit=25&status=failed', expect.anything());
+  pop('/notification-deliveries');
+  expect(screen.getByLabelText('Delivery status')).toHaveValue('');
+  pop('/notification-deliveries?status=failed');
+  expect(screen.getByLabelText('Delivery status')).toHaveValue('failed');
+});
+
+it('retries a failed administrator summary and shows a translated empty queue', async () => {
+  const failed = deferred();
+  let attempts = 0;
+  api('admin', path => path.endsWith('/admin/action-queue') ? ++attempts === 1 ? failed.promise : response({ purchasesAwaitingExpiry: 0, failedEmailDeliveries: 0 }) : undefined);
+  window.localStorage.setItem('language', 'zh');
+  render(<App />);
+  expect(await screen.findByText('正在載入待辦事項…')).toHaveAttribute('role', 'status');
+  await act(async () => failed.resolve(response({}, 500)));
+  expect(screen.getByText('未能載入待辦事項。')).toHaveAttribute('role', 'alert');
+  await userEvent.setup().click(screen.getByRole('button', { name: '重試載入待辦事項' }));
+  expect(await screen.findByText('目前沒有待處理事項。')).toBeVisible();
+});
+
+it.each([
+  ['parent', '/students'], ['student', '/students'], ['coach', '/students'], ['admin', '/students/amy'],
+] as const)('does not fetch the summary for %s at %s', async (role, path) => {
+  at(path);
+  const mock = api(role);
+  render(<App />);
+  if (path.endsWith('/amy')) await screen.findByRole('heading', { name: 'Amy Chan' });
+  else await screen.findByRole('link', { name: /Amy Chan/ });
+  expect(screen.queryByRole('heading', { name: 'Action queue' })).not.toBeInTheDocument();
+  expect(mock.mock.calls.some(([url]) => String(url).endsWith('/admin/action-queue'))).toBe(false);
 });
