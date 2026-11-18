@@ -51,6 +51,8 @@ const notificationScope = `n.recipient_id=$1 AND u.active AND u.role=$2 AND (
 		SELECT 1 FROM student_access sa WHERE sa.student_id=n.student_id AND sa.user_id=u.id
 		AND sa.kind=CASE u.role WHEN 'parent' THEN 'guardian' WHEN 'student' THEN 'self' END))
 	OR (u.role='coach' AND n.kind='lesson_change.requested' AND EXISTS (` + coachNotificationSource + `))
+	OR (u.role='coach' AND n.kind='class.coach_changed' AND EXISTS (SELECT 1 FROM bookings sb JOIN class_substitutions cs ON cs.class_id=sb.class_id
+		WHERE sb.id=n.source_id AND u.id IN (cs.from_coach_id,cs.to_coach_id)))
 	OR (u.role='coach' AND n.kind IN ('booking.cancelled','class.cancelled') AND EXISTS (SELECT 1 FROM bookings cb JOIN class_sessions cc ON cc.id=cb.class_id WHERE cb.id=n.source_id AND cc.coach_id=u.id)))`
 
 const notificationJoin = " FROM notifications n JOIN students st ON st.id=n.student_id JOIN users u ON u.id=n.recipient_id"

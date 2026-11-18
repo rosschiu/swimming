@@ -2267,6 +2267,68 @@
         }
       }
     },
+    "/api/v1/classes/{id}/substitution": {
+      "post": {
+        "operationId": "substituteClassCoach",
+        "summary": "Replace the coach of one upcoming lesson",
+        "description": "Administrator only. The incoming coach must be active and free of overlap and travel-gap conflicts (409 scheduling_conflict). Bookings, times, venue, capacity and credits are unchanged; roster access and pending lesson-change decisions move to the new coach. Booked swimmers' guardians and students and both coaches receive in-app class.coach_changed notices; no email is sent. A class with reservations can no longer change coach through the class edit (409 substitution_required). Cancelled and started lessons are refused; an exact replay returns the recorded substitution.",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClassSubstitutionInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Recorded substitution",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClassSubstitution"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/classes/{id}/roster": {
       "get": {
         "operationId": "getClassRoster",
@@ -8235,7 +8297,8 @@
               "lesson_change.approved",
               "lesson_change.rejected",
               "booking.cancelled",
-              "class.cancelled"
+              "class.cancelled",
+              "class.coach_changed"
             ]
           },
           "sourceId": {
@@ -10029,6 +10092,71 @@
           "cancelledBookings",
           "restoredCredits",
           "closedRequests"
+        ],
+        "additionalProperties": false
+      },
+      "ClassSubstitutionInput": {
+        "type": "object",
+        "properties": {
+          "coachId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "idempotencyKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "pattern": "^[!-~]{1,100}$"
+          }
+        },
+        "required": [
+          "coachId",
+          "reason",
+          "version",
+          "idempotencyKey"
+        ],
+        "additionalProperties": false
+      },
+      "ClassSubstitution": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "lesson": {
+            "$ref": "#/components/schemas/ClassSession"
+          },
+          "fromCoachId": {
+            "type": "string"
+          },
+          "toCoachId": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "substitutedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "lesson",
+          "fromCoachId",
+          "toCoachId",
+          "reason",
+          "substitutedAt"
         ],
         "additionalProperties": false
       }

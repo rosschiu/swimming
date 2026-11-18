@@ -159,8 +159,13 @@ INSERT INTO credit_movements(id,package_id,source,available,reserved,consumed,ex
 		}
 	}
 	edit.CoachID = "coach2"
+	expectBookingError(t, request(t, h, "PATCH", classURL, edit, f.admin), 409, "substitution_required")
+	edit.CoachID = "coach"
 	edit.Capacity = 2
-	expectStatus(t, request(t, h, "PATCH", classURL, edit, f.admin), 200)
+	w = request(t, h, "PATCH", classURL, edit, f.admin)
+	expectStatus(t, w, 200)
+	edited := decodeBody[ClassSession](t, w)
+	expectStatus(t, request(t, h, "POST", classURL+"/substitution", map[string]any{"coachId": "coach2", "reason": "Cover", "version": edited.Version, "idempotencyKey": "cover"}, f.admin), 200)
 	expectStatus(t, request(t, h, "GET", roster, nil, coach), 404)
 	expectStatus(t, request(t, h, "GET", roster, nil, otherCoach), 200)
 	expectStatus(t, request(t, h, "DELETE", "/api/v1/students/amy/relationships/parent", nil, f.admin), 204)

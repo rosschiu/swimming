@@ -2,6 +2,7 @@ import { Fragment, useEffect, useRef, useState, type FormEvent, type MouseEvent 
 import type { Route } from './navigation';
 import ClassRoster from './ClassRoster';
 import CancellationImpact from './CancellationImpact';
+import SubstituteCoach from './SubstituteCoach';
 import { APIError, type User } from './api';
 import { isAborted, useProtectedRequest, type ProtectedProps } from './useProtectedRequest';
 import { hkDate, hkTime, rangeEnd, regionNames, type Venue, type ClassType, type ClassSession, type ClassSeries, type AdminUser } from './scheduling';
@@ -15,6 +16,7 @@ export default function Schedule({ csrfToken, expired, t, role, follow }: Protec
   const [coachFilter, setCoachFilter] = useState('');
   const [regionFilter, setRegionFilter] = useState('');
   const [impactClassId, setImpactClassId] = useState<string | null>(null);
+  const [substituteClassId, setSubstituteClassId] = useState<string | null>(null);
   const [rosterClassId, setRosterClassId] = useState<string | null>(null);
   const [classes, setClasses] = useState<ClassSession[]>([]);
   const [venues, setVenues] = useState<Venue[]>([]);
@@ -78,7 +80,7 @@ export default function Schedule({ csrfToken, expired, t, role, follow }: Protec
     try {
       const saved = await api<ClassSession | ClassSeries>(form === 'series' ? '/class-series' : `/classes${editing ? `/${editing.id}` : ''}`, { method: editing ? 'PATCH' : 'POST', headers: { 'X-CSRF-Token': csrfToken }, body: JSON.stringify(input) });
       setNotice('sessions' in saved ? t(`Weekly series created with ${saved.sessions.length} classes.`, `已建立每週系列，共 ${saved.sessions.length} 堂。`) : t('Class saved. Check the date filter if it falls outside the current view.', '已儲存課堂。如不在目前範圍內，請調整日期篩選。')); setForm(null); setEditing(null); await load();
-    } catch (e) { if (!isAborted(e)) setError(e instanceof APIError && e.status === 409 ? t('This class changed or conflicts with the coach’s schedule or travel time. Your entries are preserved; review the schedule before retrying.', '此課堂已變更，或與教練時間表及交通時間衝突。已保留輸入內容，請檢查時間表後再試。') + (e.message ? ` (${e.message})` : '') : t('Could not save the class. Your entries are preserved; check the details and try again.', '未能儲存課堂。已保留輸入內容，請檢查後再試。')); }
+    } catch (e) { if (!isAborted(e)) setError(e instanceof APIError && e.code === 'substitution_required' ? t('This class has bookings. Use Substitute coach so families and both coaches are told.', '此課堂已有預約，請使用「代課教練」，以便通知家庭及兩位教練。') : e instanceof APIError && e.status === 409 ? t('This class changed or conflicts with the coach’s schedule or travel time. Your entries are preserved; review the schedule before retrying.', '此課堂已變更，或與教練時間表及交通時間衝突。已保留輸入內容，請檢查時間表後再試。') + (e.message ? ` (${e.message})` : '') : t('Could not save the class. Your entries are preserved; check the details and try again.', '未能儲存課堂。已保留輸入內容，請檢查後再試。')); }
     finally { setBusy(false); }
   }
   const selectableVenues = venues.filter(v => v.active || v.id === editing?.venueId);
@@ -108,12 +110,16 @@ export default function Schedule({ csrfToken, expired, t, role, follow }: Protec
             </div>
             {(admin || role === 'coach') && <div className="heading-actions">
               {admin && !c.cancelledAt && <button className="outline" disabled={busy} onClick={() => edit(c)} aria-label={`${t('Edit class', '編輯課堂')} ${label}`}>{t('Edit', '編輯')}</button>}
+              {admin && !c.cancelledAt && Date.parse(c.startsAt) > Date.now() && <button className="outline" aria-expanded={substituteClassId === c.id} aria-label={`${t('Substitute coach', '代課教練')} ${label}`}
+                onClick={() => setSubstituteClassId(substituteClassId === c.id ? null : c.id)}>{t('Substitute coach', '代課教練')}</button>}
               {admin && <button className="outline" aria-expanded={impactOpen} aria-label={`${t('Review cancellation impact', '檢視取消課堂影響')} ${label}`}
                 onClick={() => setImpactClassId(impactOpen ? null : c.id)}>{t('Review cancellation impact', '檢視取消課堂影響')}</button>}
               <button className="outline" aria-expanded={rosterOpen} aria-label={`${t('View roster', '查看名單')} ${label}`}
                 onClick={() => setRosterClassId(rosterOpen ? null : c.id)}>{t('View roster', '查看名單')}</button>
             </div>}
           </article>
+          {admin && substituteClassId === c.id && <SubstituteCoach lesson={c} coaches={coaches} csrfToken={csrfToken} expired={expired} t={t} onClose={() => setSubstituteClassId(null)}
+            onSubstituted={lesson => { setClasses(previous => previous.map(item => item.id === lesson.id ? lesson : item)); setSubstituteClassId(null); setNotice(t(`${lesson.coachName} now teaches this lesson.`, `${lesson.coachName} 現負責此課堂。`)); }}/>}
           {impactOpen && <CancellationImpact classId={c.id} csrfToken={csrfToken} expired={expired} t={t} onCancelled={lesson => setClasses(previous => previous.map(item => item.id === lesson.id ? lesson : item))}/>}
           {rosterOpen && <ClassRoster follow={follow} classId={c.id} csrfToken={csrfToken} expired={expired} t={t}/>}
         </Fragment>;

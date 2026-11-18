@@ -519,6 +519,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/classes/{id}/substitution": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Replace the coach of one upcoming lesson
+         * @description Administrator only. The incoming coach must be active and free of overlap and travel-gap conflicts (409 scheduling_conflict). Bookings, times, venue, capacity and credits are unchanged; roster access and pending lesson-change decisions move to the new coach. Booked swimmers' guardians and students and both coaches receive in-app class.coach_changed notices; no email is sent. A class with reservations can no longer change coach through the class edit (409 substitution_required). Cancelled and started lessons are refused; an exact replay returns the recorded substitution.
+         */
+        post: operations["substituteClassCoach"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/classes/{id}/roster": {
         parameters: {
             query?: never;
@@ -1880,7 +1900,7 @@ export interface components {
             studentId: string;
             studentName: string;
             /** @enum {string} */
-            kind: "progress.created" | "progress.updated" | "milestone.achieved" | "milestone.revoked" | "booking.created" | "lesson_change.requested" | "lesson_change.approved" | "lesson_change.rejected" | "booking.cancelled" | "class.cancelled";
+            kind: "progress.created" | "progress.updated" | "milestone.achieved" | "milestone.revoked" | "booking.created" | "lesson_change.requested" | "lesson_change.approved" | "lesson_change.rejected" | "booking.cancelled" | "class.cancelled" | "class.coach_changed";
             sourceId: string;
             sourceVersion: number;
             /** Format: date-time */
@@ -2298,6 +2318,21 @@ export interface components {
             cancelledBookings: number;
             restoredCredits: number;
             closedRequests: number;
+        };
+        ClassSubstitutionInput: {
+            coachId: string;
+            reason: string;
+            version: number;
+            idempotencyKey: string;
+        };
+        ClassSubstitution: {
+            id: string;
+            lesson: components["schemas"]["ClassSession"];
+            fromCoachId: string;
+            toCoachId: string;
+            reason: string;
+            /** Format: date-time */
+            substitutedAt: string;
         };
     };
     responses: never;
@@ -3747,6 +3782,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SchoolCancellationResult"];
+                };
+            };
+            /** @description Request failed */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    substituteClassCoach: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-Token": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClassSubstitutionInput"];
+            };
+        };
+        responses: {
+            /** @description Recorded substitution */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClassSubstitution"];
                 };
             };
             /** @description Request failed */
