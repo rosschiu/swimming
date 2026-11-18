@@ -1171,6 +1171,7 @@ export interface components {
         };
         AdminActionQueue: {
             purchasesAwaitingExpiry: number;
+            pendingLessonChanges: number;
             failedEmailDeliveries: number;
         };
         Error: {

@@ -20,6 +20,8 @@ test('fixed booking stays reserved on a full replacement and follows coach appro
   const admin = await browser.newPage({ baseURL: 'http://localhost:18573' });
   try {
     const adminHeaders = await signIn(admin, 'admin');
+    const queueLink = admin.getByRole('link', { name: 'Pending lesson change requests' });
+    await expect(queueLink).toHaveAccessibleDescription('0');
     const guardianHeaders = await signIn(page, 'parent');
     async function write(actor: Page, path: string, data: object, method = 'POST', expected = 201) {
       const response = await actor.request.fetch('/api/v1/' + path, {
@@ -133,6 +135,14 @@ test('fixed booking stays reserved on a full replacement and follows coach appro
     expect(await roster(original.class.id)).toEqual([original.id]);
     expect(await roster(target.id)).not.toContain(original.id);
 
+    await admin.reload();
+    await expect(queueLink).toHaveAccessibleDescription('1');
+    await expect(queueLink).toHaveAttribute('href', '/lesson-changes?status=pending');
+    await queueLink.click();
+    const history = admin.getByRole('listitem').filter({ hasText: kind.name });
+    await expect(history.getByText('Pending', { exact: true })).toBeVisible();
+    await expect(history.getByRole('button')).toHaveCount(0);
+
     await write(admin, 'classes/' + target.id, { ...shifted, version: restored.version, capacity: 2 }, 'PATCH', 200);
     await request.getByRole('button', { name: 'Approve change' }).click();
     await expect(page.getByText('Lesson change approved.', { exact: true })).toBeVisible();
@@ -144,8 +154,14 @@ test('fixed booking stays reserved on a full replacement and follows coach appro
     expect(await roster(target.id)).toContain(original.id);
     expect(await roster(sibling.class.id)).toEqual([sibling.id]);
 
-    await admin.getByRole('link', { name: 'Lesson changes' }).click();
-    const history = admin.getByRole('listitem').filter({ hasText: kind.name });
+    await admin.goBack();
+    await expect(queueLink).toHaveAccessibleDescription('0');
+    await admin.goForward();
+    await expect(admin).toHaveURL(/\/lesson-changes\?status=pending$/);
+    await admin.reload();
+    await expect(admin.getByText('No pending lesson change requests.', { exact: true })).toBeVisible();
+    await admin.getByRole('link', { name: 'View all lesson changes' }).click();
+    await expect(admin).toHaveURL(/\/lesson-changes$/);
     await expect(history.getByText(/Requester parent/)).toBeVisible();
     await expect(history.getByText(/Decided by coach/)).toBeVisible();
     await expect(history.getByRole('button', { name: 'Approve change' })).toHaveCount(0);

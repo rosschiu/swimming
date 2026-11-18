@@ -4,7 +4,7 @@ import type { User } from './api';
 export type View = 'students' | 'accounts' | 'audit' | 'schedule' | 'setup' | 'availability' | 'notifications' | 'deliveries' | 'packages' | 'lesson-changes';
 export const deliveryStatuses = ['pending', 'leased', 'sent', 'retry', 'failed', 'suppressed'] as const;
 export type DeliveryStatus = typeof deliveryStatuses[number];
-export type Route = { view: View; studentId?: string; deliveryStatus?: DeliveryStatus } | { view: 'unavailable' };
+export type Route = { view: View; studentId?: string; deliveryStatus?: DeliveryStatus; lessonChangeStatus?: 'pending' } | { view: 'unavailable' };
 const paths: Record<View, string> = { students: '/students', accounts: '/accounts', audit: '/audit', schedule: '/schedule', setup: '/setup', availability: '/availability', notifications: '/notifications', deliveries: '/notification-deliveries', packages: '/packages', 'lesson-changes': '/lesson-changes' };
 
 export function parseRoute(path: string, search = ''): Route {
@@ -12,6 +12,9 @@ export function parseRoute(path: string, search = ''): Route {
     const status = new URLSearchParams(search).get('status');
     const deliveryStatus = deliveryStatuses.find(value => value === status);
     return { view: 'deliveries', deliveryStatus };
+  }
+  if (path === paths['lesson-changes'] && new URLSearchParams(search).get('status') === 'pending') {
+    return { view: 'lesson-changes', lessonChangeStatus: 'pending' };
   }
   if (path === '/') return { view: 'students' };
   for (const view of Object.keys(paths) as View[]) if (paths[view] === path) return { view };
@@ -27,6 +30,7 @@ export function parseRoute(path: string, search = ''): Route {
 export function routePath(route: Route): string {
   if (route.view === 'unavailable') return '/';
   if (route.view === 'deliveries' && route.deliveryStatus) return `${paths.deliveries}?status=${route.deliveryStatus}`;
+  if (route.view === 'lesson-changes' && route.lessonChangeStatus) return `${paths['lesson-changes']}?status=pending`;
   return route.view === 'students' && route.studentId ? `/students/${encodeURIComponent(route.studentId)}` : paths[route.view];
 }
 export function canView(route: Route, role: User['role']): boolean {

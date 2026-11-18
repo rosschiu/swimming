@@ -241,6 +241,15 @@ func TestIntegrationLessonChangeApproval(t *testing.T) {
 	w = request(t, h, "POST", standalonePath, changeBody(target, "new-pending"), other)
 	expectStatus(t, w, 201)
 	pending := decodeBody[LessonChange](t, w)
+	assertPendingCount := func(want int) {
+		t.Helper()
+		queue := request(t, base, "GET", "/api/v1/admin/action-queue", nil, f.admin)
+		expectStatus(t, queue, 200)
+		if got := decodeBody[AdminActionQueue](t, queue).PendingLessonChanges; got != want {
+			t.Fatalf("pending change count %d, want %d", got, want)
+		}
+	}
+	assertPendingCount(1)
 	exec("UPDATE lesson_change_requests SET requested_at='2029-01-01' WHERE id=$1", pending.ID)
 	if latest := listPage(coach, ""); len(latest.Items) != 1 || latest.Items[0].ID == pending.ID {
 		t.Fatalf("expected an older pending change beneath the first history page: %+v", latest)
@@ -257,5 +266,26 @@ func TestIntegrationLessonChangeApproval(t *testing.T) {
 	}
 	expectStatus(t, request(t, h, "GET", history+"?limit=101", nil, f.admin), 422)
 	expectStatus(t, request(t, h, "GET", history+"?cursor=bad", nil, f.admin), 422)
+
+	// Use the existing booking and lesson shape to test a summary beyond one list page.
+	exec(`WITH extra AS (
+		INSERT INTO class_sessions(id,venue_id,class_type_id,coach_id,starts_at,ends_at,capacity)
+		SELECT 'queue-class-'||n,c.venue_id,c.class_type_id,c.coach_id,c.starts_at+n*interval '1 day',
+			c.ends_at+n*interval '1 day',c.capacity
+		FROM class_sessions c CROSS JOIN generate_series(1,26) n WHERE id=$1
+		RETURNING id
+	), extra_bookings AS (
+		INSERT INTO bookings(id,student_id,class_id,credit_package_id,actor_id,idempotency_key,request,
+			class_version,class_type_version,student_level,class_level,validity_rule,created_at)
+		SELECT extra.id,b.student_id,extra.id,b.credit_package_id,b.actor_id,extra.id,b.request,
+			b.class_version,b.class_type_version,b.student_level,b.class_level,b.validity_rule,b.created_at
+		FROM extra JOIN bookings b ON b.id=$2 RETURNING id
+	)
+	INSERT INTO lesson_change_requests(id,booking_id,original_class_id,target_class_id,original_class,
+		target_class,requested_by,requested_at,settings_version,idempotency_key)
+	SELECT eb.id,eb.id,eb.id,r.target_class_id,r.original_class,r.target_class,
+		r.requested_by,r.requested_at,r.settings_version,eb.id
+	FROM extra_bookings eb JOIN lesson_change_requests r ON r.id=$3`, original.ID, pending.BookingID, pending.ID)
+	assertPendingCount(27)
 
 }

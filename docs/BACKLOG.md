@@ -35,14 +35,14 @@ Update these rows in the stage PR when scope, evidence or status changes. Record
 | Partial weekly selection | Merged, #21 | An administrator can allow partial booking school-wide. Show the exact available dates and require a fresh confirmation before reserving any. |
 | Explicit renewal and carry-forward | Merged, #21 | Confirm next dates and exact paid package. Default to the same package type. An administrator can allow another type for the same student. Transfer unused credits when enabled; preserve existing reservations and their expiry. |
 | Mark present | Shipped, [#22](https://github.com/rosschiu/swimming/pull/22) | Coach marks attendance once; a retry consumes no extra credit and the family sees the outcome. Integration tests cover originally reserved and renewed lessons. |
-| Absences and attendance corrections | Open | Apply the configured outcome and correction window, reconcile credit movements and show the audit trail. |
+| [Absences and attendance corrections](STAGE-04-ATTENDANCE-OUTCOMES.md) | Open | Apply the configured outcome and correction window, reconcile credit movements and show the audit trail. |
 | Guardian change requests and coach decisions | Shipped, [#25](https://github.com/rosschiu/swimming/pull/25) | Keep the original reservation while pending. Approval moves it once; rejection or a failed swap preserves it. Dedicated request and decision notifications remain open. |
-| Family cancellation and make-up | Open | Apply the configured timing and credit policy and show the resulting entitlement to the family. |
+| [Family cancellation](STAGE-04-FAMILY-CANCELLATIONS.md) and make-up | Open | Apply the configured timing and credit policy and show the resulting entitlement to the family. |
 | School cancellation and substitution | Open | Reconcile affected bookings, roster access, credits and family communications. |
 | Credit expiry and recovery | Shipped, #16 | An assigned coach restores actual expired unused credits with a reason and new expiry. |
-| Progress, milestones and teaching email | Shipped, #8–10 | Family sees scoped feedback; opt-in teaching emails have delivery history and retries. External demo inbox delivery still needs verification. |
-| Booking confirmation and reminders | Confirmations shipped, #19; reminders open | In-app confirmations are deduplicated. Verify scheduled reminders and delivery preferences separately. |
-| Administration and navigation | Shipped in part, #14 and #20 | Role routes, pending purchase and email queues are live. Request decisions and missing attendance still need cross-role acceptance. |
+| Progress, milestones and teaching email | Shipped, #8–10 | Family sees scoped feedback; opt-in teaching emails have delivery history and retries. [Lesson-linked feedback](STAGE-05-LESSON-FEEDBACK.md) and external demo inbox delivery verification remain open. |
+| Booking confirmation and reminders | Confirmations shipped, #19; reminders open | In-app confirmations are deduplicated. [Scheduled reminders](STAGE-05-LESSON-REMINDERS.md) and delivery preferences need verification. |
+| Administration and navigation | Shipped in part, #14 and #20 | Role routes, pending purchase and email queues are live. [Pending change counts and links](STAGE-05-LESSON-CHANGE-QUEUE.md) are in this stage. Missing attendance still needs cross-role acceptance. |
 | Operational readiness | Shipped in part, #11–13 | Restore, scale and permission checks exist. Repeat on the final workflows, verify setup/seed instructions, and close remaining accessibility and operational gaps. |
 | Typed assistant and voice | Deferred beyond first delivery | Verify authorized queries, confirmed actions, STT and optional TTS against real providers before claiming delivery. |
 
@@ -122,6 +122,8 @@ Stage 03c merged [PR #21](https://github.com/rosschiu/swimming/pull/21) as `2277
 Attendance [PR #22](https://github.com/rosschiu/swimming/pull/22) merged as `5faf45f`. Both full CI runs passed. The merged tree matched the independent review and passed contract regeneration. PostgreSQL upgrade testing preserved school settings, and Chromium verified attendance readback across roles.
 
 Lesson changes [PR #25](https://github.com/rosschiu/swimming/pull/25) merged as `55a4a9a`. Both full CI runs passed. Main matched the reviewed tree and passed contract regeneration. Chromium verified a failed approval preserves the booking and credit, and a later successful approval updates the family booking and administrator history.
+
+VM delivery [PR #26](https://github.com/rosschiu/swimming/pull/26) merged at `7003ab4`. The merged tree matched the reviewed head. Both full CI runs and 11 updater regressions passed. Hosted artifact publishing is enabled. The VM still needs a dedicated read-only credential and live activation checks.
 
 ### Demo VM rollout evidence
 
