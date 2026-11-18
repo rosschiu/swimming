@@ -181,6 +181,18 @@ test('paid credits reserve a guardian lesson and an administrator override, visi
     expect(current).toMatchObject({ id: firstBooking, class: { id: replacement.id } });
     expect((await page.request.get('/api/v1/students/' + sibling.id + '/bookings/' + firstBooking)).status()).toBe(404);
   }
+  // Age the approved reservation in this isolated synthetic database.
+  const archived = execFileSync('psql', [process.env.DATABASE_URL!, '-XqtA', '-v', 'ON_ERROR_STOP=1', '-v', 'fixture=' + replacement.id], {
+    input: "UPDATE class_sessions SET starts_at='2001-01-10T13:00:00+08:00', ends_at='2001-01-10T14:00:00+08:00' WHERE id=:'fixture' RETURNING id;",
+    encoding: 'utf8',
+  });
+  expect(archived.trim()).toBe(replacement.id);
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Hong_Kong' }).format(new Date());
+  const recent = await page.request.get('/api/v1/students/amy/bookings?from=' + today + '&to=' + today);
+  expect(recent.status()).toBe(200);
+  expect((await recent.json()).items).not.toContainEqual(expect.objectContaining({ id: firstBooking }));
+  await page.reload();
+  await expect(page.getByText(/2001-01-10.*13:00/)).toBeVisible();
   const newAdmin = await switchRole('admin');
   const link = '/api/v1/students/amy/relationships/parent';
   expect((await page.request.delete(link, { headers: newAdmin })).status()).toBe(204);
@@ -188,6 +200,7 @@ test('paid credits reserve a guardian lesson and an administrator override, visi
     await switchRole('parent');
     await page.goto(permanentPath);
     expect((await page.request.get('/api/v1' + permanentPath)).status()).toBe(404);
+    await expect(page.getByRole('alert')).toHaveText('This booking is unavailable for your current access.');
     await expect(page.getByText(beginner.classTypeName, { exact: false })).toHaveCount(0);
     await switchRole('student');
     await page.goto(permanentPath);
