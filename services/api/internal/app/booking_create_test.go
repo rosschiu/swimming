@@ -244,3 +244,81 @@ func TestIntegrationBookingContentionAndRollback(t *testing.T) {
 		t.Fatal("booking replay did not finish")
 	}
 }
+
+func TestIntegrationBookingReservesRecoveredPackageOnly(t *testing.T) {
+	recovery := prepareRecovery(t)
+	recovery.now = recovery.now.Add(24 * time.Hour)
+	mux := recovery.h.(*http.ServeMux)
+	recovery.api.schedulingRoutes(mux)
+	recovery.api.bookingRoutes(mux)
+
+	receiptURL := "/api/v1/receipts/" + *recovery.purchase.ReceiptID
+	receiptBefore := request(t, mux, "GET", receiptURL, nil, recovery.parent)
+	expectStatus(t, receiptBefore, 200)
+	date := recovery.now.In(hongKong).AddDate(0, 0, 1).Format("2006-01-02")
+	w := request(t, mux, "POST", "/api/v1/students/amy/credit-recoveries", map[string]any{
+		"sourcePackageId": recovery.packageID, "quantity": 2, "reason": "Make-up exception",
+		"expiresOn": date, "idempotencyKey": "recovery-for-booking",
+	}, recovery.coach)
+	expectStatus(t, w, 201)
+	credit := decodeBody[CreditRecovery](t, w)
+	scheduling := prepareScheduling(t, testHandler(recovery.db))
+	class := createBookingClass(t, scheduling, date, "10:00", "11:00", 1)
+	path := "/api/v1/students/amy/bookings"
+	expectBookingError(t, request(t, mux, "POST", path, bookingBody(class, recovery.packageID, "old-expiry"), recovery.parent), 409, "credit_unavailable")
+
+	input := bookingBody(class, credit.DestinationPackageID, "same-recovered-booking")
+	start := make(chan struct{})
+	results := make(chan *httptest.ResponseRecorder, 2)
+	for range 2 {
+		go func() {
+			<-start
+			results <- request(t, mux, "POST", path, input, recovery.parent)
+		}()
+	}
+	close(start)
+	created, replay := <-results, <-results
+	if replay.Code == 201 {
+		created, replay = replay, created
+	}
+	expectStatus(t, created, 201)
+	expectStatus(t, replay, 200)
+	if created.Body.String() != replay.Body.String() {
+		t.Fatalf("concurrent replay returned a different booking: %s / %s", created.Body, replay.Body)
+	}
+	booking := decodeBody[StudentBooking](t, created)
+
+	var packageID, movementPackageID, originalExpiry, purchaseExpiry string
+	var bookings, reservations, originalAvailable, originalReserved, recoveredAvailable, recoveredReserved int
+	err := recovery.db.QueryRow(context.Background(), `SELECT
+		(SELECT credit_package_id FROM bookings WHERE id=$3),
+		(SELECT package_id FROM credit_movements WHERE source='booking:'||$3||':reserved' AND available=-1 AND reserved=1),
+		(SELECT expires_on::text FROM credit_packages WHERE id=$1),
+		(SELECT expires_on::text FROM purchases WHERE id=$4),
+		(SELECT count(*) FROM bookings),
+		(SELECT count(*) FROM credit_movements WHERE source LIKE 'booking:%:reserved'),
+		(SELECT sum(available) FROM credit_movements WHERE package_id=$1),
+		(SELECT sum(reserved) FROM credit_movements WHERE package_id=$1),
+		(SELECT sum(available) FROM credit_movements WHERE package_id=$2),
+		(SELECT sum(reserved) FROM credit_movements WHERE package_id=$2)`,
+		recovery.packageID, credit.DestinationPackageID, booking.ID, recovery.purchase.ID).Scan(
+		&packageID, &movementPackageID, &originalExpiry, &purchaseExpiry, &bookings, &reservations,
+		&originalAvailable, &originalReserved, &recoveredAvailable, &recoveredReserved)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if packageID != credit.DestinationPackageID || movementPackageID != credit.DestinationPackageID ||
+		bookings != 1 || reservations != 1 || originalAvailable != 0 || originalReserved != 0 ||
+		recoveredAvailable != 1 || recoveredReserved != 1 {
+		t.Fatalf("reservation did not debit only the recovered package once: package %s, movement %s, bookings %d, reservations %d, original %d/%d, recovered %d/%d",
+			packageID, movementPackageID, bookings, reservations, originalAvailable, originalReserved, recoveredAvailable, recoveredReserved)
+	}
+	if originalExpiry != *recovery.purchase.ExpiresOn || purchaseExpiry != *recovery.purchase.ExpiresOn {
+		t.Fatalf("original expiry changed: package %q, purchase %q", originalExpiry, purchaseExpiry)
+	}
+	receiptAfter := request(t, mux, "GET", receiptURL, nil, recovery.parent)
+	expectStatus(t, receiptAfter, 200)
+	if receiptBefore.Body.String() != receiptAfter.Body.String() {
+		t.Fatal("recovery and booking changed the original receipt")
+	}
+}
