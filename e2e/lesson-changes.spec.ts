@@ -107,6 +107,9 @@ test('fixed booking stays reserved on a full replacement and follows coach appro
     expect(saved.status()).toBe(201);
     const change = await saved.json();
     expectContract('LessonChange', change);
+    const replay = await page.request.post(saved.url(), { headers: guardianHeaders, data: saved.request().postDataJSON() });
+    expect(replay.status()).toBe(200);
+    expect((await replay.json()).id).toBe(change.id);
     await expect(page.getByText(/Lesson change request received/)).toBeVisible();
     await assertBookings(page, original.class.id);
     const rescheduled = await write(admin, 'classes/' + target.id, { ...targetInput, version: updated.version }, 'PATCH', 200);
@@ -116,7 +119,19 @@ test('fixed booking stays reserved on a full replacement and follows coach appro
       await signIn(page, role);
     }
     await switchRole('coach');
-    await page.getByRole('link', { name: 'Lesson changes' }).click();
+    const coachDetail = '/lesson-changes/amy/' + change.id;
+    await page.getByRole('link', { name: /^Notifications/ }).click();
+    const noticeLink = page.locator('a[href="' + coachDetail + '"]');
+    await expect(noticeLink).toHaveAccessibleName('View lesson change request');
+    await expect(page.getByRole('article').filter({ has: noticeLink })).toContainText('A guardian requested a lesson change.');
+    const initialInbox = await read(page, 'notifications?limit=100');
+    const matching = initialInbox.items.filter((entry: { sourceId: string }) => entry.sourceId === change.id);
+    expect(matching).toHaveLength(1);
+    expect(matching[0]).toMatchObject({ kind: 'lesson_change.requested', readAt: null });
+    await noticeLink.click();
+    await page.reload();
+    await expect(page.getByRole('button', { name: 'Approve change' })).toBeVisible();
+    await page.getByRole('link', { name: 'Lesson changes', exact: true }).click();
     const request = page.getByRole('listitem').filter({ hasText: kind.name });
     async function roster(classId: string) {
       const result: components['schemas']['ClassRoster'] = await read(page, 'classes/' + classId + '/roster');
@@ -154,6 +169,33 @@ test('fixed booking stays reserved on a full replacement and follows coach appro
     expect(await roster(original.class.id)).toEqual([]);
     expect(await roster(target.id)).toContain(original.id);
     expect(await roster(sibling.class.id)).toEqual([sibling.id]);
+
+    await page.goto(coachDetail);
+    await expect(page.getByText('Approved', { exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Approve change' })).toHaveCount(0);
+    const newCoach = 'reassigned-' + stamp;
+    execFileSync('psql', [process.env.DATABASE_URL!, '-Xq', '-v', 'ON_ERROR_STOP=1', '-v', 'newCoach=' + newCoach], {
+      input: `INSERT INTO users(id,email,name,role,password_hash)
+        SELECT :'newCoach', :'newCoach'||'@swim.test','Replacement coach','coach',password_hash FROM users WHERE id='coach';`,
+    });
+    const sourceClass = await read(admin, 'classes/' + original.class.id);
+    await write(admin, 'classes/' + sourceClass.id, { ...classInput, coachId: newCoach, startsAt: sourceClass.startsAt,
+      endsAt: sourceClass.endsAt, version: sourceClass.version }, 'PATCH', 200);
+    const currentCoach = await read(page, 'auth/me');
+    const oldInbox = await read(page, 'notifications?limit=100');
+    expect(oldInbox.items.some((entry: { sourceId: string }) => entry.sourceId === change.id)).toBe(false);
+    expect(oldInbox.unreadCount).toBe(initialInbox.unreadCount - 1);
+    const denied = await page.request.put('/api/v1/notifications/' + matching[0].id + '/read', {
+      headers: { Origin: 'http://localhost:18573', 'X-CSRF-Token': currentCoach.csrfToken },
+    });
+    expect(denied.status()).toBe(404);
+    await page.reload();
+    expect((await page.request.get('/api/v1/students/amy/lesson-changes/' + change.id)).status()).toBe(404);
+    await expect(page.getByText(kind.name, { exact: false })).toHaveCount(0);
+    await switchRole(newCoach);
+    const replacementInbox = await read(page, 'notifications?limit=100');
+    expect(replacementInbox.items.some((entry: { sourceId: string }) => entry.sourceId === change.id)).toBe(false);
+    expect((await page.request.get('/api/v1/students/amy/lesson-changes/' + change.id)).status()).toBe(200);
 
     await admin.goBack();
     await expect(queueLink).toHaveAccessibleDescription('0');
