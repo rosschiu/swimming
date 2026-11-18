@@ -15,3 +15,5 @@ Draft [PR #17](https://github.com/rosschiu/swimming/pull/17) starts from verifie
 Configurable booking validity, including coach authority scope, remains pending. Lesson-end validity is the implemented default. Final integration and CI results must cover the complete stage before merge.
 
 Class choices and confirmation now show start and end in Hong Kong time, including both dates for an overnight lesson. The revised frontend passed all 163 tests, the production build and the real-stack booking journey.
+
+The opt-in PostgreSQL scale test passed under the Go race detector with 500 registered students, 10 coaches, 20 venues and 50 weekly classes. Four reservations per class produced 2,600 bookings across 13 weeks. It checked lesson and roster identities, denied out-of-scope reads, verified ledger reservations and booked a remaining place through the API. This measures correctness at representative occupancy; it does not establish a response-time guarantee.

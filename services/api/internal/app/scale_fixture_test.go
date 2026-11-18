@@ -16,10 +16,15 @@ type scaleClass struct {
 	StartsAt, EndsAt               time.Time
 }
 
+type scaleBooking struct {
+	ID, StudentID, ClassID string
+}
+
 type scaleFixture struct {
 	DB                                                                  *pgxpool.Pool
 	Students, Guardians, StudentUsers, Coaches, Venues, Regions, Series []string
 	Classes                                                             []scaleClass
+	Bookings                                                            []scaleBooking
 	FirstMonday                                                         time.Time
 	ClassType, Skill                                                    string
 }
@@ -142,6 +147,41 @@ func newScaleFixture(t *testing.T) *scaleFixture {
 	copyRows("class_types", []string{"id", "name", "level"}, [][]any{{f.ClassType, "Synthetic scale class", "Beginner"}})
 	copyRows("class_series", []string{"id", "venue_id", "class_type_id", "coach_id", "start_date", "end_date", "weekday", "start_time", "end_time", "capacity"}, series)
 	copyRows("class_sessions", []string{"id", "venue_id", "class_type_id", "coach_id", "starts_at", "ends_at", "capacity", "series_id"}, classes)
+	// Four reservations per six-place session give 200 occupied places in a 50-class week.
+	var purchases, packages, bookings, movements [][]any
+	packageCreated := map[string]bool{}
+	for slot := 0; slot < 50; slot++ {
+		for week := 0; week < 13; week++ {
+			class := f.Classes[slot*13+week]
+			for place := 0; place < 4; place++ {
+				studentIndex := slot/5*50 + (slot%5)*4 + place
+				// Keep the last student represented in the booking checks.
+				switch studentIndex {
+				case 1:
+					studentIndex = 49
+				case 469:
+					studentIndex = 499
+				}
+				student, guardian := f.Students[studentIndex], f.Guardians[studentIndex]
+				purchaseID, packageID := "scale-purchase-"+student, "scale-package-"+student
+				if !packageCreated[student] {
+					packageCreated[student] = true
+					purchases = append(purchases, []any{purchaseID, student, guardian, purchaseID, `{}`, `{}`, "paid", at})
+					packages = append(packages, []any{packageID, purchaseID, student, 14, `{"expiryEnabled":false,"carryForwardEnabled":true,"earlyCancellationRetainsCredit":true,"lateCancellationRetainsCredit":true,"absenceRetainsCredit":true,"illnessRetainsCredit":true}`, at})
+					movements = append(movements, []any{"grant-" + packageID, packageID, "grant:" + packageID, 14, 0, 0, 0, guardian, "Synthetic purchase", at})
+				}
+				id := fmt.Sprintf("scale-booking-%02d-%02d-%d", slot, week, place)
+				f.Bookings = append(f.Bookings, scaleBooking{id, student, class.ID})
+				bookings = append(bookings, []any{id, student, class.ID, packageID, guardian, id, `{}`, 1, 1, "Beginner", "Beginner", "lesson_end", at})
+				movements = append(movements, []any{"reservation-" + id, packageID, "booking:" + id + ":reserved", -1, 1, 0, 0, guardian, "Synthetic reservation", at})
+			}
+		}
+	}
+	// Ben retains his seeded level and is outside the synthetic occupancy.
+	copyRows("purchases", []string{"id", "student_id", "created_by", "idempotency_key", "request", "terms", "status", "created_at"}, purchases)
+	copyRows("credit_packages", []string{"id", "purchase_id", "student_id", "credits", "policy", "created_at"}, packages)
+	copyRows("bookings", []string{"id", "student_id", "class_id", "credit_package_id", "actor_id", "idempotency_key", "request", "class_version", "class_type_version", "student_level", "class_level", "validity_rule", "created_at"}, bookings)
+	copyRows("credit_movements", []string{"id", "package_id", "source", "available", "reserved", "consumed", "expired", "actor_id", "reason", "created_at"}, movements)
 	copyRows("skills", []string{"id", "name", "description", "created_by_id", "request_id", "original_name", "original_description", "created_at", "updated_at"}, [][]any{{f.Skill, "Synthetic scale skill", "Synthetic assessment", "admin", "scale-skill", "Synthetic scale skill", "Synthetic assessment", at.Add(-24 * time.Hour), at.Add(-24 * time.Hour)}})
 	copyRows("progress_notes", []string{"id", "student_id", "author_id", "body", "created_at", "updated_at", "updated_by_id", "request_id", "original_body"}, notes)
 	copyRows("milestone_events", []string{"id", "student_id", "skill_id", "actor_id", "state", "reason", "version", "skill_version", "skill_name", "skill_description", "recorded_at", "request_id", "submitted_version", "submitted_skill_version"}, milestones)

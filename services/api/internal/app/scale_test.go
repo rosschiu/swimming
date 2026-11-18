@@ -183,6 +183,90 @@ func TestScaleVerification(t *testing.T) {
 	classes("/classes"+rangeQuery+"&region="+f.Regions[0], admin, regionIDs)
 	classes("/classes"+rangeQuery+"&coachId="+f.Coaches[0]+"&venueId="+f.Venues[0], admin, intersectionIDs)
 	classes("/classes"+rangeQuery+"&coachId="+f.Coaches[9], coach, []string{})
+	bookingIDs, rosterIDs := map[string][]string{}, map[string][]string{}
+	for _, b := range f.Bookings {
+		bookingIDs[b.StudentID] = append(bookingIDs[b.StudentID], b.ID)
+		rosterIDs[b.ClassID] = append(rosterIDs[b.ClassID], b.ID)
+	}
+	if len(f.Bookings) != 2600 || len(bookingIDs) != 200 || len(rosterIDs) != 650 ||
+		count("SELECT count(*) FROM bookings WHERE status='reserved'") != 2600 {
+		t.Fatal("unexpected representative booking counts")
+	}
+	for _, actor := range []struct {
+		auth    authState
+		student string
+	}{{parent, f.Students[0]}, {self, f.Students[0]}, {lastParent, f.Students[499]}, {lastSelf, f.Students[499]}} {
+		items := decodeBody[struct {
+			Items []StudentBooking `json:"items"`
+		}](t, get("/students/"+actor.student+"/bookings"+rangeQuery, actor.auth)).Items
+		ids := []string{}
+		for _, item := range items {
+			if item.StudentID != actor.student || item.Status != "reserved" {
+				t.Fatalf("incorrect scoped booking: %+v", item)
+			}
+			ids = append(ids, item.ID)
+		}
+		if len(ids) != 13 {
+			t.Fatalf("student %s returned %d weekly bookings", actor.student, len(ids))
+		}
+		assertIDs(ids, bookingIDs[actor.student])
+	}
+	for _, check := range []struct {
+		class string
+		auth  authState
+	}{
+		{weekIDs[0], coach}, {weekIDs[len(weekIDs)-1], lastCoach}, {weekIDs[0], admin},
+	} {
+		result := decodeBody[ClassRoster](t, get("/classes/"+check.class+"/roster", check.auth))
+		if result.ClassID != check.class || len(result.Items) != 4 {
+			t.Fatalf("unexpected representative roster: %+v", result)
+		}
+		ids := []string{}
+		for _, item := range result.Items {
+			if item.Status != "reserved" || item.Level != "Beginner" || item.StudentName == "" {
+				t.Fatalf("incomplete roster entry: %+v", item)
+			}
+			ids = append(ids, item.BookingID)
+		}
+		assertIDs(ids, rosterIDs[check.class])
+	}
+	for _, check := range []struct {
+		path string
+		auth authState
+		code int
+	}{
+		{"/students/" + f.Students[499] + "/bookings" + rangeQuery, parent, 404},
+		{"/students/" + f.Students[0] + "/bookings" + rangeQuery, lastSelf, 404},
+		{"/classes/" + weekIDs[0] + "/roster", lastCoach, 404},
+		{"/classes/" + weekIDs[0] + "/roster", parent, 403},
+	} {
+		expectStatus(t, request(t, h, "GET", "/api/v1"+check.path, nil, check.auth), check.code)
+	}
+	if n := count(`SELECT count(*) FROM bookings b JOIN credit_movements m
+		ON m.source='booking:'||b.id||':reserved' AND m.package_id=b.credit_package_id
+		WHERE m.available=-1 AND m.reserved=1 AND m.consumed=0 AND m.expired=0`); n != len(f.Bookings) {
+		t.Fatalf("expected a matching reservation ledger entry for every booking, got %d", n)
+	}
+	if n := count(`SELECT count(*) FROM credit_packages p JOIN credit_movements m ON m.package_id=p.id
+		`); n != 2800 {
+		t.Fatalf("expected 200 grants and 2,600 reservations, got %d", n)
+	}
+	// Reserve one of the spare places through the real endpoint against the seeded ledger.
+	target := decodeBody[ClassSession](t, get("/classes/"+weekIDs[1], parent))
+	path := "/api/v1/students/" + f.Students[0] + "/bookings"
+	input := bookingBody(target, "scale-package-"+f.Students[0], "scale-extra-booking")
+	created := request(t, h, "POST", path, input, parent)
+	requests++
+	responseBytes += created.Body.Len()
+	expectStatus(t, created, 201)
+	extra := decodeBody[StudentBooking](t, created)
+	if extra.Class.ID != target.ID || extra.StudentID != f.Students[0] || extra.Status != "reserved" ||
+		count("SELECT count(*) FROM bookings WHERE class_id=$1 AND status='reserved'", target.ID) != 5 ||
+		count("SELECT count(*) FROM bookings WHERE student_id=$1 AND status='reserved'", f.Students[0]) != 14 ||
+		count("SELECT count(*) FROM credit_movements WHERE package_id=$1 AND source=$2 AND available=-1 AND reserved=1", input.CreditPackageID, "booking:"+extra.ID+":reserved") != 1 ||
+		count("SELECT sum(available) FROM credit_movements WHERE package_id=$1", input.CreditPackageID) != 0 {
+		t.Fatal("representative booking did not reserve exactly one extra place and credit")
+	}
 	seriesResult := decodeBody[struct {
 		Items []ClassSeries `json:"items"`
 	}](t, get("/class-series"+rangeQuery, admin))
@@ -408,5 +492,5 @@ func TestScaleVerification(t *testing.T) {
 			t.Fatal("exact replay duplicated source/audit/fan-out")
 		}
 	}
-	t.Logf("fixture coaches=10 students=500 venues=20 weekly_classes=50 weeks=13 initial_sessions=650; clients=10 requests=%d response_bytes=%d acceptance_elapsed=%s total_elapsed=%s unexpected_errors=0", requests, responseBytes, time.Since(acceptanceStarted), time.Since(started))
+	t.Logf("fixture coaches=10 students=500 venues=20 weekly_classes=50 weeks=13 initial_sessions=650 seeded_bookings=2600; clients=10 requests=%d response_bytes=%d acceptance_elapsed=%s total_elapsed=%s unexpected_errors=0", requests, responseBytes, time.Since(acceptanceStarted), time.Since(started))
 }
