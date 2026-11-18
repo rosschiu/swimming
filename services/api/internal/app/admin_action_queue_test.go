@@ -57,6 +57,6 @@ INSERT INTO notification_deliveries(id,notification_id,status)
 	expectStatus(t, request(t, h, "GET", path, nil, admin), 401)
 	// Simulate a request authenticated just before administrator deactivation.
 	w := httptest.NewRecorder()
-	(&API{db: db}).getAdminActionQueue(w, httptest.NewRequest("GET", path, nil), Session{User: User{ID: "admin", Role: "admin"}})
+	(&API{db: db, now: time.Now}).getAdminActionQueue(w, httptest.NewRequest("GET", path, nil), Session{User: User{ID: "admin", Role: "admin"}})
 	expectStatus(t, w, 401)
 }

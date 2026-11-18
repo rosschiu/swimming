@@ -2,7 +2,7 @@
 
 Add an administrator report of ended classes with unmarked reserved bookings. Show the number of affected classes in the existing action queue. The report and roster link help administrators find missing records. They do not classify a swimmer as absent or modify bookings, credits, attendance or notifications.
 
-Baseline `7003ab4`. Integrate the pending lesson-change queue after PR #27 merges and preserve its counts and navigation. Use the existing class roster and permission checks.
+Based on `567a45b`, which includes the pending lesson-change queue. The report uses the existing class roster and permission checks.
 
 ## Selection and presentation
 

@@ -68,6 +68,7 @@ func New(cfg Config, db *pgxpool.Pool) http.Handler {
 	})
 	a.identityRoutes(mux)
 	mux.HandleFunc("GET /api/v1/admin/action-queue", a.auth(a.getAdminActionQueue))
+	mux.HandleFunc("GET /api/v1/admin/missing-attendance", a.auth(a.listMissingAttendance))
 	a.financeRoutes(mux)
 	a.creditRecoveryRoutes(mux)
 	a.milestoneRoutes(mux)

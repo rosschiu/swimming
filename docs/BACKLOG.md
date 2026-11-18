@@ -42,7 +42,7 @@ Update these rows in the stage PR when scope, evidence or status changes. Record
 | Credit expiry and recovery | Shipped, #16 | An assigned coach restores actual expired unused credits with a reason and new expiry. |
 | Progress, milestones and teaching email | Shipped, #8–10 | Family sees scoped feedback; opt-in teaching emails have delivery history and retries. [Lesson-linked feedback](STAGE-05-LESSON-FEEDBACK.md) and external demo inbox delivery verification remain open. |
 | Booking confirmation and reminders | Confirmations shipped, #19; reminders open | In-app confirmations are deduplicated. [Scheduled reminders](STAGE-05-LESSON-REMINDERS.md) and delivery preferences need verification. |
-| Administration and navigation | Shipped in part, #14 and #20 | Role routes, pending purchase and email queues are live. [Pending change counts and links](STAGE-05-LESSON-CHANGE-QUEUE.md) are in this stage. Missing attendance still needs cross-role acceptance. |
+| Administration and navigation | Shipped in part, #14 and #20 | Role routes, pending purchase and email queues are live. Pending lesson-change counts and links merged in [#27](https://github.com/rosschiu/swimming/pull/27). [Missing attendance reporting](STAGE-05-MISSING-ATTENDANCE.md) is in review. |
 | Operational readiness | Shipped in part, #11–13 | Restore, scale and permission checks exist. Repeat on the final workflows, verify setup/seed instructions, and close remaining accessibility and operational gaps. |
 | Typed assistant and voice | Deferred beyond first delivery | Verify authorized queries, confirmed actions, STT and optional TTS against real providers before claiming delivery. |
 
