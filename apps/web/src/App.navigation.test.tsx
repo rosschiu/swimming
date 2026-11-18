@@ -73,8 +73,12 @@ it('uses pathname over forged history state and preserves native links and focus
  for (const modifier of ['ctrlKey','metaKey','shiftKey','altKey']) { const e = new MouseEvent('click', { bubbles: true, cancelable: true, [modifier]: true }); let intercepted = true; document.addEventListener('click', event => { intercepted = event.defaultPrevented; event.preventDefault(); }, { once: true }); act(() => { link.dispatchEvent(e); }); expect(intercepted).toBe(false); expect(window.location.pathname).toBe('/students'); }
  link.focus(); await user.keyboard('{Enter}'); await screen.findByRole('heading', { name: 'Amy Chan' }); expect(window.location.pathname).toBe('/students/amy');
  await user.click(screen.getByRole('link', { name: 'Schedule' })); await screen.findByRole('heading', { name: 'Class schedule' });
- expect(document.activeElement === document.getElementById('main') || document.activeElement?.textContent === 'Class schedule').toBe(true);
+ const workspace = screen.getByRole('main');
+ expect(workspace).toHaveFocus();
+ expect(workspace).toContainElement(screen.getByRole('heading', { name: 'Class schedule' }));
+ expect(workspace).not.toContainElement(screen.getByRole('navigation', { name: 'Main navigation' }));
  pop('/students/ben', { view: 'audit' }); await screen.findByRole('heading', { name: 'Ben Lee' }); expect(screen.queryByRole('heading', { name: 'Audit history' })).not.toBeInTheDocument();
+ expect(workspace).toHaveFocus();
  expect(JSON.stringify(window.history.state)).not.toContain('Amy Chan');
 });
 it.each([403,404])('does not reveal a profile after scoped endpoint returns %i', async status => {

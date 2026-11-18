@@ -38,11 +38,11 @@ Update these rows in the stage PR when scope, evidence or status changes. Record
 | [Absences and attendance corrections](STAGE-04-ATTENDANCE-OUTCOMES.md) | Open | Apply the configured outcome and correction window, reconcile credit movements and show the audit trail. |
 | Guardian change requests and coach decisions | Shipped, [#25](https://github.com/rosschiu/swimming/pull/25) | Keep the original reservation while pending. Approval moves it once; rejection or a failed swap preserves it. Dedicated request and decision notifications remain open. |
 | [Family cancellation](STAGE-04-FAMILY-CANCELLATIONS.md) and make-up | Open | Apply the configured timing and credit policy and show the resulting entitlement to the family. |
-| School cancellation and substitution | Open | Reconcile affected bookings, roster access, credits and family communications. |
+| School cancellation and substitution | Open | Reconcile affected bookings, roster access, credits and family communications. The acceptance plan is recorded in `ff778d6`. |
 | Credit expiry and recovery | Shipped, #16 | An assigned coach restores actual expired unused credits with a reason and new expiry. |
 | Progress, milestones and teaching email | Shipped, #8–10 | Family sees scoped feedback; opt-in teaching emails have delivery history and retries. [Lesson-linked feedback](STAGE-05-LESSON-FEEDBACK.md) and external demo inbox delivery verification remain open. |
 | Booking confirmation and reminders | Confirmations shipped, #19; reminders open | In-app confirmations are deduplicated. [Scheduled reminders](STAGE-05-LESSON-REMINDERS.md) and delivery preferences need verification. |
-| Administration and navigation | Shipped in part, #14 and #20 | Role routes, pending purchase and email queues are live. Pending lesson-change counts and links merged in [#27](https://github.com/rosschiu/swimming/pull/27). [Missing attendance reporting](STAGE-05-MISSING-ATTENDANCE.md) is in review. |
+| Administration and navigation | Shipped in part, #14 and #20 | Role routes, pending purchase and email queues are live. Pending lesson-change counts and links merged in [#27](https://github.com/rosschiu/swimming/pull/27). [Missing attendance reporting](STAGE-05-MISSING-ATTENDANCE.md) merged in [#28](https://github.com/rosschiu/swimming/pull/28). Workspace keyboard focus is in review. |
 | Operational readiness | Shipped in part, #11–13 | Restore, scale and permission checks exist. Repeat on the final workflows, verify setup/seed instructions, and close remaining accessibility and operational gaps. |
 | Typed assistant and voice | Deferred beyond first delivery | Verify authorized queries, confirmed actions, STT and optional TTS against real providers before claiming delivery. |
 
@@ -124,6 +124,8 @@ Attendance [PR #22](https://github.com/rosschiu/swimming/pull/22) merged as `5fa
 Lesson changes [PR #25](https://github.com/rosschiu/swimming/pull/25) merged as `55a4a9a`. Both full CI runs passed. Main matched the reviewed tree and passed contract regeneration. Chromium verified a failed approval preserves the booking and credit, and a later successful approval updates the family booking and administrator history.
 
 VM delivery [PR #26](https://github.com/rosschiu/swimming/pull/26) merged at `7003ab4`. The merged tree matched the reviewed head. Both full CI runs and 11 updater regressions passed. Hosted artifact publishing is enabled. The VM still needs a dedicated read-only credential and live activation checks.
+
+Missing attendance [PR #28](https://github.com/rosschiu/swimming/pull/28) merged as `54e2505`. Main matched the independently approved head `b8d8ef9`, and both full CI runs passed. PostgreSQL race tests covered role scope, end-time boundaries and partly marked rosters. Chromium verified the overnight report row, roster link, and removal after marking. The release uses the existing attendance timing and credit rules.
 
 ### Demo VM rollout evidence
 
