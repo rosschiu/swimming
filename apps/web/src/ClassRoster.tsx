@@ -16,6 +16,7 @@ export default function ClassRoster({ classId, csrfToken, expired, t }: Protecte
   const reviewTrigger = useRef<HTMLButtonElement>(null);
   const confirmButton = useRef<HTMLButtonElement>(null);
   const focusRecordedBooking = useRef<string | null>(null);
+  const focusRosterFeedback = useRef(false);
   const [saving, setSaving] = useState(false);
   const [failure, setFailure] = useState('');
   const [notice, setNotice] = useState('');
@@ -46,6 +47,13 @@ export default function ClassRoster({ classId, csrfToken, expired, t }: Protecte
     setRevision(previous => previous + 1);
   }
 
+  function focusFeedback(element: HTMLParagraphElement | null) {
+    if (element && focusRosterFeedback.current) {
+      focusRosterFeedback.current = false;
+      element.focus();
+    }
+  }
+
   async function markPresent(entry: RosterEntry) {
     if (saving) return;
     setSaving(true);
@@ -67,9 +75,11 @@ export default function ClassRoster({ classId, csrfToken, expired, t }: Protecte
     } catch (error) {
       if (isAborted(error)) return;
       if (error instanceof APIError && (error.status === 403 || error.status === 404)) {
+        focusRosterFeedback.current = document.activeElement === confirmButton.current;
         setReviewing(null);
         setResult('unavailable');
       } else if (error instanceof APIError && error.code === 'attendance_not_open') {
+        focusRosterFeedback.current = document.activeElement === confirmButton.current;
         setReviewing(null);
         setFailure(t('Attendance has yet to open. Reload the roster for the current opening time.', '出席記錄尚未開放，請重新載入名單查看最新的開放時間。'));
       } else if (error instanceof APIError && error.code === 'credit_unavailable') {
@@ -89,10 +99,10 @@ export default function ClassRoster({ classId, csrfToken, expired, t }: Protecte
         {t('Reload roster', '重新載入名單')}
       </button>
     </div>
-    {failure && <p className="error" role="alert">{failure}</p>}
+    {failure && <p className="error roster-feedback" ref={focusFeedback} tabIndex={-1} role="alert">{failure}</p>}
     {notice && <p className="success" role="status">{notice}</p>}
     {result === null ? <p role="status">{t('Loading class roster…', '正在載入課堂名單…')}</p>
-      : result === 'unavailable' ? <p role="alert">{t('This roster is unavailable for your current access.', '目前權限無法存取此課堂名單。')}</p>
+      : result === 'unavailable' ? <p className="roster-feedback" ref={focusFeedback} tabIndex={-1} role="alert">{t('This roster is unavailable for your current access.', '目前權限無法存取此課堂名單。')}</p>
       : result === 'error' ? <p role="alert">{t('Could not load the roster. Reload to retry.', '未能載入名單，請重新載入。')}</p>
       : result.items.length === 0 ? <p role="status">{t('No reserved places for this class.', '此課堂尚無預約。')}</p>
       : <>
