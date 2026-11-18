@@ -139,3 +139,29 @@ func TestIntegrationDemoHistoryDoesNotAdoptUnrelatedReplacement(t *testing.T) {
 		t.Fatal("rejected preflight changed fixture data")
 	}
 }
+
+func TestIntegrationDemoHistoryExpiredReplacementCredit(t *testing.T) {
+	ctx := context.Background()
+	db := testDB(t)
+	now := time.Date(2026, 11, 18, 12, 0, 0, 0, hongKong)
+	if err := SeedDemoSchool(ctx, db, now); err != nil {
+		t.Fatal(err)
+	}
+	// The original Monday remains covered; the Tuesday replacement is too late.
+	tag, err := db.Exec(ctx, "UPDATE credit_packages SET expires_on='2026-11-23' WHERE purchase_id='demo-purchase-demo-student-04'")
+	if err != nil || tag.RowsAffected() != 1 {
+		t.Fatalf("setting fixture expiry: %v, affected %d", err, tag.RowsAffected())
+	}
+	before := historyProtectedRows(t, db)
+	err = seedDemoChangeHistory(ctx, db, func() time.Time { return now }, func(step string) error { t.Fatalf("committed %s before detecting expiry", step); return nil })
+	if err == nil {
+		t.Fatal("accepted a destination after its reserved credit expired")
+	}
+	var target, requests int
+	if err := db.QueryRow(ctx, `SELECT (SELECT count(*) FROM class_sessions WHERE id LIKE 'demo-change-history-v1-replacement-%'),(SELECT count(*) FROM lesson_change_requests)`).Scan(&target, &requests); err != nil {
+		t.Fatal(err)
+	}
+	if target != 0 || requests != 0 || historyProtectedRows(t, db) != before {
+		t.Fatal("credit expiry preflight changed fixture data")
+	}
+}
