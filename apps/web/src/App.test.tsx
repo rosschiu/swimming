@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import App from './App';
 
 const amy = { id: 'amy', name: 'Amy Chan', level: 'Beginner', version: 1 };
@@ -19,6 +19,37 @@ function mockAPI(role: 'parent' | 'coach' | 'student' | 'admin', saveStatus = 20
   vi.stubGlobal('fetch', fetchMock); return fetchMock;
 }
 beforeEach(() => { window.history.replaceState(null, '', '/'); window.localStorage.clear(); vi.unstubAllGlobals(); });
+
+afterEach(() => vi.unstubAllEnvs());
+
+it('keeps demo accounts hidden by default', async () => {
+  vi.stubGlobal('fetch', vi.fn(async () => response({}, 401)));
+  render(<App />);
+  await screen.findByRole('button', { name: 'Sign in' });
+  expect(screen.queryByRole('group', { name: 'Demo accounts' })).not.toBeInTheDocument();
+});
+
+it('fills demo accounts without submitting and sends edited values through normal sign-in', async () => {
+  vi.stubEnv('VITE_TEST_DEMO_LOGIN', 'true');
+  const api = vi.fn(async (_input: string, _options?: RequestInit) => response({}, 401));
+  vi.stubGlobal('fetch', api);
+  const user = userEvent.setup();
+  render(<App />);
+  await screen.findByRole('group', { name: 'Demo accounts' });
+  for (const [label, role] of [['Administrator', 'admin'], ['Coach', 'coach'], ['Guardian', 'parent'], ['Student', 'student']]) {
+    await user.click(screen.getByRole('button', { name: label }));
+    expect(screen.getByLabelText('Email')).toHaveValue(`${role}@swim.test`);
+    expect(screen.getByLabelText('Password')).not.toHaveValue('');
+  }
+  expect(api).toHaveBeenCalledTimes(1);
+  await user.clear(screen.getByLabelText('Password'));
+  await user.type(screen.getByLabelText('Password'), 'edited-password');
+  await user.click(screen.getByRole('button', { name: 'Sign in' }));
+  expect(api).toHaveBeenLastCalledWith('/api/v1/auth/login', expect.objectContaining({
+    method: 'POST',
+    body: JSON.stringify({ email: 'student@swim.test', password: 'edited-password' }),
+  }));
+});
 
 it('reports sign-in failure and keeps credentials available for correction', async () => {
   vi.stubGlobal('fetch', vi.fn(async () => response({ error: { message: 'No access' } }, 401)));
