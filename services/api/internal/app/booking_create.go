@@ -206,9 +206,7 @@ func (a *API) reserveBooking(ctx context.Context, tx pgx.Tx, w http.ResponseWrit
 	}
 
 	var expiry *time.Time
-	err = tx.QueryRow(ctx, `SELECT cp.expires_on FROM credit_packages cp JOIN purchases p ON p.id=cp.purchase_id
-		WHERE cp.id=$1 AND cp.student_id=$2 AND p.student_id=$2 AND p.status='paid' FOR UPDATE OF cp`,
-		in.CreditPackageID, booking.StudentID).Scan(&expiry)
+	expiry, err = lockBookingPackage(ctx, tx, in.CreditPackageID, booking.StudentID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		fail(w, 404, "not_found", "Credit package not found")
 		return StudentBooking{}, false
@@ -280,4 +278,12 @@ func (a *API) reserveBooking(ctx context.Context, tx pgx.Tx, w http.ResponseWrit
 		return StudentBooking{}, false
 	}
 	return booking, true
+}
+
+func lockBookingPackage(ctx context.Context, tx pgx.Tx, packageID, studentID string) (*time.Time, error) {
+	var expiry *time.Time
+	err := tx.QueryRow(ctx, `SELECT cp.expires_on FROM credit_packages cp JOIN purchases p ON p.id=cp.purchase_id
+		WHERE cp.id=$1 AND cp.student_id=$2 AND p.student_id=$2 AND p.status='paid' FOR UPDATE OF cp`,
+		packageID, studentID).Scan(&expiry)
+	return expiry, err
 }

@@ -3,9 +3,12 @@ package app
 import (
 	"cmp"
 	"context"
+	"net/http"
 	"net/http/httptest"
 	"slices"
+	"sync/atomic"
 	"testing"
+	"time"
 )
 
 func TestIntegrationFixedEnrolmentAtomicReservationAndReplay(t *testing.T) {
@@ -71,6 +74,15 @@ func TestIntegrationFixedEnrolmentAtomicReservationAndReplay(t *testing.T) {
 	wrongSeries.Sessions = []enrolmentSession{{standalone.ID, standalone.Version, standalone.ClassTypeVersion}}
 	expectBookingError(t, request(t, h, "POST", path, wrongSeries, parent), 422, "validation_error")
 	counts(0, 0, 3)
+	short := in
+	short.CreditPackageID = "short-enrolment"
+	seedBookingCredit(t, db, short.CreditPackageID, "amy", "parent", 2, nil)
+	expectBookingError(t, request(t, h, "POST", path, short, parent), 409, "credit_unavailable")
+	counts(0, 0, 3)
+	var shortBalance int
+	if err := db.QueryRow(ctx, "SELECT sum(available) FROM credit_movements WHERE package_id=$1", short.CreditPackageID).Scan(&shortBalance); err != nil || shortBalance != 2 {
+		t.Fatalf("failed enrolment changed short package: balance=%d err=%v", shortBalance, err)
+	}
 
 	reversed := in
 	reversed.Sessions = slices.Clone(in.Sessions)
@@ -103,4 +115,70 @@ func TestIntegrationFixedEnrolmentAtomicReservationAndReplay(t *testing.T) {
 	expectBookingError(t, request(t, h, "POST", path, reversed, parent), 409, "conflict")
 	expectStatus(t, request(t, h, "DELETE", "/api/v1/students/amy/relationships/parent", nil, f.admin), 204)
 	expectStatus(t, request(t, h, "POST", path, in, parent), 404)
+}
+
+func TestIntegrationFixedEnrolmentClockAfterPackageLock(t *testing.T) {
+	db := testDB(t)
+	h := testHandler(db)
+	f := prepareScheduling(t, h)
+	parent := login(t, h, "parent@swim.test")
+	w := request(t, h, "POST", "/api/v1/class-series", SeriesInput{
+		VenueID: f.venue.ID, ClassTypeID: f.kind.ID, CoachID: "coach",
+		StartDate: "2030-01-07", EndDate: "2030-01-07", Weekday: 1, StartTime: "10:00", EndTime: "11:00", Capacity: 6,
+	}, f.admin)
+	expectStatus(t, w, 201)
+	series := decodeBody[ClassSeries](t, w)
+	class := series.Sessions[0]
+	in := enrolmentInput{SeriesID: series.ID, CreditPackageID: "blocked-pack", IdempotencyKey: "blocked-enrolment",
+		Sessions: []enrolmentSession{{class.ID, class.Version, class.ClassTypeVersion}}}
+	seedBookingCredit(t, db, in.CreditPackageID, "amy", "parent", 1, nil)
+	ctx := context.Background()
+	if _, err := db.Exec(ctx, "UPDATE sessions SET expires_at=$1 WHERE user_id='parent'", class.StartsAt.Add(time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	var clock atomic.Int64
+	clock.Store(class.StartsAt.Add(-time.Second).UnixNano())
+	a := &API{db: db, cfg: Config{Origin: testOrigin}, now: func() time.Time { return time.Unix(0, clock.Load()) }}
+	mux := http.NewServeMux()
+	a.bookingRoutes(mux)
+	tx, err := db.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback(ctx)
+	var blockerPID int
+	if err = tx.QueryRow(ctx, "SELECT pg_backend_pid() FROM credit_packages WHERE id=$1 FOR UPDATE", in.CreditPackageID).Scan(&blockerPID); err != nil {
+		t.Fatal(err)
+	}
+	results := make(chan *httptest.ResponseRecorder, 1)
+	go func() { results <- request(t, mux, "POST", "/api/v1/students/amy/enrolments", in, parent) }()
+	wait, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	for {
+		var blocked bool
+		if err = db.QueryRow(wait, `SELECT EXISTS (SELECT 1 FROM pg_stat_activity
+			WHERE query LIKE '%FOR UPDATE OF cp' AND $1=ANY(pg_blocking_pids(pid)))`, blockerPID).Scan(&blocked); err != nil {
+			t.Fatalf("enrolment did not wait for the package lock: %v", err)
+		}
+		if blocked {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	clock.Store(class.StartsAt.UnixNano())
+	if err = tx.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case result := <-results:
+		expectBookingError(t, result, 409, "class_unavailable")
+	case <-time.After(5 * time.Second):
+		t.Fatal("enrolment did not finish after package unlock")
+	}
+	var records, available int
+	if err = db.QueryRow(ctx, `SELECT (SELECT count(*) FROM enrolments)+(SELECT count(*) FROM bookings)
+		+(SELECT count(*) FROM notifications)+(SELECT count(*) FROM audit_events WHERE action IN ('booking.created','enrolment.created')),
+		(SELECT sum(available) FROM credit_movements WHERE package_id=$1)`, in.CreditPackageID).Scan(&records, &available); err != nil || records != 0 || available != 1 {
+		t.Fatalf("blocked enrolment changed state: records=%d available=%d err=%v", records, available, err)
+	}
 }

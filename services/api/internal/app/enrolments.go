@@ -100,18 +100,39 @@ func (a *API) createEnrolment(w http.ResponseWriter, r *http.Request, s Session)
 			internal(w, err)
 			return
 		}
-		enrolment.CreatedAt = a.now().UTC().Truncate(time.Microsecond)
-		rule := effectiveBookingValidity()
-		inserted, err := tx.Exec(ctx, `INSERT INTO enrolments(id,student_id,series_id,credit_package_id,actor_id,idempotency_key,request,created_at)
-			SELECT $1,$2,$3,cp.id,$5,$6,$7,$8 FROM credit_packages cp JOIN purchases p ON p.id=cp.purchase_id
-			WHERE cp.id=$4 AND cp.student_id=$2 AND p.student_id=$2 AND p.status='paid'`,
-			enrolment.ID, enrolment.StudentID, in.SeriesID, in.CreditPackageID, s.User.ID, in.IdempotencyKey, canonical, enrolment.CreatedAt)
+		// Lock all selected classes in ID order before the package, as in single booking.
+		for _, selected := range in.Sessions {
+			var seriesID *string
+			err = tx.QueryRow(ctx, "SELECT series_id FROM class_sessions WHERE id=$1 FOR UPDATE", selected.ClassID).Scan(&seriesID)
+			if errors.Is(err, pgx.ErrNoRows) {
+				fail(w, 404, "not_found", "Class not found")
+				return
+			}
+			if err != nil {
+				internal(w, err)
+				return
+			}
+			if seriesID == nil || *seriesID != in.SeriesID {
+				fail(w, 422, "validation_error", "Every selected class must belong to the weekly series")
+				return
+			}
+		}
+		_, err = lockBookingPackage(ctx, tx, in.CreditPackageID, enrolment.StudentID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			fail(w, 404, "not_found", "Credit package not found")
+			return
+		}
 		if err != nil {
 			internal(w, err)
 			return
 		}
-		if inserted.RowsAffected() == 0 {
-			fail(w, 404, "not_found", "Credit package not found")
+		enrolment.CreatedAt = a.now().UTC().Truncate(time.Microsecond)
+		rule := effectiveBookingValidity()
+		_, err = tx.Exec(ctx, `INSERT INTO enrolments(id,student_id,series_id,credit_package_id,actor_id,idempotency_key,request,created_at)
+			VALUES($1,$2,$3,$4,$5,$6,$7,$8)`, enrolment.ID, enrolment.StudentID, in.SeriesID, in.CreditPackageID, s.User.ID,
+			in.IdempotencyKey, canonical, enrolment.CreatedAt)
+		if err != nil {
+			internal(w, err)
 			return
 		}
 		overrideUsed := false
