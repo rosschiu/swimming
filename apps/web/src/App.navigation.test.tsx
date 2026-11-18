@@ -43,7 +43,7 @@ const routes: [string, Role[], (role: Role) => string][] = [
  ['/availability', ['admin','coach'], () => 'Available time slots'],
  ['/packages', ['admin','parent'], () => 'Packages and payments'],
  ['/accounts', ['admin'], () => 'Accounts & invitations'], ['/setup', ['admin'], () => 'School setup'], ['/audit', ['admin'], () => 'Audit history'],
- ['/notification-deliveries', ['admin'], () => 'Notification deliveries'], ['/notifications', ['parent','student'], () => 'Notifications'],
+ ['/notification-deliveries', ['admin'], () => 'Notification deliveries'], ['/notifications', ['parent','student','coach'], () => 'Notifications'],
 ];
 for (const [path, roles, heading] of routes) for (const role of roles) {
  it(`${role} restores ${path} on direct entry, remount, and sign-in`, async () => {
@@ -429,24 +429,31 @@ it('opens both current work queues from the administrator landing summary', asyn
 
 it('restores the failed delivery filter directly and through browser history', async () => {
   at('/notification-deliveries?status=failed');
-  const mock = api('admin');
+  const mock = api('admin', path => {
+    if (path.startsWith('/api/v1/notification-deliveries?')) return response({ items: [], nextCursor: null });
+  });
   render(<App />);
   await screen.findByRole('heading', { name: 'Notification deliveries' });
-  expect(screen.getByLabelText('Delivery status')).toHaveValue('failed');
-  expect(mock).toHaveBeenCalledWith('/api/v1/notification-deliveries?limit=25&status=failed', expect.anything());
   const user = userEvent.setup();
+  async function expectDeliveryFilter(status: string, requestCount: number) {
+    const url = '/api/v1/notification-deliveries?limit=25' + (status ? `&status=${status}` : '');
+    await waitFor(() => {
+      expect(window.location.search).toBe(status ? `?status=${status}` : '');
+      expect(screen.getByLabelText('Delivery status')).toHaveValue(status);
+      expect(mock.mock.calls.filter(([path]) => path === url)).toHaveLength(requestCount);
+      expect(screen.getByText('No deliveries match this filter.')).toBeVisible();
+      expect(screen.getByLabelText('Delivery status')).toBeEnabled();
+    });
+  }
+  await expectDeliveryFilter('failed', 1);
   await user.selectOptions(screen.getByLabelText('Delivery status'), 'sent');
-  expect(window.location.search).toBe('?status=sent');
-  expect(screen.getByLabelText('Delivery status')).toHaveValue('sent');
-  expect(mock).toHaveBeenCalledWith('/api/v1/notification-deliveries?limit=25&status=sent', expect.anything());
+  await expectDeliveryFilter('sent', 1);
   await user.selectOptions(screen.getByLabelText('Delivery status'), '');
-  expect(window.location.search).toBe('');
-  expect(screen.getByLabelText('Delivery status')).toHaveValue('');
+  await expectDeliveryFilter('', 1);
   act(() => window.history.back());
-  await waitFor(() => expect(screen.getByLabelText('Delivery status')).toHaveValue('sent'));
+  await expectDeliveryFilter('sent', 2);
   act(() => window.history.back());
-  await waitFor(() => expect(screen.getByLabelText('Delivery status')).toHaveValue('failed'));
-  expect(screen.getByLabelText('Delivery status')).toHaveValue('failed');
+  await expectDeliveryFilter('failed', 2);
 });
 
 it('retries a failed administrator summary and shows a translated empty queue', async () => {

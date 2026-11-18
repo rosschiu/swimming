@@ -797,6 +797,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /** @description Lists family notices within current student access and submission notices for the assigned original lesson coach. */
         get: operations["listNotifications"];
         put?: never;
         post?: never;
@@ -814,6 +815,7 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
+        /** @description Marks a notice in the current account inbox. Coach access requires current ownership of the original lesson. */
         put: operations["markNotificationRead"];
         post?: never;
         delete?: never;
@@ -1670,7 +1672,7 @@ export interface components {
             studentId: string;
             studentName: string;
             /** @enum {string} */
-            kind: "progress.created" | "progress.updated" | "milestone.achieved" | "milestone.revoked" | "booking.created" | "lesson_change.approved" | "lesson_change.rejected";
+            kind: "progress.created" | "progress.updated" | "milestone.achieved" | "milestone.revoked" | "booking.created" | "lesson_change.requested" | "lesson_change.approved" | "lesson_change.rejected";
             sourceId: string;
             sourceVersion: number;
             /** Format: date-time */

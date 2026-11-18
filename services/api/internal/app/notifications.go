@@ -43,7 +43,14 @@ type NotificationDelivery struct {
 }
 
 const notificationColumns = "n.id,n.student_id,st.name,n.kind,n.source_id,n.source_version,n.created_at,n.read_at"
-const notificationScope = "n.recipient_id=$1 AND u.active AND u.role=$2 AND u.role IN ('parent','student') AND EXISTS(SELECT 1 FROM student_access sa WHERE sa.student_id=n.student_id AND sa.user_id=u.id AND sa.kind=CASE u.role WHEN 'parent' THEN 'guardian' WHEN 'student' THEN 'self' END)"
+const coachNotificationSource = `SELECT 1 FROM lesson_change_requests r JOIN class_sessions original ON original.id=r.original_class_id
+	WHERE r.id=n.source_id AND original.coach_id=u.id`
+const notificationScope = `n.recipient_id=$1 AND u.active AND u.role=$2 AND (
+	(u.role IN ('parent','student') AND n.kind<>'lesson_change.requested' AND EXISTS (
+		SELECT 1 FROM student_access sa WHERE sa.student_id=n.student_id AND sa.user_id=u.id
+		AND sa.kind=CASE u.role WHEN 'parent' THEN 'guardian' WHEN 'student' THEN 'self' END))
+	OR (u.role='coach' AND n.kind='lesson_change.requested' AND EXISTS (` + coachNotificationSource + `)))`
+
 const notificationJoin = " FROM notifications n JOIN students st ON st.id=n.student_id JOIN users u ON u.id=n.recipient_id"
 const deliveryColumns = "d.id,d.notification_id,u.name,d.status,d.attempts,d.cycle_attempts,d.version,d.next_attempt_at,d.completed_at,d.last_failure,d.created_at"
 const deliveryJoin = " FROM notification_deliveries d JOIN notifications n ON n.id=d.notification_id JOIN users u ON u.id=n.recipient_id"
@@ -168,14 +175,22 @@ func createLessonChangeDecisionNotice(ctx context.Context, tx pgx.Tx, change Les
 	return err
 }
 
+func createLessonChangeRequestNotice(ctx context.Context, tx pgx.Tx, student, coach, source string, at time.Time) error {
+	id, err := RandomToken()
+	if err != nil {
+		return err
+	}
+	_, err = tx.Exec(ctx, `INSERT INTO notifications(id,recipient_id,student_id,kind,source_id,source_version,created_at)
+		SELECT $1,u.id,$2,'lesson_change.requested',$3,1,$4 FROM users u WHERE u.id=$5 AND u.active AND u.role='coach'`,
+		id, student, source, at, coach)
+	return err
+}
+
 func suppressTeachingDeliveries(ctx context.Context, tx pgx.Tx, user, student, reason string) error {
 	_, err := tx.Exec(ctx, "UPDATE notification_deliveries d SET status=CASE WHEN d.status='leased' THEN 'leased' ELSE 'suppressed' END,version=d.version+1,next_attempt_at=NULL,completed_at=CASE WHEN d.status<>'leased' THEN clock_timestamp() END,last_failure=$3 FROM notifications n WHERE n.id=d.notification_id AND n.recipient_id=$1 AND ($2='' OR n.student_id=$2) AND d.status IN ('pending','retry','leased')", user, student, reason)
 	return err
 }
-func (a *API) notificationAccount(w http.ResponseWriter, r *http.Request, s Session, tx pgx.Tx, adminOnly bool) bool {
-	if adminOnly {
-		return a.currentAdminAccess(w, r, s, tx)
-	}
+func (a *API) notificationAccount(w http.ResponseWriter, r *http.Request, s Session, tx pgx.Tx, coachInbox bool) bool {
 	var active bool
 	if err := tx.QueryRow(r.Context(), "SELECT EXISTS(SELECT 1 FROM users WHERE id=$1 AND role=$2 AND active)", s.User.ID, s.User.Role).Scan(&active); err != nil {
 		internal(w, err)
@@ -185,8 +200,8 @@ func (a *API) notificationAccount(w http.ResponseWriter, r *http.Request, s Sess
 		fail(w, 401, "unauthenticated", "Sign in again")
 		return false
 	}
-	if s.User.Role != "parent" && s.User.Role != "student" {
-		fail(w, 403, "forbidden", "Parent or student access is required")
+	if s.User.Role != "parent" && s.User.Role != "student" && !(coachInbox && s.User.Role == "coach") {
+		fail(w, 403, "forbidden", "Notification access is required")
 		return false
 	}
 	return true
@@ -232,13 +247,13 @@ func (a *API) listNotifications(w http.ResponseWriter, r *http.Request, s Sessio
 	if !ok {
 		return
 	}
-	tx, err := a.beginIdentity(r.Context())
+	tx, err := a.db.BeginTx(r.Context(), pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
 	if err != nil {
 		internal(w, err)
 		return
 	}
 	defer tx.Rollback(r.Context())
-	if !a.notificationAccount(w, r, s, tx, false) {
+	if !a.notificationAccount(w, r, s, tx, true) {
 		return
 	}
 	var unread int
@@ -280,10 +295,15 @@ func (a *API) markNotificationRead(w http.ResponseWriter, r *http.Request, s Ses
 		return
 	}
 	defer tx.Rollback(r.Context())
-	if !a.notificationAccount(w, r, s, tx, false) {
+	if !a.notificationAccount(w, r, s, tx, true) {
 		return
 	}
-	x, err := scanNotification(tx.QueryRow(r.Context(), "SELECT "+notificationColumns+notificationJoin+" WHERE "+notificationScope+" AND n.id=$3", s.User.ID, s.User.Role, r.PathValue("notificationId")))
+	scope := notificationScope
+	if s.User.Role == "coach" {
+		// Hold the current class assignment through marking the receipt read.
+		scope += " AND EXISTS (" + coachNotificationSource + " FOR SHARE OF original)"
+	}
+	x, err := scanNotification(tx.QueryRow(r.Context(), "SELECT "+notificationColumns+notificationJoin+" WHERE "+scope+" AND n.id=$3", s.User.ID, s.User.Role, r.PathValue("notificationId")))
 	if errors.Is(err, pgx.ErrNoRows) {
 		fail(w, 404, "not_found", "Notification not found")
 		return
@@ -384,7 +404,7 @@ func (a *API) listNotificationDeliveries(w http.ResponseWriter, r *http.Request,
 		return
 	}
 	defer tx.Rollback(r.Context())
-	if !a.notificationAccount(w, r, s, tx, true) {
+	if !a.currentAdminAccess(w, r, s, tx) {
 		return
 	}
 	rows, err := tx.Query(r.Context(), "SELECT "+deliveryColumns+deliveryJoin+" WHERE ($1='' OR d.status=$1) AND ($2='' OR (d.created_at,d.id)<($3,$2)) ORDER BY d.created_at DESC,d.id DESC LIMIT $4", status, c.ID, c.CreatedAt, limit+1)
@@ -433,7 +453,7 @@ func (a *API) retryNotificationDelivery(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 	defer tx.Rollback(r.Context())
-	if !a.notificationAccount(w, r, s, tx, true) {
+	if !a.currentAdminAccess(w, r, s, tx) {
 		return
 	}
 	before, err := scanDelivery(tx.QueryRow(r.Context(), "SELECT "+deliveryColumns+deliveryJoin+" WHERE d.id=$1 FOR UPDATE OF d", r.PathValue("id")))

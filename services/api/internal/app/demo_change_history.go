@@ -80,7 +80,8 @@ func seedDemoChangeHistory(ctx context.Context, db *pgxpool.Pool, now func() tim
 			args := map[string]any{"targetClassId": plan.targetID, "targetClassVersion": plan.targetVersion,
 				"idempotencyKey": demoHistorySeed + "-" + example.student}
 			x, err = demoHistoryService(ctx, http.MethodPost, example.guardian, "parent",
-				map[string]string{"id": example.student, "bookingId": plan.bookingID(example.student)}, args, a.requestLessonChange, 201)
+				map[string]string{"id": example.student, "bookingId": plan.bookingID(example.student)}, args,
+				func(w http.ResponseWriter, r *http.Request, s Session) { a.saveLessonChangeRequest(w, r, s, false) }, 201)
 			if err != nil {
 				return err
 			}

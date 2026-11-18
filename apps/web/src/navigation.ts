@@ -18,13 +18,18 @@ export function parseRoute(path: string, search = ''): Route {
   }
   if (path === '/') return { view: 'students' };
   for (const view of Object.keys(paths) as View[]) if (paths[view] === path) return { view };
+  const change = /^\/lesson-changes\/([^/]+)\/([a-f0-9]{64})$/.exec(path);
   const student = /^\/students\/([^/]+)(?:\/lesson-changes\/([a-f0-9]{64}))?$/.exec(path);
   const roster = /^\/schedule\/([^/]+)\/roster$/.exec(path);
-  const match = student ?? roster;
+  const match = change ?? student ?? roster;
   if (match) {
     try {
       const id = decodeURIComponent(match[1]);
-      if (id && id !== '.' && id !== '..' && !/[\/\\\u0000-\u001f\u007f]/.test(id)) return student ? { view: 'students', studentId: id, ...(student[2] && { lessonChangeId: student[2] }) } : { view: 'schedule', classId: id };
+      if (id && id !== '.' && id !== '..' && !/[\/\\\u0000-\u001f\u007f]/.test(id)) {
+        if (change) return { view: 'lesson-changes', studentId: id, lessonChangeId: change[2] };
+        if (student) return { view: 'students', studentId: id, ...(student[2] && { lessonChangeId: student[2] }) };
+        return { view: 'schedule', classId: id };
+      }
     } catch { /* Malformed URL segments have no destination. */ }
   }
   return { view: 'unavailable' };
@@ -32,6 +37,7 @@ export function parseRoute(path: string, search = ''): Route {
 export function routePath(route: Route): string {
   if (route.view === 'unavailable') return '/';
   if (route.view === 'deliveries' && route.deliveryStatus) return `${paths.deliveries}?status=${route.deliveryStatus}`;
+  if (route.view === 'lesson-changes' && route.studentId && route.lessonChangeId) return `/lesson-changes/${encodeURIComponent(route.studentId)}/${encodeURIComponent(route.lessonChangeId)}`;
   if (route.view === 'lesson-changes' && route.lessonChangeStatus) return `${paths['lesson-changes']}?status=pending`;
   if (route.view === 'schedule' && route.classId) return `/schedule/${encodeURIComponent(route.classId)}/roster`;
   if (route.view === 'students' && route.studentId) {
@@ -46,7 +52,7 @@ export function canView(route: Route, role: User['role']): boolean {
     case 'schedule': return !route.classId || role === 'admin' || role === 'coach';
     case 'lesson-changes': return role === 'admin' || role === 'coach' || role === 'parent';
     case 'packages': return role === 'admin' || role === 'parent';
-    case 'notifications': return role === 'parent' || role === 'student';
+    case 'notifications': return role === 'parent' || role === 'student' || role === 'coach';
     case 'availability': return role === 'admin' || role === 'coach';
     case 'missing-attendance': case 'accounts': case 'audit': case 'setup': case 'deliveries': return role === 'admin';
     default: return false;

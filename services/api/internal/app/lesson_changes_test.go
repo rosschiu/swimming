@@ -73,6 +73,21 @@ func TestIntegrationLessonChangeApproval(t *testing.T) {
 	expectBookingError(t, request(t, h, "POST", path+"/change-requests", body, parent), 409, "target_changed")
 	target.Version++
 	body = changeBody(target, "move-fixed-lesson")
+	exec := func(sql string, args ...any) {
+		t.Helper()
+		if _, err := db.Exec(ctx, sql, args...); err != nil {
+			t.Fatal(err)
+		}
+	}
+	exec("ALTER TABLE notifications ADD CONSTRAINT fail_change_request_notice CHECK (kind<>'lesson_change.requested') NOT VALID")
+	expectStatus(t, request(t, h, "POST", path+"/change-requests", body, parent), 500)
+	var written int
+	if err := db.QueryRow(ctx, `SELECT (SELECT count(*) FROM lesson_change_requests)
+		+ (SELECT count(*) FROM audit_events WHERE action='lesson_change.requested')
+		+ (SELECT count(*) FROM notifications WHERE kind='lesson_change.requested')`).Scan(&written); err != nil || written != 0 {
+		t.Fatalf("rolled-back request left %d records: %v", written, err)
+	}
+	exec("ALTER TABLE notifications DROP CONSTRAINT fail_change_request_notice")
 	w = request(t, h, "POST", path+"/change-requests", body, parent)
 	expectStatus(t, w, 201)
 	change := decodeBody[LessonChange](t, w)
@@ -101,12 +116,7 @@ func TestIntegrationLessonChangeApproval(t *testing.T) {
 	decisionPath := "/api/v1/lesson-changes/" + change.ID + "/decision"
 	approve := map[string]string{"decision": "approved"}
 	expectStatus(t, request(t, h, "PUT", decisionPath, approve, f.admin), 403)
-	exec := func(sql string, args ...any) {
-		t.Helper()
-		if _, err := db.Exec(ctx, sql, args...); err != nil {
-			t.Fatal(err)
-		}
-	}
+
 	exec("INSERT INTO users(id,email,name,role,password_hash) SELECT 'second-coach','second-coach@swim.test','Second coach','coach',password_hash FROM users WHERE id='coach'")
 	secondCoach := login(t, base, "second-coach@swim.test")
 	exec("UPDATE sessions SET expires_at='2031-01-01' WHERE user_id='second-coach'")
@@ -153,7 +163,7 @@ func TestIntegrationLessonChangeApproval(t *testing.T) {
 	noticeCount := func(source string, want int) {
 		t.Helper()
 		var total int
-		if err := db.QueryRow(ctx, "SELECT count(*) FROM notifications WHERE source_id=$1 AND kind LIKE 'lesson_change.%'", source).Scan(&total); err != nil || total != want {
+		if err := db.QueryRow(ctx, "SELECT count(*) FROM notifications WHERE source_id=$1 AND kind IN ('lesson_change.approved','lesson_change.rejected')", source).Scan(&total); err != nil || total != want {
 			t.Fatalf("decision notices count=%d, want=%d err=%v", total, want, err)
 		}
 	}
@@ -240,7 +250,7 @@ func TestIntegrationLessonChangeApproval(t *testing.T) {
 	noticeCount(rejectID, 1)
 	var deliveries int
 	if err := db.QueryRow(ctx, `SELECT count(*) FROM notification_deliveries d JOIN notifications n ON n.id=d.notification_id
-		WHERE n.kind LIKE 'lesson_change.%'`).Scan(&deliveries); err != nil || deliveries != 0 {
+		WHERE n.kind IN ('lesson_change.approved','lesson_change.rejected')`).Scan(&deliveries); err != nil || deliveries != 0 {
 		t.Fatalf("decision delivery rows %+v, error %v", deliveries, err)
 	}
 	// The same timestamp on every request must still give stable pages and preserve the family scope.
