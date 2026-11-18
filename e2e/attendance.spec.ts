@@ -79,7 +79,10 @@ test('coach records attendance once and administrator, guardian and student see 
   const missing = await report.json();
   expectContract('MissingAttendanceList', missing);
   expect(missing.items).toMatchObject([{ id: lesson.id, unmarkedBookings: 1 }]);
-  await expect(page.getByText(kind.name, { exact: true })).toBeVisible();
+  const missingRow = page.getByRole('listitem').filter({ hasText: kind.name });
+  await expect(missingRow).toContainText(pastDate + ' 23:30');
+  await expect(missingRow).toContainText('00:30');
+  await expect(missingRow).toContainText('Unmarked bookings · 1');
   const rosterLink = page.getByRole('link', { name: 'Open roster' });
   await expect(rosterLink).toHaveAttribute('href', '/schedule/' + lesson.id + '/roster');
   await rosterLink.click();
