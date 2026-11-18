@@ -49,7 +49,7 @@ func TestIntegrationCreditRecoveryLineageScopeAndReplay(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &raw); err != nil {
 		t.Fatal(err)
 	}
-	for _, forbidden := range []string{"purchaseId", "priceMinor", "receiptId", "currency", "policy"} {
+	for _, forbidden := range []string{"purchaseId", "offerId", "priceMinor", "receiptId", "currency", "policy"} {
 		if strings.Contains(w.Body.String(), `"`+forbidden+`"`) {
 			t.Fatal("coach finance leak", forbidden, w.Body)
 		}

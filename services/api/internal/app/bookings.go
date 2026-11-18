@@ -31,6 +31,9 @@ type ClassRoster struct {
 func (a *API) bookingRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/settings/booking-validity", a.auth(a.bookingValiditySettings))
 	mux.HandleFunc("PATCH /api/v1/settings/booking-validity", a.auth(a.bookingValiditySettings))
+	mux.HandleFunc("POST /api/v1/students/{id}/enrolments", a.auth(a.createEnrolment))
+	mux.HandleFunc("GET /api/v1/students/{id}/enrolments", a.auth(a.listStudentEnrolments))
+	mux.HandleFunc("POST /api/v1/students/{id}/enrolments/{enrolmentId}/renewals", a.auth(a.createEnrolment))
 	mux.HandleFunc("GET /api/v1/students/{id}/bookings", a.auth(a.listStudentBookings))
 	mux.HandleFunc("POST /api/v1/students/{id}/bookings", a.auth(a.createBooking))
 	mux.HandleFunc("GET /api/v1/classes/{id}/roster", a.auth(a.getClassRoster))
@@ -96,11 +99,7 @@ func (a *API) listStudentBookings(w http.ResponseWriter, r *http.Request, s Sess
 	defer rows.Close()
 	items := []StudentBooking{}
 	for rows.Next() {
-		var booking StudentBooking
-		c := &booking.Class
-		err = rows.Scan(&booking.ID, &booking.StudentID, &booking.Status, &booking.CreatedAt,
-			&c.ID, &c.VenueID, &c.ClassTypeID, &c.CoachID, &c.StartsAt, &c.EndsAt, &c.Capacity,
-			&c.VenueName, &c.Region, &c.ClassTypeName, &c.Level, &c.CoachName, &c.SeriesID, &c.Version, &c.ClassTypeVersion)
+		booking, err := scanStudentBooking(rows)
 		if err != nil {
 			internal(w, err)
 			return
@@ -112,6 +111,15 @@ func (a *API) listStudentBookings(w http.ResponseWriter, r *http.Request, s Sess
 		return
 	}
 	respond(w, 200, map[string]any{"items": items})
+}
+
+func scanStudentBooking(row pgx.Row) (StudentBooking, error) {
+	var booking StudentBooking
+	c := &booking.Class
+	err := row.Scan(&booking.ID, &booking.StudentID, &booking.Status, &booking.CreatedAt,
+		&c.ID, &c.VenueID, &c.ClassTypeID, &c.CoachID, &c.StartsAt, &c.EndsAt, &c.Capacity,
+		&c.VenueName, &c.Region, &c.ClassTypeName, &c.Level, &c.CoachName, &c.SeriesID, &c.Version, &c.ClassTypeVersion)
+	return booking, err
 }
 
 func (a *API) getClassRoster(w http.ResponseWriter, r *http.Request, s Session) {

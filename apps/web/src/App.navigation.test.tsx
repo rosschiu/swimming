@@ -27,6 +27,7 @@ function api(role: Role, override?: Override) {
   if (path.endsWith('/settings/availability')) return response({ lockHours: 24, version: 1 });
   if (path.endsWith('/settings/lessons')) return response({ parentChangeCutoffHours: 24, attendanceOpenMinutes: 15, correctionWindowDays: 3, version: 1 });
   if (path.endsWith('/settings/booking-validity')) return response(bookingValidity);
+  if (path.endsWith('/settings/fixed-enrolment')) return response({ allocationPolicy: 'all_or_none', renewalPolicy: 'same_offer', version: 1 });
   if (path.endsWith('/notification-preferences')) return response({ emailEnabled: false, emailAddress: 'parent@swim.test', emailDeliveryAvailable: false });
   return response({ items: [], nextCursor: null, unreadCount: 0 });
  }); vi.stubGlobal('fetch', mock); return mock;
@@ -155,12 +156,18 @@ it.each(['admin', 'parent', 'student', 'coach'] as const)('loads read-only lesso
   await screen.findByRole('heading', { name: 'Amy Chan' });
   if (role === 'coach') {
     expect(screen.queryByRole('heading', { name: 'Booked lessons' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Enrol in weekly lessons' })).not.toBeInTheDocument();
     expect(mock.mock.calls.some(([path]) => String(path).includes('/bookings'))).toBe(false);
     return;
   }
   expect(await screen.findByText('Booked youth lesson')).toBeVisible();
-  if (role === 'student') expect(screen.queryByRole('button', { name: 'Book a lesson' })).not.toBeInTheDocument();
-  else expect(screen.getByRole('button', { name: 'Book a lesson' })).toBeVisible();
+  if (role === 'student') {
+    expect(screen.queryByRole('button', { name: 'Book a lesson' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Enrol in weekly lessons' })).not.toBeInTheDocument();
+  } else {
+    expect(screen.getByRole('button', { name: 'Book a lesson' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Enrol in weekly lessons' })).toBeVisible();
+  }
   expect(screen.getByText('2026-11-18 23:30')).toBeVisible();
   expect(screen.getByText('2026-11-19 00:30')).toBeVisible();
   expect(mock).toHaveBeenCalledWith(expect.stringMatching(/\/students\/amy\/bookings\?from=\d{4}-\d{2}-\d{2}&to=\d{4}-\d{2}-\d{2}$/), expect.objectContaining({ signal: expect.any(AbortSignal) }));

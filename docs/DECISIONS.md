@@ -88,9 +88,9 @@ Coach scheduling requires a 30-minute gap between classes at different venues by
 
 ## Questions to resolve before dependent implementation
 
-1. Fixed enrolment: explicit renewal is approved. All-or-nothing allocation is the approved default. Confirm alternate allocation settings before implementing them.
+1. Fixed enrolment: explicit renewal is approved. All-or-nothing allocation is the approved default. Administrators may enable an alternative that lets a family confirm the available subset.
 2. Package validity: administrator-entered expiry is approved. The user confirmed individually entered dates per purchase on 2026-11-18. Validity through lesson end is the approved default. An administrator can switch the whole school to checking validity at lesson start. The chosen rule applies prospectively to every student.
-3. Carry-forward: transfer unused credits on renewal to the new expiry is approved. Reserved credits retain their original expiry by default. Confirm alternative settings, matching package eligibility and any quantity limits.
+3. Carry-forward: transfer unused credits on renewal to the new expiry is approved. Reserved credits retain their original expiry by default. Renewal defaults to a paid package of the same offer. Administrators may allow another paid package for the same student.
 4. Recovery: assigned coaches, a reason and a new expiry are approved. Recovery is limited to actual expired unused credits. Extra grants require an administrator.
 5. Timing defaults are approved and admin-configurable:24-hour parent cutoff,72-hour availability restriction, attendance opening15 minutes after start and three-day corrections. No new timing decision is required before implementing those defaults.
 6. Class eligibility: enforce matching levels with an administrator override. Package/class-type restrictions remain unconfirmed. Coach travel defaults30 minutes, configurable; concurrent classes at a venue are allowed with venue/lane limits managed by administrators.
@@ -122,6 +122,6 @@ The user selected individual expiry per purchase; the previously approved admini
 
 ## Booking and recovery approvals (2026-11-18)
 
-The user requires matching swimming level for bookings, with an administrator override. Default validity must cover lesson end; fixed enrolment reserves all selected lessons or none; renewal carries unused unreserved credits while existing reservations keep their original expiry. Booking validity is school-wide and administrator-controlled. The alternatives and configuration scope for fixed allocation and renewal remain open.
+The user requires matching swimming level for bookings, with an administrator override. Default validity must cover lesson end; fixed enrolment reserves all selected lessons or none; renewal carries unused unreserved credits while existing reservations keep their original expiry. Booking validity is school-wide and administrator-controlled. Fixed allocation and renewal eligibility are also configured school-wide by administrators.
 
 Assigned coaches may recover only actual expired unused credits, with a reason and new expiry. Extra credit grants require an administrator. AI/voice remains deferred beyond first delivery.
