@@ -27,11 +27,12 @@ type enrolmentSession struct {
 }
 
 type enrolmentInput struct {
-	SeriesID        string             `json:"seriesId"`
-	Sessions        []enrolmentSession `json:"sessions"`
-	CreditPackageID string             `json:"creditPackageId"`
-	IdempotencyKey  string             `json:"idempotencyKey"`
-	OverrideReason  string             `json:"overrideReason,omitempty"`
+	SeriesID               string             `json:"seriesId"`
+	Sessions               []enrolmentSession `json:"sessions"`
+	CreditPackageID        string             `json:"creditPackageId"`
+	IdempotencyKey         string             `json:"idempotencyKey"`
+	BookingValidityVersion *int               `json:"bookingValidityVersion,omitempty"`
+	OverrideReason         string             `json:"overrideReason,omitempty"`
 }
 
 func (a *API) createEnrolment(w http.ResponseWriter, r *http.Request, s Session) {
@@ -46,7 +47,7 @@ func (a *API) createEnrolment(w http.ResponseWriter, r *http.Request, s Session)
 	in.OverrideReason = strings.TrimSpace(in.OverrideReason)
 	validID := func(id string) bool { return id != "" && len(id) <= 100 && !strings.ContainsRune(id, 0) }
 	if !validID(in.SeriesID) || !validID(in.CreditPackageID) || !validFinanceKey(in.IdempotencyKey) ||
-		len(in.Sessions) < 1 || len(in.Sessions) > 14 ||
+		(in.BookingValidityVersion != nil && *in.BookingValidityVersion < 1) || len(in.Sessions) < 1 || len(in.Sessions) > 14 ||
 		utf8.RuneCountInString(in.OverrideReason) > 500 || strings.ContainsRune(in.OverrideReason, 0) {
 		fail(w, 422, "validation_error", "Provide a series, 1–14 sessions, a credit package and valid request key and override reason")
 		return
@@ -85,6 +86,10 @@ func (a *API) createEnrolment(w http.ResponseWriter, r *http.Request, s Session)
 			return
 		}
 	} else if errors.Is(err, pgx.ErrNoRows) {
+		rule, confirmed := confirmedBookingValidity(ctx, tx, w, in.BookingValidityVersion)
+		if !confirmed {
+			return
+		}
 		var exists bool
 		err = tx.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM class_series WHERE id=$1)", in.SeriesID).Scan(&exists)
 		if err != nil {
@@ -127,7 +132,6 @@ func (a *API) createEnrolment(w http.ResponseWriter, r *http.Request, s Session)
 			return
 		}
 		enrolment.CreatedAt = a.now().UTC().Truncate(time.Microsecond)
-		rule := effectiveBookingValidity()
 		_, err = tx.Exec(ctx, `INSERT INTO enrolments(id,student_id,series_id,credit_package_id,actor_id,idempotency_key,request,created_at)
 			VALUES($1,$2,$3,$4,$5,$6,$7,$8)`, enrolment.ID, enrolment.StudentID, in.SeriesID, in.CreditPackageID, s.User.ID,
 			in.IdempotencyKey, canonical, enrolment.CreatedAt)

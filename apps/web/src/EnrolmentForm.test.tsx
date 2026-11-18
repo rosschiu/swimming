@@ -24,7 +24,8 @@ it('confirms exactly the selected nonconsecutive weeks and safely retries the sa
   const onBooked = vi.fn();
   const fetch = vi.fn(async (path: string, options?: RequestInit) => {
     if (path.includes('/classes?')) return response({ items: [first, skipped, third, week('standalone', 17, null), { ...week('advanced', 10, 'advanced-series'), level: 'Advanced' }] });
-    if (path.endsWith('/credit-history')) return response({ items: [
+    if (path.endsWith('/credit-history')) return response({ bookingValidity: { validityRule: 'lesson_end', version: 3 }, items: [
+      { id: 'expired-before-last', available: 2, expiresOn: date(10) },
       { id: 'one-credit', available: 1, expiresOn: null }, { id: 'exact-package', available: 2, expiresOn: null },
     ] });
     writes.push(JSON.parse(String(options?.body)));
@@ -40,6 +41,7 @@ it('confirms exactly the selected nonconsecutive weeks and safely retries the sa
   await user.click(screen.getByRole('checkbox', { name: new RegExp(date(3)) }));
   await user.click(screen.getByRole('checkbox', { name: new RegExp(date(17)) }));
   const packages = screen.getByLabelText('Enrolment credit package');
+  expect(screen.queryByRole('option', { name: /expired-before-last/ })).not.toBeInTheDocument();
   await user.selectOptions(packages, 'one-credit');
   expect(screen.getByRole('button', { name: 'Review enrolment' })).toBeDisabled();
   await user.selectOptions(packages, 'exact-package');
@@ -55,7 +57,7 @@ it('confirms exactly the selected nonconsecutive weeks and safely retries the sa
   expect(writes[0]).toEqual({ seriesId: 'series', sessions: [
     { classId: 'c1', classVersion: 1, classTypeVersion: 2 },
     { classId: 'c3', classVersion: 1, classTypeVersion: 2 },
-  ], creditPackageId: 'exact-package', idempotencyKey: expect.any(String) });
+  ], creditPackageId: 'exact-package', bookingValidityVersion: 3, idempotencyKey: expect.any(String) });
   expect(onBooked).toHaveBeenCalledWith([first.startsAt, third.startsAt]);
   expect(fetch).toHaveBeenCalledWith('/api/v1/students/amy/enrolments', expect.objectContaining({ method: 'POST', headers: expect.objectContaining({ 'X-CSRF-Token': 'csrf' }) }));
 });
@@ -65,7 +67,7 @@ it('requires an administrator reason for a level mismatch and resets stale choic
   const onBooked = vi.fn();
   vi.stubGlobal('fetch', vi.fn(async (path: string, options?: RequestInit) => {
     if (path.includes('/classes?')) return response({ items: [{ ...first, level: 'Advanced', classTypeVersion: writes.length + 1 }] });
-    if (path.endsWith('/credit-history')) return response({ items: [{ id: 'package', available: 1, expiresOn: null }] });
+    if (path.endsWith('/credit-history')) return response({ bookingValidity: { validityRule: 'lesson_end', version: writes.length + 1 }, items: [{ id: 'package', available: 1, expiresOn: null }] });
     writes.push(JSON.parse(String(options?.body)));
     return response({ error: { code: 'version_conflict' } }, 409);
   }));
@@ -83,7 +85,7 @@ it('requires an administrator reason for a level mismatch and resets stale choic
     expect(await screen.findByRole('alert')).toHaveTextContent('A selected lesson changed.');
     await waitFor(() => expect(screen.getByLabelText('Weekly series')).toHaveValue(''));
     expect(writes.at(-1)).toMatchObject({
-      sessions: [{ classId: 'c1', classVersion: 1, classTypeVersion: version }], overrideReason: 'Coach assessed swimmer',
+      sessions: [{ classId: 'c1', classVersion: 1, classTypeVersion: version }], bookingValidityVersion: version, overrideReason: 'Coach assessed swimmer',
     });
   }
   expect(writes).toHaveLength(2);

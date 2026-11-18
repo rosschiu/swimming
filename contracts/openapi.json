@@ -425,7 +425,7 @@
     "/api/v1/students/{id}/enrolments": {
       "post": {
         "operationId": "createEnrolment",
-        "description": "Administrators and current guardians may reserve all selected future lessons from one weekly class series with one credit per lesson from the selected paid package. A failed reservation rolls back the entire enrolment. Only administrators can override level mismatches with a reason. Identical retries return the existing enrolment after checking current access.",
+        "description": "Administrators and current guardians may reserve all selected future lessons from one weekly class series with one credit per lesson from the selected paid package. A failed reservation rolls back the entire enrolment. Only administrators can override level mismatches with a reason. A stale bookingValidityVersion returns booking_validity_changed for new requests. Identical retries return the existing enrolment after checking current access.",
         "security": [
           {
             "sessionCookie": []
@@ -592,6 +592,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/StudentBooking"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Booking conflict. booking_validity_changed indicates that the school rule changed after review.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -2754,6 +2764,120 @@
             }
           }
         ]
+      }
+    },
+    "/api/v1/settings/booking-validity": {
+      "get": {
+        "operationId": "getBookingValiditySettings",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookingValiditySettings"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Administrator access required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "description": "Administrators may read the school-wide booking validity rule."
+      },
+      "patch": {
+        "operationId": "updateBookingValiditySettings",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookingValiditySettings"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Administrator access required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Settings version changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BookingValiditySettings"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "description": "Administrators may change the school-wide rule for new bookings. A stale version returns version_conflict."
       }
     },
     "/api/v1/availability/{id}/classes": {
@@ -5220,6 +5344,11 @@
           "overrideReason": {
             "type": "string",
             "maxLength": 500
+          },
+          "bookingValidityVersion": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Version of the booking validity rule presented for review. A stale version returns booking_validity_changed for a new request."
           }
         },
         "required": [
@@ -5284,6 +5413,11 @@
             "minLength": 1,
             "maxLength": 100,
             "pattern": "^[!-~]{1,100}$"
+          },
+          "bookingValidityVersion": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Version of the school credit validity rule shown at confirmation."
           },
           "overrideReason": {
             "type": "string",
@@ -5703,6 +5837,28 @@
         },
         "required": [
           "lockHours",
+          "version"
+        ],
+        "additionalProperties": false
+      },
+      "BookingValiditySettings": {
+        "type": "object",
+        "properties": {
+          "validityRule": {
+            "type": "string",
+            "enum": [
+              "lesson_end",
+              "lesson_start"
+            ],
+            "description": "Default lesson_end requires validity through the end of the lesson. lesson_start requires validity when the lesson starts. The expiry cutoff is midnight after the expiry date in Asia/Hong_Kong. Lesson end may equal the cutoff. Lesson start must precede it."
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "validityRule",
           "version"
         ],
         "additionalProperties": false
@@ -7296,11 +7452,15 @@
             "items": {
               "$ref": "#/components/schemas/CreditRecovery"
             }
+          },
+          "bookingValidity": {
+            "$ref": "#/components/schemas/BookingValiditySettings"
           }
         },
         "required": [
           "items",
-          "recoveries"
+          "recoveries",
+          "bookingValidity"
         ],
         "additionalProperties": false
       }

@@ -1,13 +1,14 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { APIError, type Student } from './api';
 import type { components } from './generated/api';
-import { classLabel, hkDate, type ClassSession } from './scheduling';
+import { bookingCreditCovers, classLabel, hkDate, type ClassSession } from './scheduling';
 import { isAborted, useProtectedRequest, type ProtectedProps } from './useProtectedRequest';
 
 type Package = components['schemas']['CreditHistoryPackage'];
 type Input = components['schemas']['EnrolmentInput'];
 type Enrolment = components['schemas']['Enrolment'];
-type Choices = { classes: ClassSession[]; packages: Package[] };
+type CreditHistory = components['schemas']['CreditHistory'];
+type Choices = { classes: ClassSession[]; packages: Package[]; validity: CreditHistory['bookingValidity'] };
 
 function endDate(from: string) {
   return hkDate(new Date(Date.parse(`${from}T12:00:00+08:00`) + 92 * 86400000));
@@ -38,11 +39,12 @@ export default function EnrolmentForm({ student, admin, csrfToken, expired, t, o
     if (!search) return;
     let current = true;
     const query = new URLSearchParams({ from: search.from, to: endDate(search.from) });
-    void Promise.all([api<{ items: ClassSession[] }>(`/classes?${query}`), api<{ items: Package[] }>(`${path}/credit-history`)])
+    void Promise.all([api<{ items: ClassSession[] }>(`/classes?${query}`), api<CreditHistory>(`${path}/credit-history`)])
       .then(([classes, history]) => {
         if (current) setChoices({
           classes: classes.items.filter(lesson => lesson.seriesId && Date.parse(lesson.startsAt) > Date.now() && (admin || lesson.level === student.level)),
           packages: history.items.filter(item => item.available > 0),
+          validity: history.bookingValidity,
         });
       })
       .catch(error => { if (current && !isAborted(error)) setChoices('error'); });
@@ -104,13 +106,16 @@ export default function EnrolmentForm({ student, admin, csrfToken, expired, t, o
 
   const messages: Record<string, string> = {
     version_conflict: t('A selected lesson changed. Choose your weeks again.', '所選課堂已變更，請重新選擇週次。'),
+    booking_validity_changed: t('The school’s booking validity rule changed. Review the refreshed options and confirm again.', '全校預約有效期規則已變更。請查看最新選項並重新確認。'),
     class_unavailable: t('A selected lesson is no longer available.', '其中一堂所選課堂已無法預約。'),
     class_full: t('A selected lesson is full. Choose your weeks again.', '其中一堂所選課堂已滿，請重新選擇週次。'),
     student_overlap: t('A selected lesson overlaps with another booking.', '其中一堂所選課堂與另一項預約重疊。'),
     level_mismatch: t('A selected lesson differs from the student’s swimming level.', '其中一堂所選課堂與學員的游泳程度不符。'),
     credit_unavailable: t('The package could not cover all selected lessons.', '套票無法支付所有所選課堂。'),
   };
-  const canReview = selected.length > 0 && selected.length <= 14 && !!credit && credit.available >= selected.length && (!override || !!reason.trim());
+  const packages = options?.packages.filter(item =>
+    selected.every(lesson => bookingCreditCovers(item.expiresOn, lesson, options.validity.validityRule))) ?? [];
+  const canReview = selected.length > 0 && selected.length <= 14 && !!credit && packages.includes(credit) && credit.available >= selected.length && (!override || !!reason.trim());
 
   return <section className="section-gap" aria-label={t('Weekly enrolment', '每週課堂報名')}>
     {!search && <button className="outline" onClick={() => { setReserved(0); setFailure(''); const today = hkDate(); setDate(today); load(today); }}>{t('Enrol in weekly lessons', '報名每週課堂')}</button>}
@@ -118,9 +123,12 @@ export default function EnrolmentForm({ student, admin, csrfToken, expired, t, o
     {search && <div className="panel">
       <h3>{t('Weekly enrolment', '每週課堂報名')}</h3>
       {failure && <p role="alert" className="error">{Object.hasOwn(messages, failure) ? messages[failure] : t('The enrolment could not be completed. Review the refreshed options and try again.', '未能完成報名，請檢查最新選項後再試。')}</p>}
-      {review && credit ? <>
+      {review && credit && options ? <>
         <h4>{t('Review weekly enrolment', '檢查每週課堂報名')}</h4>
         <p>{student.name} · {packageLabel(credit)}</p>
+        <p>{options.validity.validityRule === 'lesson_start'
+          ? t('The credit must be valid when each lesson starts.', '堂數須於每堂課開始時有效。')
+          : t('The credit must be valid through the end of each lesson.', '堂數須有效至每堂課結束。')}</p>
         <ul>{selected.map(lesson => <li key={lesson.id}>{classLabel(lesson)}</li>)}</ul>
         <p>{t(`Confirm to reserve ${selected.length} credits. All selected lessons are booked together.`, `確認後預留 ${selected.length} 堂套票堂數，並一次過預約所有所選課堂。`)}</p>
         {override && <p>{t('Level override reason', '程度例外原因')} · {reason.trim()}</p>}
@@ -143,7 +151,7 @@ export default function EnrolmentForm({ student, admin, csrfToken, expired, t, o
             if (!canReview || !credit || [...reason.trim()].length > 500) return;
             const intent = {
               seriesId, sessions: selected.map(lesson => ({ classId: lesson.id, classVersion: lesson.version, classTypeVersion: lesson.classTypeVersion })),
-              creditPackageId: credit.id, ...(override ? { overrideReason: reason.trim() } : {}),
+              creditPackageId: credit.id, bookingValidityVersion: options.validity.version, ...(override ? { overrideReason: reason.trim() } : {}),
             };
             const fingerprint = JSON.stringify(intent);
             if (lastIntent.current?.fingerprint !== fingerprint) {
@@ -169,11 +177,11 @@ export default function EnrolmentForm({ student, admin, csrfToken, expired, t, o
               })}
             </fieldset>}
             <label htmlFor={`${id}-package`}>{t('Enrolment credit package', '報名所用堂數套票')}</label>
-            <select id={`${id}-package`} required value={packageId} onChange={event => setPackageId(event.target.value)}>
+            <select id={`${id}-package`} required value={packages.some(item => item.id === packageId) ? packageId : ''} onChange={event => setPackageId(event.target.value)}>
               <option value="">{t('Choose a package', '選擇套票')}</option>
-              {options.packages.map(item => <option value={item.id} key={item.id}>{packageLabel(item)}</option>)}
+              {packages.map(item => <option value={item.id} key={item.id}>{packageLabel(item)}</option>)}
             </select>
-            {!options.packages.length && <p role="status">{t('This student has no packages with available credits.', '這位學員沒有可用堂數的套票。')}</p>}
+            {!packages.length && <p role="status">{t('No package with available credits covers the selected lessons.', '沒有可用堂數的套票涵蓋所有所選課堂。')}</p>}
             {credit && credit.available < selected.length && <p role="status">{t('Choose a package with enough credits for every selected week.', '請選擇有足夠堂數支付所有所選週次的套票。')}</p>}
             {override && <><p>{t('The selected lessons include a level mismatch.', '所選課堂中有班別程度與學員不符。')}</p>
               <label htmlFor={`${id}-reason`}>{t('Level override reason', '程度例外原因')}</label>

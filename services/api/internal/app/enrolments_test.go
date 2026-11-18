@@ -84,6 +84,26 @@ func TestIntegrationFixedEnrolmentAtomicReservationAndReplay(t *testing.T) {
 		t.Fatalf("failed enrolment changed short package: balance=%d err=%v", shortBalance, err)
 	}
 
+	// The final class starts on the expiry date and ends the next morning.
+	if _, err := db.Exec(ctx, `UPDATE class_sessions SET starts_at='2030-01-21T23:30:00+08', ends_at='2030-01-22T00:30:00+08'
+		WHERE id=$1`, series.Sessions[len(series.Sessions)-1].ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(ctx, "UPDATE credit_packages SET expires_on='2030-01-21' WHERE id=$1", in.CreditPackageID); err != nil {
+		t.Fatal(err)
+	}
+	const settingsPath = "/api/v1/settings/booking-validity"
+	before := 1
+	in.BookingValidityVersion = &before
+	expectBookingError(t, request(t, h, "POST", path, in, parent), 409, "credit_unavailable")
+	counts(0, 0, 3)
+	updated := request(t, h, "PATCH", settingsPath, BookingValiditySettings{bookingValidityLessonStart, before}, f.admin)
+	expectStatus(t, updated, 200)
+	current := decodeBody[BookingValiditySettings](t, updated)
+	expectBookingError(t, request(t, h, "POST", path, in, parent), 409, "booking_validity_changed")
+	counts(0, 0, 3)
+	in.BookingValidityVersion = &current.Version
+
 	reversed := in
 	reversed.Sessions = slices.Clone(in.Sessions)
 	slices.Reverse(reversed.Sessions)
@@ -111,6 +131,15 @@ func TestIntegrationFixedEnrolmentAtomicReservationAndReplay(t *testing.T) {
 		}
 	}
 	counts(1, 3, 0)
+	expectStatus(t, request(t, h, "PATCH", settingsPath, BookingValiditySettings{bookingValidityLessonEnd, current.Version}, f.admin), 200)
+	expectStatus(t, request(t, h, "POST", path, in, parent), 200)
+	var snapshots int
+	if err := db.QueryRow(ctx, "SELECT count(*) FROM bookings WHERE enrolment_id=$1 AND validity_rule=$2", enrolment.ID, bookingValidityLessonStart).
+		Scan(&snapshots); err != nil || snapshots != len(in.Sessions) {
+		t.Fatalf("validity snapshots: got %d, err=%v", snapshots, err)
+	}
+	counts(1, 3, 0)
+
 	reversed.Sessions = reversed.Sessions[:2]
 	expectBookingError(t, request(t, h, "POST", path, reversed, parent), 409, "conflict")
 	expectStatus(t, request(t, h, "DELETE", "/api/v1/students/amy/relationships/parent", nil, f.admin), 204)

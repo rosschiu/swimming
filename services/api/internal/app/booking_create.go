@@ -13,22 +13,17 @@ import (
 )
 
 type bookingInput struct {
-	ClassID          string `json:"classId"`
-	ClassVersion     int    `json:"classVersion"`
-	ClassTypeVersion int    `json:"classTypeVersion"`
-	CreditPackageID  string `json:"creditPackageId"`
-	IdempotencyKey   string `json:"idempotencyKey"`
-	OverrideReason   string `json:"overrideReason,omitempty"`
-}
-
-const bookingValidityLessonEnd = "lesson_end"
-
-func effectiveBookingValidity() string {
-	return bookingValidityLessonEnd
+	ClassID                string `json:"classId"`
+	ClassVersion           int    `json:"classVersion"`
+	ClassTypeVersion       int    `json:"classTypeVersion"`
+	CreditPackageID        string `json:"creditPackageId"`
+	IdempotencyKey         string `json:"idempotencyKey"`
+	OverrideReason         string `json:"overrideReason,omitempty"`
+	BookingValidityVersion *int   `json:"bookingValidityVersion,omitempty"`
 }
 
 func bookingCreditCovers(rule string, class ClassSession, expiry *time.Time, now time.Time) bool {
-	if rule != bookingValidityLessonEnd {
+	if rule != bookingValidityLessonEnd && rule != bookingValidityLessonStart {
 		return false
 	}
 	if expiry == nil {
@@ -36,8 +31,14 @@ func bookingCreditCovers(rule string, class ClassSession, expiry *time.Time, now
 	}
 	year, month, day := expiry.Date()
 	cutoff := time.Date(year, month, day+1, 0, 0, 0, 0, hongKong)
+	if !now.Before(cutoff) {
+		return false
+	}
+	if rule == bookingValidityLessonStart {
+		return class.StartsAt.Before(cutoff)
+	}
 	// Lesson occupancy excludes its end, so ending at midnight uses only the expiry date.
-	return now.Before(cutoff) && !class.EndsAt.After(cutoff)
+	return !class.EndsAt.After(cutoff)
 }
 
 func (a *API) createBooking(w http.ResponseWriter, r *http.Request, s Session) {
@@ -50,7 +51,7 @@ func (a *API) createBooking(w http.ResponseWriter, r *http.Request, s Session) {
 		return
 	}
 	in.OverrideReason = strings.TrimSpace(in.OverrideReason)
-	if in.ClassVersion < 1 || in.ClassTypeVersion < 1 || !validFinanceKey(in.IdempotencyKey) ||
+	if in.ClassVersion < 1 || in.ClassTypeVersion < 1 || (in.BookingValidityVersion != nil && *in.BookingValidityVersion < 1) || !validFinanceKey(in.IdempotencyKey) ||
 		in.ClassID == "" || len(in.ClassID) > 100 || strings.ContainsRune(in.ClassID, 0) ||
 		in.CreditPackageID == "" || len(in.CreditPackageID) > 100 || strings.ContainsRune(in.CreditPackageID, 0) ||
 		utf8.RuneCountInString(in.OverrideReason) > 500 || strings.ContainsRune(in.OverrideReason, 0) {
@@ -95,7 +96,11 @@ func (a *API) createBooking(w http.ResponseWriter, r *http.Request, s Session) {
 		return
 	}
 
-	booking, ok = a.reserveBooking(ctx, tx, w, s, booking.StudentID, studentLevel, in, canonical, "", nil, time.Time{}, effectiveBookingValidity())
+	rule, ok := confirmedBookingValidity(ctx, tx, w, in.BookingValidityVersion)
+	if !ok {
+		return
+	}
+	booking, ok = a.reserveBooking(ctx, tx, w, s, booking.StudentID, studentLevel, in, canonical, "", nil, time.Time{}, rule)
 	if ok {
 		financeCommit(w, r, tx, 201, booking)
 	}

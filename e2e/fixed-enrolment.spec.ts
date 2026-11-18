@@ -111,3 +111,107 @@ test('guardian reserves two selected weeks with purchased credits and leaves the
     else await expect(roster.getByText('Amy', { exact: true })).toBeVisible();
   }
 });
+
+test('weekly enrolment rechecks the school rule across HK midnight and preserves an authorised replay', async ({ page: admin, browser }) => {
+  test.setTimeout(60000);
+  const headers = await login(admin, 'admin');
+  const parent = await browser.newPage({ baseURL: 'http://localhost:18573' });
+  const guardian = await login(parent, 'parent');
+  const settings = '/api/v1/settings/booking-validity';
+  const original = await (await admin.request.get(settings)).json();
+  async function setRule(validityRule: string) {
+    const current = await (await admin.request.get(settings)).json();
+    if (current.validityRule === validityRule) return current;
+    const saved = await admin.request.patch(settings, { headers, data: { validityRule, version: current.version } });
+    expect(saved.status()).toBe(200);
+    return saved.json();
+  }
+  async function create(path: string, data: object, actor = admin) {
+    const res = await actor.request.post('/api/v1/' + path, { headers: actor === admin ? headers : guardian, data });
+    expect(res.status(), await res.text()).toBe(201);
+    return res.json();
+  }
+  try {
+    await setRule('lesson_start');
+    const stamp = Date.now();
+    const first = Date.UTC(3400, 0, 1) + (stamp % 100000) * 86400000;
+    const day = (offset: number) => new Date(first + offset * 86400000).toISOString().slice(0, 10);
+    const venue = await create('venues', { name: 'Expiry pool ' + stamp, address: 'Synthetic pool', region: 'hk-island' });
+    const kind = await create('class-types', { name: 'Expiry series ' + stamp, level: 'Beginner' });
+    const group = { venueId: venue.id, classTypeId: kind.id, coachId: 'coach', capacity: 2 };
+    const series = await create('class-series', { ...group, startDate: day(0), endDate: day(7), weekday: new Date(first).getUTCDay() || 7,
+      startTime: '15:00', endTime: '16:00' });
+    const later = series.sessions[1];
+    const moved = await admin.request.patch('/api/v1/classes/' + later.id, { headers, data: { ...group, version: later.version,
+      startsAt: day(7) + 'T23:30:00+08:00', endsAt: day(8) + 'T00:30:00+08:00' } });
+    expect(moved.status(), await moved.text()).toBe(200);
+    const offer = await create('package-offers', { name: 'Expiry credits ' + stamp, credits: 2, priceMinor: 10000, currency: 'HKD', active: true,
+      policyOverride: { expiryEnabled: true, carryForwardEnabled: false, earlyCancellationRetainsCredit: true, lateCancellationRetainsCredit: false, absenceRetainsCredit: false, illnessRetainsCredit: true } });
+    const order = await create('students/amy/purchases', { offerId: offer.id, offerVersion: offer.version, idempotencyKey: offer.id }, parent);
+    expect((await admin.request.post('/api/v1/purchases/' + order.id + '/expiry', { headers, data: { version: order.version, expiresOn: day(7) } })).status()).toBe(200);
+    const payment = await create('purchases/' + order.id + '/payment-attempts', { idempotencyKey: order.id }, parent);
+    expect((await parent.request.post('/api/v1/payment-attempts/' + payment.id + '/mock-outcome', { headers: guardian, data: { outcome: 'succeeded' } })).status()).toBe(200);
+    async function balance() {
+      const history = await (await parent.request.get('/api/v1/students/amy/credits')).json();
+      return history.items.find((item: { purchaseId: string }) => item.purchaseId === order.id);
+    }
+    const pack = await balance();
+    const path = '/api/v1/students/amy/enrolments';
+    await parent.goto('/students/amy');
+    await parent.getByRole('button', { name: 'Enrol in weekly lessons' }).click();
+    await parent.getByLabel('Find weekly lessons from (Hong Kong)').fill(day(0));
+    async function selectBoth() {
+      await parent.getByRole('button', { name: 'Load weekly lessons and credits' }).click();
+      await parent.getByLabel('Weekly series', { exact: true }).selectOption(series.id);
+      for (const offset of [0, 7]) await parent.getByRole('checkbox', { name: new RegExp(day(offset)) }).check();
+    }
+    const packages = parent.getByLabel('Enrolment credit package');
+    async function review() {
+      await packages.selectOption(pack.id);
+      await parent.getByRole('button', { name: 'Review enrolment' }).click();
+      await expect(parent.getByText('The credit must be valid when each lesson starts.')).toBeVisible();
+    }
+    async function confirm() {
+      const response = parent.waitForResponse(r => r.url().endsWith(path) && r.request().method() === 'POST');
+      await parent.getByRole('button', { name: 'Confirm weekly enrolment' }).click();
+      return response;
+    }
+    await selectBoth();
+    await review();
+    const strict = await setRule('lesson_end');
+    const stale = await confirm();
+    expect(stale.status()).toBe(409);
+    await expect(parent.getByRole('alert')).toContainText('booking validity rule changed');
+    await selectBoth();
+    await expect(packages.getByRole('option', { name: new RegExp(pack.id) })).toHaveCount(0);
+    const denied = await parent.request.post(path, { headers: guardian, data: { ...stale.request().postDataJSON(), bookingValidityVersion: strict.version } });
+    expect(denied.status()).toBe(409);
+    expect(await denied.json()).toMatchObject({ error: { code: 'credit_unavailable' } });
+    expect(await balance()).toMatchObject({ available: 2, reserved: 0 });
+    const bookings = await (await parent.request.get('/api/v1/students/amy/bookings?from=' + day(0) + '&to=' + day(8))).json();
+    expect(bookings.items.filter((item: { class: { seriesId: string } }) => item.class.seriesId === series.id)).toHaveLength(0);
+    await setRule('lesson_start');
+    await selectBoth();
+    await review();
+    const saved = await confirm();
+    expect(saved.status()).toBe(201);
+    const result = await saved.json();
+    expect(result.bookings).toHaveLength(2);
+    const data = saved.request().postDataJSON();
+    await setRule('lesson_end');
+    const replay = await parent.request.post(path, { headers: guardian, data });
+    expect(replay.status()).toBe(200);
+    expect(await replay.json()).toEqual(result);
+    expect(await balance()).toMatchObject({ available: 0, reserved: 2 });
+    const link = '/api/v1/students/amy/relationships/parent';
+    expect((await admin.request.delete(link, { headers })).ok()).toBe(true);
+    try {
+      expect((await parent.request.post(path, { headers: guardian, data })).status()).toBe(404);
+    } finally {
+      expect((await admin.request.put(link, { headers, data: { kind: 'guardian' } })).ok()).toBe(true);
+    }
+  } finally {
+    await setRule(original.validityRule);
+    await parent.close();
+  }
+});
