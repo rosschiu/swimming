@@ -91,3 +91,23 @@ For an uncertain response, retry the same recovery. A changed quantity/reason/da
 2. As the guardian, open the student's profile and select **Book a lesson**. Select the class and the package to charge. Review the selection, then confirm. The lesson should appear under **Booked lessons**, and one credit should move from available to reserved. If the result is uncertain, **Retry same booking** checks the original request.
 3. Sign in as the student's linked account and open the profile to view the lesson. Sign in as the assigned class coach, find the same class on the schedule, and select **View roster**.
 4. As an administrator, open audit history to inspect the `booking.created` event. An administrator booking across a level mismatch must supply a reason. Once a class has reservations, it retains its time, venue and type. Administrators can reassign the coach or adjust capacity while preserving enough places for existing reservations.
+
+## Seed the synthetic demo school
+
+Use a database reserved for synthetic demo data. Confirm the target, take a database backup if it already contains demo activity, and run migrations before seeding. From `services/api` with that database's `DATABASE_URL` set:
+
+```sh
+go run ./cmd/migrate
+ALLOW_DEMO_SEED=true go run ./cmd/seed -school
+```
+
+Omit `-school` to continue using the minimal seed. The richer seed installs a single fixture with a timetable from two weeks before through two weeks after the current Hong Kong week at first install. Repeat the same command to verify idempotency. It keeps the original dates, existing profiles, and later edits. The transaction rolls back if it detects a timetable collision or fails to install any of the records.
+
+A fresh fixture has 20 students, 20 guardians, three coaches, and three five-session weekly series at Harbour Pool, Garden Pool and Seaside Pool. Each student has one simulated eight-credit purchase and receipt, a progress note, one attended lesson from the previous week and two reserved upcoming lessons. The fixture sends no email and creates no email deliveries.
+
+- **Administrator** can browse all students, the timetable, package offer, and seeded audit entry.
+- **Coach** Alex can open Harbour Pool rosters and the linked beginners. The previous week's roster shows attendance.
+- **Guardian** can open Amy's bookings, credits, progress and simulated receipt. Her starting balance is five available, two reserved and one consumed.
+- **Student** Amy can see her own timetable and progress. Ben and the other swimmers remain outside her account scope.
+
+On an existing demo database, count fixture records by their `demo-` IDs where applicable. Do not expect whole-table totals to match a fresh fixture. One `demo.school.seeded` audit event records the fixture version and anchor week. A fresh disposable database is needed to demonstrate with a new anchor week.
