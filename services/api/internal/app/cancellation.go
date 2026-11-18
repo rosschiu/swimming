@@ -12,7 +12,8 @@ import (
 
 // BookingCancellation is the family-visible record of a guardian cancelling one lesson.
 type BookingCancellation struct {
-	Timing        string       `json:"timing"`
+	BySchool      bool         `json:"bySchool"`
+	Timing        string       `json:"timing,omitempty"`
 	CreditOutcome string       `json:"creditOutcome"`
 	CancelledAt   time.Time    `json:"cancelledAt"`
 	Lesson        ClassSession `json:"lesson"`
@@ -53,7 +54,7 @@ func loadCancellation(ctx context.Context, tx pgx.Tx, w http.ResponseWriter, stu
 	fields := []any{&x.preview.BookingID, &x.studentID, &x.packageID, &attended, &x.cutoff}
 	var lesson ClassSession
 	c := &lesson
-	fields = append(fields, &c.ID, &c.VenueID, &c.ClassTypeID, &c.CoachID, &c.StartsAt, &c.EndsAt, &c.Capacity, &c.VenueName, &c.Region, &c.ClassTypeName, &c.Level, &c.CoachName, &c.SeriesID, &c.Version, &c.ClassTypeVersion)
+	fields = append(fields, c.fields()...)
 	err := tx.QueryRow(ctx, `SELECT b.id,b.student_id,b.credit_package_id,ba.booking_id IS NOT NULL,ls.parent_change_cutoff_hours,`+classColumns+classJoin+`
 		JOIN bookings b ON b.class_id=c.id CROSS JOIN lesson_settings ls LEFT JOIN booking_attendance ba ON ba.booking_id=b.id
 		WHERE b.id=$1 AND b.student_id=$2 AND b.status='reserved'`+suffix, bookingID, studentID).Scan(fields...)
@@ -207,7 +208,7 @@ func (a *API) cancelBooking(w http.ResponseWriter, r *http.Request, s Session) {
 		err = closePendingChanges(ctx, tx, bookingID, s.User.ID, "Booking cancelled", now)
 	}
 	if err == nil {
-		err = a.createCancellationNotices(ctx, tx, studentID, bookingID, x.preview.Lesson.CoachID)
+		err = a.createServiceNotices(ctx, tx, "booking.cancelled", studentID, bookingID, x.preview.Lesson.CoachID)
 	}
 	if err != nil {
 		internal(w, err)
@@ -233,8 +234,8 @@ func loadBookingCancellation(ctx context.Context, q interface {
 }, bookingID string) (*BookingCancellation, error) {
 	var x BookingCancellation
 	var lesson []byte
-	err := q.QueryRow(ctx, "SELECT timing,credit_outcome,cancelled_at,class_snapshot FROM booking_cancellations WHERE booking_id=$1", bookingID).
-		Scan(&x.Timing, &x.CreditOutcome, &x.CancelledAt, &lesson)
+	err := q.QueryRow(ctx, "SELECT cancelled_by_school,COALESCE(timing,''),credit_outcome,cancelled_at,class_snapshot FROM booking_cancellations WHERE booking_id=$1", bookingID).
+		Scan(&x.BySchool, &x.Timing, &x.CreditOutcome, &x.CancelledAt, &lesson)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
@@ -244,9 +245,10 @@ func loadBookingCancellation(ctx context.Context, q interface {
 	return &x, err
 }
 
-// createCancellationNotices tells every linked guardian, the student and the class coach in-app. Families also get a
-// generic email when the school enables it, subject to each recipient's service-email preference and the allowlist.
-func (a *API) createCancellationNotices(ctx context.Context, tx pgx.Tx, studentID, bookingID, coachID string) error {
+// createServiceNotices tells every linked guardian, the student and the class coach in-app about a booking change.
+// Families also get a generic email when the school enables it, subject to each recipient's service-email preference
+// and the allowlist.
+func (a *API) createServiceNotices(ctx context.Context, tx pgx.Tx, kind, studentID, bookingID, coachID string) error {
 	var email bool
 	if err := tx.QueryRow(ctx, "SELECT cancellation_email FROM lesson_settings WHERE id").Scan(&email); err != nil {
 		return err
@@ -275,7 +277,7 @@ func (a *API) createCancellationNotices(ctx context.Context, tx pgx.Tx, studentI
 			return err
 		}
 		// A booking is cancelled once, so each recipient has exactly one notice for it.
-		if _, err = tx.Exec(ctx, "INSERT INTO notifications(id,recipient_id,student_id,kind,source_id,source_version) VALUES($1,$2,$3,'booking.cancelled',$4,1)", id, x.id, studentID, bookingID); err != nil {
+		if _, err = tx.Exec(ctx, "INSERT INTO notifications(id,recipient_id,student_id,kind,source_id,source_version) VALUES($1,$2,$3,$4,$5,1)", id, x.id, studentID, kind, bookingID); err != nil {
 			return err
 		}
 		if !email || x.role == "coach" {

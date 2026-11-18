@@ -67,7 +67,7 @@ func (a *API) getHome(w http.ResponseWriter, r *http.Request, s Session) {
 		}
 	case "coach":
 		// Coaches see their own lessons from the start of today, including any still awaiting attendance.
-		home.Classes, err = homeClasses(ctx, tx, "c.coach_id=$1 AND c.ends_at>$2", s.User.ID, today)
+		home.Classes, err = homeClasses(ctx, tx, "c.coach_id=$1 AND c.ends_at>$2 AND c.cancelled_at IS NULL", s.User.ID, today)
 		if err == nil {
 			err = tx.QueryRow(ctx, `SELECT
 				(SELECT count(*) FROM lesson_change_requests r JOIN class_sessions original ON original.id=r.original_class_id WHERE r.status='pending' AND original.coach_id=$1),
@@ -75,7 +75,7 @@ func (a *API) getHome(w http.ResponseWriter, r *http.Request, s Session) {
 				Scan(&home.PendingLessonChanges, &home.UnreadNotifications)
 		}
 	case "admin":
-		home.Classes, err = homeClasses(ctx, tx, "c.ends_at>$1 AND c.starts_at<$2", today, today.AddDate(0, 0, 1))
+		home.Classes, err = homeClasses(ctx, tx, "c.ends_at>$1 AND c.starts_at<$2 AND c.cancelled_at IS NULL", today, today.AddDate(0, 0, 1))
 		if err == nil {
 			var queue AdminActionQueue
 			err = tx.QueryRow(ctx, actionQueueCounts+" FROM users WHERE id=$1", s.User.ID, now).Scan(queue.fields()...)
@@ -153,7 +153,7 @@ func homeClasses(ctx context.Context, tx pgx.Tx, where string, args ...any) ([]H
 	return pgx.CollectRows(rows, func(row pgx.CollectableRow) (HomeClass, error) {
 		var x HomeClass
 		c := &x.Class
-		err := row.Scan(&c.ID, &c.VenueID, &c.ClassTypeID, &c.CoachID, &c.StartsAt, &c.EndsAt, &c.Capacity, &c.VenueName, &c.Region, &c.ClassTypeName, &c.Level, &c.CoachName, &c.SeriesID, &c.Version, &c.ClassTypeVersion, &x.Booked, &x.Unmarked)
+		err := row.Scan(append(c.fields(), &x.Booked, &x.Unmarked)...)
 		return x, err
 	})
 }

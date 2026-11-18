@@ -57,6 +57,7 @@ export default function Notifications({ csrfToken, expired, t, coach, follow, on
       case 'lesson_change.rejected': return t('Your lesson change was rejected.', '你的調課申請已被拒絕。');
       case 'booking.created': return t('A lesson was booked.', '已預約課堂。');
       case 'booking.cancelled': return t('A lesson was cancelled.', '課堂已取消。');
+      case 'class.cancelled': return t('The school cancelled a lesson. The credit has been returned.', '學校已取消課堂，堂數已退回。');
       case 'progress.created': return t('A teaching update was shared.', '已分享教學更新。');
       case 'progress.updated': return t('A teaching update was corrected.', '教學更新已修正。');
       case 'milestone.achieved': return t('A milestone was achieved.', '已達成里程碑。');
@@ -69,11 +70,12 @@ export default function Notifications({ csrfToken, expired, t, coach, follow, on
     <p className="muted">{t('Times shown in Hong Kong time.', '時間以香港時間顯示。')}</p><div className="record-list">{items.map(item => {
       const isDecision = item.kind === 'lesson_change.approved' || item.kind === 'lesson_change.rejected';
       const isRequest = item.kind === 'lesson_change.requested';
-      const isBooking = item.kind === 'booking.created' || item.kind === 'booking.cancelled';
+      const isBooking = item.kind === 'booking.created' || item.kind === 'booking.cancelled' || item.kind === 'class.cancelled';
       // Coaches cannot open a family's booking page, so a cancellation takes them to their schedule.
-      const destination: Route = coach && item.kind === 'booking.cancelled' ? { view: 'schedule' } : { view: isRequest ? 'lesson-changes' : 'students', studentId: item.studentId,
+      const cancelledNotice = item.kind === 'booking.cancelled' || item.kind === 'class.cancelled';
+      const destination: Route = coach && cancelledNotice ? { view: 'schedule' } : { view: isRequest ? 'lesson-changes' : 'students', studentId: item.studentId,
         bookingId: isBooking ? item.sourceId : undefined, lessonChangeId: isRequest || isDecision ? item.sourceId : undefined };
-      return <article className="panel" key={item.id}><h2>{item.studentName}</h2><p>{description(item.kind)}</p><p><time dateTime={item.createdAt}>{new Date(item.createdAt).toLocaleString(undefined, { timeZone: 'Asia/Hong_Kong' })}</time> · {item.readAt ? t('Read', '已讀') : t('Unread', '未讀')}</p><div className="form-actions"><a className="action-link" href={routePath(destination)} onClick={event => follow(event, destination)}>{isRequest ? t('View lesson change request', '查看調課申請') : isDecision ? t('View lesson change decision', '查看調課結果') : coach && item.kind === 'booking.cancelled' ? t('Open schedule', '開啟時間表') : isBooking ? t('View booking', '查看預約') : t('Open current student profile', '開啟學員最新資料')}</a>{!item.readAt && <button className="outline" disabled={reading !== null || loading} onClick={() => markRead(item)}>{t('Mark read', '標記已讀')}</button>}</div></article>;
+      return <article className="panel" key={item.id}><h2>{item.studentName}</h2><p>{description(item.kind)}</p><p><time dateTime={item.createdAt}>{new Date(item.createdAt).toLocaleString(undefined, { timeZone: 'Asia/Hong_Kong' })}</time> · {item.readAt ? t('Read', '已讀') : t('Unread', '未讀')}</p><div className="form-actions"><a className="action-link" href={routePath(destination)} onClick={event => follow(event, destination)}>{isRequest ? t('View lesson change request', '查看調課申請') : isDecision ? t('View lesson change decision', '查看調課結果') : coach && cancelledNotice ? t('Open schedule', '開啟時間表') : isBooking ? t('View booking', '查看預約') : t('Open current student profile', '開啟學員最新資料')}</a>{!item.readAt && <button className="outline" disabled={reading !== null || loading} onClick={() => markRead(item)}>{t('Mark read', '標記已讀')}</button>}</div></article>;
     })}</div>
     {!loading && !error && !items.length && <p className="panel">{t('No notifications yet.', '暫無通知。')}</p>}{cursor && <button disabled={loading || reading !== null} onClick={() => load(true)}>{t('Load more', '載入更多')}</button>}
   </section>;

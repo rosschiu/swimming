@@ -171,6 +171,10 @@ func (a *API) reserveBooking(ctx context.Context, tx pgx.Tx, w http.ResponseWrit
 		return StudentBooking{}, false
 	}
 	booking.Class = class
+	if class.CancelledAt != nil {
+		unavailable("class_unavailable", "The school has cancelled this class")
+		return StudentBooking{}, false
+	}
 	if seriesID != "" && (class.SeriesID == nil || *class.SeriesID != seriesID) {
 		fail(w, 422, "validation_error", "Every selected class must belong to the weekly series")
 		return StudentBooking{}, false

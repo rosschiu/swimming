@@ -51,7 +51,7 @@ export default function EnrolmentForm({ student, admin, csrfToken, expired, t, o
       api<StudentEnrolments>(`${path}/enrolments`)])
       .then(([classes, history, enrolments]) => {
         if (current) setChoices({
-          classes: classes.items.filter(lesson => lesson.seriesId && Date.parse(lesson.startsAt) > Date.now() && (admin || lesson.level === student.level)),
+          classes: classes.items.filter(lesson => lesson.seriesId && !lesson.cancelledAt && Date.parse(lesson.startsAt) > Date.now() && (admin || lesson.level === student.level)),
           packages: history.items,
           validity: history.bookingValidity,
           enrolments,

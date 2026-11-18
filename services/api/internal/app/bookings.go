@@ -183,8 +183,7 @@ func scanStudentBooking(row pgx.Row, extra ...any) (StudentBooking, error) {
 	c := &booking.Class
 	var attendance attendanceScan
 	fields := append([]any{&booking.ID, &booking.StudentID, &booking.Status, &booking.CreatedAt}, attendance.fields()...)
-	fields = append(fields, &c.ID, &c.VenueID, &c.ClassTypeID, &c.CoachID, &c.StartsAt, &c.EndsAt, &c.Capacity,
-		&c.VenueName, &c.Region, &c.ClassTypeName, &c.Level, &c.CoachName, &c.SeriesID, &c.Version, &c.ClassTypeVersion)
+	fields = append(fields, c.fields()...)
 	err := row.Scan(append(fields, extra...)...)
 	booking.Attendance = attendance.value()
 	return booking, err

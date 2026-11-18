@@ -104,16 +104,17 @@ export default function Schedule({ csrfToken, expired, t, role, follow }: Protec
               <h2>{c.classTypeName}</h2><p>{c.venueName} · {regions[c.region]}</p>
               <p className="muted">{c.coachName} · {c.level} · {t('Capacity', '名額')} {c.capacity}</p>
               {c.seriesId && <span className="tag">{t('Weekly series', '每週系列')}</span>}
+              {c.cancelledAt && <span className="tag">{t('Cancelled by the school', '學校已取消')}</span>}
             </div>
             {(admin || role === 'coach') && <div className="heading-actions">
-              {admin && <button className="outline" disabled={busy} onClick={() => edit(c)} aria-label={`${t('Edit class', '編輯課堂')} ${label}`}>{t('Edit', '編輯')}</button>}
+              {admin && !c.cancelledAt && <button className="outline" disabled={busy} onClick={() => edit(c)} aria-label={`${t('Edit class', '編輯課堂')} ${label}`}>{t('Edit', '編輯')}</button>}
               {admin && <button className="outline" aria-expanded={impactOpen} aria-label={`${t('Review cancellation impact', '檢視取消課堂影響')} ${label}`}
                 onClick={() => setImpactClassId(impactOpen ? null : c.id)}>{t('Review cancellation impact', '檢視取消課堂影響')}</button>}
               <button className="outline" aria-expanded={rosterOpen} aria-label={`${t('View roster', '查看名單')} ${label}`}
                 onClick={() => setRosterClassId(rosterOpen ? null : c.id)}>{t('View roster', '查看名單')}</button>
             </div>}
           </article>
-          {impactOpen && <CancellationImpact classId={c.id} expired={expired} t={t}/>}
+          {impactOpen && <CancellationImpact classId={c.id} csrfToken={csrfToken} expired={expired} t={t} onCancelled={lesson => setClasses(previous => previous.map(item => item.id === lesson.id ? lesson : item))}/>}
           {rosterOpen && <ClassRoster follow={follow} classId={c.id} csrfToken={csrfToken} expired={expired} t={t}/>}
         </Fragment>;
       })}</div>

@@ -40,7 +40,7 @@ export default function BookingForm({ csrfToken, expired, t, student, admin, onB
     void Promise.all([api<{ items: ClassSession[] }>(`/classes?${query}`), api<CreditHistory>(`${path}/credit-history`)])
       .then(([classes, history]) => {
         if (current) setChoices({
-          classes: classes.items.filter(lesson => Date.parse(lesson.startsAt) > Date.now() && (admin || lesson.level === student.level)),
+          classes: classes.items.filter(lesson => !lesson.cancelledAt && Date.parse(lesson.startsAt) > Date.now() && (admin || lesson.level === student.level)),
           packages: history.items.filter(item => item.available > 0),
           validity: history.bookingValidity,
         });

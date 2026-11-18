@@ -28,3 +28,16 @@ Planning baseline `567a45b`. The proposed first slice lets an administrator canc
 | Who receives service notices and through which channels? | Confirm guardian and student recipients, whether operational email respects existing teaching opt-in, and how to group sibling notices. Continue to use authorized demo recipients or local capture. |
 
 A make-up place, automatic transfer, cash refund or automatic compensation credit has no recorded default. The primary cancellation rule is to return the entitlement. A separate decision is needed to offer any additional remedy.
+
+## Delivered: school cancellation (stage 5 of the mobile-first plan)
+
+The owner approved the proposed first-slice choices on 2026-11-18. Coach substitution follows as its own stage.
+
+- **Operation.** From Schedule → Review cancellation impact, an administrator enters a reason and confirms. `POST /classes/{id}/cancellation` sends the reason, the class version reviewed in the preview and a request key; a stale version returns `version_conflict`, a started lesson `class_started` (left to attendance corrections), and an exact replay returns the recorded result.
+- **Credits.** Every reservation is cancelled and its credit returns to the funding package regardless of the package's cancellation policy. When that package is already past its Hong Kong expiry date, the administrator must enter a new expiry (today or later) for the booking (`expiry_required` lists the bookings); the unit is released into the original package's expired history and restored into a new package with that expiry as an audited `credit_recoveries` entry, keeping the original ledger trace. No make-up place or extra compensation is created.
+- **Lesson state.** `class_sessions.cancelled_at` marks the occurrence and an immutable `class_cancellations` row keeps the actor, reason and request. The lesson rejects new bookings, weekly enrolment, lesson-change targets and edits, disappears from change options and home lesson lists, and no longer blocks its coach in overlap and travel checks. Schedule shows it as cancelled by the school.
+- **Pending changes.** Requests into the lesson close as "School cancelled the requested lesson" and keep the requester's original booking; requests out of it close as "School cancelled the lesson". Families may submit a new request.
+- **Notices.** Each affected booking's linked guardians and student get an in-app `class.cancelled` notice, with generic email per the school cancellation-email setting and their service email preference; the class coach gets in-app notices. Families see "Cancelled by the school · credit returned".
+- **Migration 27** adds `cancelled_at`, `class_cancellations`, a `cancelled_by_school` flag on booking cancellations (school rows have no early/late timing) and the `class.cancelled` notice kind.
+
+Not covered: whole-series cancellation, cancelling a lesson that has started, and notices for families whose inbound request closed.

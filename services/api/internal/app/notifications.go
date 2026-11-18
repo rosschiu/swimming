@@ -51,7 +51,7 @@ const notificationScope = `n.recipient_id=$1 AND u.active AND u.role=$2 AND (
 		SELECT 1 FROM student_access sa WHERE sa.student_id=n.student_id AND sa.user_id=u.id
 		AND sa.kind=CASE u.role WHEN 'parent' THEN 'guardian' WHEN 'student' THEN 'self' END))
 	OR (u.role='coach' AND n.kind='lesson_change.requested' AND EXISTS (` + coachNotificationSource + `))
-	OR (u.role='coach' AND n.kind='booking.cancelled' AND EXISTS (SELECT 1 FROM bookings cb JOIN class_sessions cc ON cc.id=cb.class_id WHERE cb.id=n.source_id AND cc.coach_id=u.id)))`
+	OR (u.role='coach' AND n.kind IN ('booking.cancelled','class.cancelled') AND EXISTS (SELECT 1 FROM bookings cb JOIN class_sessions cc ON cc.id=cb.class_id WHERE cb.id=n.source_id AND cc.coach_id=u.id)))`
 
 const notificationJoin = " FROM notifications n JOIN students st ON st.id=n.student_id JOIN users u ON u.id=n.recipient_id"
 const deliveryColumns = "d.id,d.notification_id,u.name,d.status,d.attempts,d.cycle_attempts,d.version,d.next_attempt_at,d.completed_at,d.last_failure,d.created_at"
@@ -189,7 +189,7 @@ func createLessonChangeRequestNotice(ctx context.Context, tx pgx.Tx, student, co
 }
 
 // serviceKinds are booking-service notices governed by the service email preference rather than teaching email.
-var serviceKinds = []string{"booking.cancelled"}
+var serviceKinds = []string{"booking.cancelled", "class.cancelled"}
 
 func suppressTeachingDeliveries(ctx context.Context, tx pgx.Tx, user, student, reason string) error {
 	return suppressDeliveries(ctx, tx, user, student, reason, nil, false)

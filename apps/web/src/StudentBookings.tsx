@@ -99,7 +99,7 @@ function BookingResults({ studentId, role, csrfToken, expired, t, from, to, onRe
           <p><time dateTime={lesson.startsAt}>{hkDate(new Date(lesson.startsAt))} {hkTime(lesson.startsAt)}</time>–<time dateTime={lesson.endsAt}>{hkDate(new Date(lesson.startsAt)) !== hkDate(new Date(lesson.endsAt)) && `${hkDate(new Date(lesson.endsAt))} `}{hkTime(lesson.endsAt)}</time></p>
           <p className="muted">{lesson.venueName} · {lesson.coachName}</p>
           {active && <p>{t('Attendance', '出席記錄')} <span className="tag">{attendanceSummary(attendance, t)}</span></p>}
-          {cancellation && <p className="muted">{cancellation.timing === 'early' ? t('Cancelled on time', '準時取消') : t('Cancelled late', '逾時取消')} · {creditLabel(cancellation.creditOutcome, t)}</p>}
+          {cancellation && <p className="muted">{cancellation.bySchool ? t('Cancelled by the school', '學校已取消') : cancellation.timing === 'early' ? t('Cancelled on time', '準時取消') : t('Cancelled late', '逾時取消')} · {creditLabel(cancellation.creditOutcome, t)}</p>}
           {role === 'parent' && active && !attendance && Date.parse(lesson.startsAt) > Date.now() && <div className="form-actions">
             <RequestLessonChange studentId={studentId} bookingId={id} csrfToken={csrfToken} expired={expired} t={t}/>
             <CancelLesson studentId={studentId} bookingId={id} csrfToken={csrfToken} expired={expired} t={t} onCancelled={booking => {
