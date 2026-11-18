@@ -215,3 +215,120 @@ test('weekly enrolment rechecks the school rule across HK midnight and preserves
     await parent.close();
   }
 });
+
+for (const carry of [true, false]) {
+  test(`guardian confirms only available renewal weeks with carry-forward ${carry ? 'enabled' : 'disabled'}`, async ({ page: admin, browser }) => {
+    test.setTimeout(90000);
+    const headers = await login(admin, 'admin');
+    const parent = await browser.newPage({ baseURL: 'http://localhost:18573' });
+    const guardian = await login(parent, 'parent');
+    const settingsPath = '/api/v1/settings/fixed-enrolment';
+    const path = '/api/v1/students/amy/enrolments';
+    const initial = await (await admin.request.get(settingsPath)).json();
+    const stamp = Date.now();
+    const start = Date.UTC(carry ? 3800 : 4200, 0, 1) + (stamp % 100000) * 86400000;
+    const day = (week: number) => new Date(start + week * 7 * 86400000).toISOString().slice(0, 10);
+    async function create(endpoint: string, data: object, actor = admin) {
+      const response = await actor.request.post('/api/v1/' + endpoint, { headers: actor === admin ? headers : guardian, data });
+      expect(response.status(), await response.text()).toBe(201);
+      return response.json();
+    }
+    async function buy(name: string, credits: number) {
+      const offer = await create('package-offers', { name: name + stamp, credits, priceMinor: 10000, currency: 'HKD', active: true,
+        policyOverride: { expiryEnabled: false, carryForwardEnabled: carry, earlyCancellationRetainsCredit: true,
+          lateCancellationRetainsCredit: false, absenceRetainsCredit: false, illnessRetainsCredit: true } });
+      const order = await create('students/amy/purchases', { offerId: offer.id, offerVersion: offer.version, idempotencyKey: offer.id }, parent);
+      const attempt = await create('purchases/' + order.id + '/payment-attempts', { idempotencyKey: order.id }, parent);
+      expect((await parent.request.post('/api/v1/payment-attempts/' + attempt.id + '/mock-outcome',
+        { headers: guardian, data: { outcome: 'succeeded' } })).status()).toBe(200);
+      const { items } = await (await parent.request.get('/api/v1/students/amy/credits')).json();
+      return items.find((pack: components['schemas']['CreditPackage']) => pack.purchaseId === order.id).id as string;
+    }
+    async function balances() {
+      const { items } = await (await parent.request.get('/api/v1/students/amy/credits')).json();
+      return Object.fromEntries(items.map((p: components['schemas']['CreditPackage']) => [p.id, [p.available, p.reserved]]));
+    }
+    try {
+      await admin.getByRole('link', { name: 'School setup' }).click();
+      const allocation = admin.getByLabel('When some weeks are unavailable');
+      const renewal = admin.getByLabel('Packages eligible for renewal');
+      await expect(allocation).toHaveValue('all_or_none');
+      await expect(renewal).toHaveValue('same_offer');
+      const venue = await create('venues', { name: 'Renewal pool ' + stamp, address: 'Synthetic pool', region: 'hk-island' });
+      const kind = await create('class-types', { name: 'Renewal series ' + stamp, level: 'Beginner' });
+      const group = { venueId: venue.id, classTypeId: kind.id, coachId: 'coach', weekday: new Date(start).getUTCDay() || 7,
+        startTime: '15:00', endTime: '16:00', capacity: 2 };
+      const first = await create('class-series', { ...group, startDate: day(0), endDate: day(0) });
+      const next = await create('class-series', { ...group, startDate: day(2), endDate: day(5) });
+      const oldPack = await buy('Original credits ', 3);
+      const newPack = await buy('Replacement credits ', 1);
+      const lesson = first.sessions[0];
+      const source = await create('students/amy/enrolments', { seriesId: first.id, creditPackageId: oldPack, idempotencyKey: first.id,
+        sessions: [{ classId: lesson.id, classVersion: lesson.version, classTypeVersion: lesson.classTypeVersion }] }, parent);
+      await parent.goto('/students/amy');
+      await parent.getByRole('button', { name: 'Renew weekly enrolment' }).click();
+      await parent.getByLabel('Find weekly lessons from (Hong Kong)').fill(day(2));
+      async function selectWeeks() {
+        await parent.getByRole('button', { name: 'Load weekly lessons and credits' }).click();
+        await parent.getByLabel('Enrolment to renew').selectOption(source.id);
+        await parent.getByLabel('Weekly series', { exact: true }).selectOption(next.id);
+        for (const week of [2, 3, 4, 5]) await parent.getByRole('checkbox', { name: new RegExp(day(week)) }).check();
+      }
+      await selectWeeks();
+      const packages = parent.getByLabel('Enrolment credit package');
+      await expect(packages.locator('option', { hasText: newPack })).toHaveCount(0);
+      await allocation.selectOption('confirm_available_subset');
+      await renewal.selectOption('any_paid_package');
+      const save = admin.getByRole('button', { name: 'Save fixed enrolment settings' });
+      await save.click();
+      await expect(admin.getByText('Fixed enrolment settings saved.')).toBeVisible();
+      const endpoint = path + '/' + source.id + '/renewals';
+      async function submit(label: string) {
+        const result = parent.waitForResponse(r => r.url().endsWith(endpoint) && r.request().method() === 'POST');
+        await parent.getByRole('button', { name: label, exact: true }).click();
+        return result;
+      }
+      async function preview() {
+        await selectWeeks();
+        await packages.selectOption(newPack);
+        await parent.getByRole('button', { name: 'Review enrolment' }).click();
+        const response = await submit('Confirm renewal');
+        expect(response.status(), await response.text()).toBe(409);
+        await expect(parent.getByText('Availability changed. Review the weeks below and confirm again.')).toBeVisible();
+        const list = parent.getByRole('region', { name: 'Weekly enrolment' }).getByRole('listitem');
+        await expect(list).toHaveCount(carry ? 3 : 1);
+        await expect(list.last()).toContainText(day(carry ? 4 : 2));
+        expect(await balances()).toMatchObject({ [oldPack]: [2, 1], [newPack]: [1, 0] });
+      }
+      await preview();
+      await renewal.selectOption('same_offer');
+      await save.click();
+      await expect(save).toBeDisabled();
+      const stale = await submit('Confirm available weeks');
+      expect(stale.status()).toBe(409);
+      await expect(parent.getByRole('alert')).toContainText('fixed enrolment settings changed');
+      await renewal.selectOption('any_paid_package');
+      await save.click();
+      await expect(save).toBeDisabled();
+      await preview();
+      const saved = await submit('Confirm available weeks');
+      expect(saved.status(), await saved.text()).toBe(201);
+      const result = await saved.json();
+      expectContract('EnrolmentRenewal', result);
+      expect(result.carriedForwardCredits).toBe(carry ? 2 : 0);
+      expect(result.bookings.map((booking: components['schemas']['StudentBooking']) => booking.class.id))
+        .toEqual(next.sessions.slice(0, carry ? 3 : 1).map((c: {id: string}) => c.id));
+      await expect(parent.getByText(new RegExp('Renewal confirmed.*' + (carry ? 2 : 0) + ' credits carried forward'))).toBeVisible();
+      const replay = await parent.request.post(endpoint, { headers: guardian, data: saved.request().postDataJSON() });
+      expect(replay.status()).toBe(200);
+      expect(await replay.json()).toEqual(result);
+      expect(await balances()).toMatchObject({ [oldPack]: [carry ? 0 : 2, 1], [newPack]: [0, carry ? 3 : 1] });
+    } finally {
+      const current = await (await admin.request.get(settingsPath)).json();
+      if (current.allocationPolicy !== initial.allocationPolicy || current.renewalPolicy !== initial.renewalPolicy) {
+        expect((await admin.request.patch(settingsPath, { headers, data: { ...initial, version: current.version } })).status()).toBe(200);
+      }
+      await parent.close();
+    }
+  });
+}
