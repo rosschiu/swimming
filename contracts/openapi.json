@@ -5,6 +5,40 @@
     "version": "0.1.0"
   },
   "paths": {
+    "/api/v1/admin/action-queue": {
+      "get": {
+        "operationId": "getAdminActionQueue",
+        "summary": "Get administrator action queue counts",
+        "description": "Administrator only. Counts purchases awaiting expiry assignment and failed email deliveries.",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current counts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminActionQueue"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/health": {
       "get": {
         "operationId": "health",
@@ -4508,6 +4542,23 @@
           "csrfToken"
         ],
         "additionalProperties": false
+      },
+      "AdminActionQueue": {
+        "type": "object",
+        "required": [
+          "purchasesAwaitingExpiry",
+          "failedEmailDeliveries"
+        ],
+        "properties": {
+          "purchasesAwaitingExpiry": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "failedEmailDeliveries": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
       },
       "Error": {
         "type": "object",
