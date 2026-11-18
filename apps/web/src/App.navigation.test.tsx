@@ -25,6 +25,7 @@ function api(role: Role, override?: Override) {
   if (path.endsWith('/settings/credits')) return response({ policy: {expiryEnabled:true,carryForwardEnabled:true,earlyCancellationRetainsCredit:true,lateCancellationRetainsCredit:true,absenceRetainsCredit:true,illnessRetainsCredit:true}, version:1 });
   if (path.endsWith('/settings/scheduling')) return response({ travelGapMinutes: 30, version: 1 });
   if (path.endsWith('/settings/availability')) return response({ lockHours: 24, version: 1 });
+  if (path.endsWith('/settings/lessons')) return response({ parentChangeCutoffHours: 24, attendanceOpenMinutes: 15, correctionWindowDays: 3, version: 1 });
   if (path.endsWith('/settings/booking-validity')) return response(bookingValidity);
   if (path.endsWith('/notification-preferences')) return response({ emailEnabled: false, emailAddress: 'parent@swim.test', emailDeliveryAvailable: false });
   return response({ items: [], nextCursor: null, unreadCount: 0 });

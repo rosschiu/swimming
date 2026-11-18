@@ -74,3 +74,7 @@ Stage03a merged [PR #15](https://github.com/rosschiu/swimming/pull/15) as `0f8e0
 Stage04a brings forward durable credit expiry and approved assigned-coach recovery while03b configuration alternatives await answers. See STAGE-04A-PLAN.md. It delivers actual expired-unused credit adjustments without guessing booking/renewal policy.
 
 Stage 04a merged in [PR #16](https://github.com/rosschiu/swimming/pull/16) at `18eab4e`. Both complete CI runs passed. Clean main matched the tested head and passed contract regeneration. Assigned coaches can now restore actual expired unused credits with a reason and a new expiry date. Stage 03b builds flexible bookings on the same ledger.
+
+Stage 05f merged in [PR #20](https://github.com/rosschiu/swimming/pull/20) at `7df170f`. Administrators can open pending purchases and failed email deliveries from the action queue. Both CI runs passed. The merged tree matched the reviewed commit and contract regeneration passed.
+
+Stage 03b merged in [PR #17](https://github.com/rosschiu/swimming/pull/17) at `8447350`. Flexible bookings reserve seats and credits atomically. Administrators control the school-wide validity rule. Both CI runs, the full Go suite, 175 frontend tests and 25 Chromium journeys passed. The merged tree matched the reviewed commit and contract regeneration passed.

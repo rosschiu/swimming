@@ -2121,6 +2121,102 @@
         ]
       }
     },
+    "/api/v1/settings/lessons": {
+      "get": {
+        "operationId": "getLessonSettings",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LessonSettings"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Get lesson timing settings",
+        "description": "Administrator only."
+      },
+      "patch": {
+        "operationId": "updateLessonSettings",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LessonSettings"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The submitted version is stale",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LessonSettings"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "summary": "Update lesson timing settings",
+        "description": "Administrator only. Submit all timing settings with the version from the last read."
+      }
+    },
     "/api/v1/settings/scheduling": {
       "get": {
         "operationId": "getSchedulingSettings",
@@ -5380,6 +5476,43 @@
           "sessions"
         ],
         "additionalProperties": false
+      },
+      "LessonSettings": {
+        "type": "object",
+        "required": [
+          "parentChangeCutoffHours",
+          "attendanceOpenMinutes",
+          "correctionWindowDays",
+          "version"
+        ],
+        "properties": {
+          "parentChangeCutoffHours": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0,
+            "maximum": 8760,
+            "example": 24
+          },
+          "attendanceOpenMinutes": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0,
+            "maximum": 1440,
+            "example": 15
+          },
+          "correctionWindowDays": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0,
+            "maximum": 365,
+            "example": 3
+          },
+          "version": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 1
+          }
+        }
       },
       "SchedulingSettings": {
         "type": "object",
