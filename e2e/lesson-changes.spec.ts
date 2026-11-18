@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { expect, test, type Page } from '@playwright/test';
 import type { components } from '../apps/web/src/generated/api';
 import { expectContract } from './contract';
@@ -172,6 +173,67 @@ test('fixed booking stays reserved on a full replacement and follows coach appro
       await assertBookings(page, target.id);
       if (role === 'parent') expect(await credit('amy', amy.purchaseId!)).toEqual(before);
     }
+    const detailPath = '/students/amy/lesson-changes/' + change.id;
+    let rejectedID = '';
+    const relationship = '/api/v1/students/amy/relationships/other-parent';
+    expect((await admin.request.put(relationship, { headers: adminHeaders, data: { kind: 'guardian' } })).status()).toBe(200);
+    try {
+      await switchRole('parent');
+      const rejectionTarget = await write(admin, 'classes', { ...classInput, startsAt: day(3) + 'T10:00:00+08:00', endsAt: day(3) + 'T11:00:00+08:00' });
+      const guardianSession = await read(page, 'auth/me');
+      const secondResponse = await page.request.post('/api/v1/students/amy/bookings/' + sibling.id + '/change-requests', {
+        headers: { Origin: 'http://localhost:18573', 'X-CSRF-Token': guardianSession.csrfToken },
+        data: { targetClassId: rejectionTarget.id, targetClassVersion: rejectionTarget.version, idempotencyKey: rejectionTarget.id },
+      });
+      expect(secondResponse.status(), await secondResponse.text()).toBe(201);
+      const second = await secondResponse.json();
+      rejectedID = second.id;
+      await switchRole('coach');
+      await page.getByRole('link', { name: 'Lesson changes' }).click();
+      const toReject = page.getByRole('listitem').filter({ hasText: kind.name });
+      const reason = 'Keep the original week ' + stamp;
+      await toReject.getByRole('textbox').fill(reason);
+      await toReject.getByRole('button', { name: 'Reject change' }).click();
+      await expect(page.getByText('Lesson change rejected.', { exact: true })).toBeVisible();
+
+      await switchRole('parent');
+      await page.goto('/notifications');
+      for (const [record, label] of [[change, 'Your lesson change was approved.'], [second, 'Your lesson change was rejected.']] as const) {
+        const card = page.getByRole('article').filter({ hasText: label });
+        const detailLink = card.getByRole('link', { name: 'View lesson change decision' });
+        const detailPath = '/students/amy/lesson-changes/' + record.id;
+        await expect(detailLink).toHaveAttribute('href', detailPath);
+        await card.getByRole('button', { name: 'Mark read' }).click();
+        await expect(card.getByRole('button', { name: 'Mark read' })).toHaveCount(0);
+        await detailLink.click();
+        await expect(page).toHaveURL(url => url.pathname === detailPath);
+        await page.reload();
+        await expect(page.getByText(kind.name, { exact: false }).first()).toBeVisible();
+        if (record.id === second.id) await expect(page.getByText(reason, { exact: false })).toBeVisible();
+        await page.goBack();
+      }
+      const noticeList = await read(page, 'notifications?limit=100');
+      const decisionNotices = noticeList.items.filter((item: { sourceId: string }) => [change.id, second.id].includes(item.sourceId));
+      expect(decisionNotices).toHaveLength(2);
+      await switchRole('other-parent');
+      const inbox = await read(page, 'notifications?limit=100');
+      expect(inbox.items.some((item: { sourceId: string }) => [change.id, second.id].includes(item.sourceId))).toBe(false);
+      const shared = await read(page, 'lesson-changes');
+      expect(shared.items.some((item: { id: string }) => item.id === change.id)).toBe(true);
+      expect((await page.request.get('/api/v1' + detailPath)).status()).toBe(200);
+      expect((await page.request.get('/api/v1/students/ben/lesson-changes/' + change.id)).status()).toBe(404);
+      await page.goto(detailPath);
+      await expect(page.getByText(kind.name, { exact: false }).first()).toBeVisible();
+    } finally {
+      expect((await admin.request.delete(relationship, { headers: adminHeaders })).status()).toBe(204);
+    }
+    await page.reload();
+    expect((await page.request.get('/api/v1' + detailPath)).status()).toBe(404);
+    await expect(page.getByText(kind.name, { exact: false })).toHaveCount(0);
+    const deliveryCount = execFileSync('psql', [process.env.DATABASE_URL!, '-XqtA', '-v', 'ON_ERROR_STOP=1', '-v', 'approved=' + change.id, '-v', 'rejected=' + rejectedID], {
+      encoding: 'utf8', input: "SELECT count(*) FROM notification_deliveries d JOIN notifications n ON n.id=d.notification_id WHERE n.source_id IN (:'approved', :'rejected');",
+    }).trim();
+    expect(deliveryCount).toBe('0');
   } finally {
     await admin.close();
   }
