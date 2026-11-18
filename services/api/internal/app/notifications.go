@@ -130,6 +130,32 @@ func (a *API) createTeachingNotifications(ctx context.Context, tx pgx.Tx, actor,
 	}
 	return nil
 }
+func createBookingNotifications(ctx context.Context, tx pgx.Tx, student, booking string) error {
+	rows, err := tx.Query(ctx, `SELECT u.id FROM student_access sa JOIN users u ON u.id=sa.user_id
+		WHERE sa.student_id=$1 AND u.active
+		AND ((u.role='parent' AND sa.kind='guardian') OR (u.role='student' AND sa.kind='self'))
+		ORDER BY u.id`, student)
+	if err != nil {
+		return err
+	}
+	recipients, err := pgx.CollectRows(rows, pgx.RowTo[string])
+	if err != nil {
+		return err
+	}
+	for _, recipient := range recipients {
+		id, err := RandomToken()
+		if err != nil {
+			return err
+		}
+		_, err = tx.Exec(ctx, `INSERT INTO notifications(id,recipient_id,student_id,kind,source_id,source_version)
+			VALUES($1,$2,$3,'booking.created',$4,1)`, id, recipient, student, booking)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func suppressTeachingDeliveries(ctx context.Context, tx pgx.Tx, user, student, reason string) error {
 	_, err := tx.Exec(ctx, "UPDATE notification_deliveries d SET status=CASE WHEN d.status='leased' THEN 'leased' ELSE 'suppressed' END,version=d.version+1,next_attempt_at=NULL,completed_at=CASE WHEN d.status<>'leased' THEN clock_timestamp() END,last_failure=$3 FROM notifications n WHERE n.id=d.notification_id AND n.recipient_id=$1 AND ($2='' OR n.student_id=$2) AND d.status IN ('pending','retry','leased')", user, student, reason)
 	return err

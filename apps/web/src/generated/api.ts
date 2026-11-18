@@ -1350,7 +1350,7 @@ export interface components {
             studentId: string;
             studentName: string;
             /** @enum {string} */
-            kind: "progress.created" | "progress.updated" | "milestone.achieved" | "milestone.revoked";
+            kind: "progress.created" | "progress.updated" | "milestone.achieved" | "milestone.revoked" | "booking.created";
             sourceId: string;
             sourceVersion: number;
             /** Format: date-time */

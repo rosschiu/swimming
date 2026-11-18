@@ -244,5 +244,9 @@ func (a *API) createBooking(w http.ResponseWriter, r *http.Request, s Session) {
 		internal(w, err)
 		return
 	}
+	if err = createBookingNotifications(ctx, tx, booking.StudentID, booking.ID); err != nil {
+		internal(w, err)
+		return
+	}
 	financeCommit(w, r, tx, 201, booking)
 }
