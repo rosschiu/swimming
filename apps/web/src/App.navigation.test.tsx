@@ -134,3 +134,143 @@ it('cancel after a version conflict refetches the scoped profile without changin
  await user.click(await screen.findByRole('button',{name:'Edit student'}));await user.click(screen.getByRole('button',{name:'Save student'}));await screen.findByRole('alert');await user.click(screen.getByRole('button',{name:'Cancel'}));
  await screen.findByText('Advanced');expect(window.location.pathname).toBe('/students/amy');expect(screen.queryByRole('button',{name:'Add student'})).not.toBeInTheDocument();
 });
+
+it.each(['admin', 'parent', 'student', 'coach'] as const)('loads read-only lessons only for an eligible %s profile', async role => {
+  at('/students/amy');
+  const booking = {
+    id: 'b1', studentId: amy.id, createdAt: '2026-11-17T00:00:00Z', status: 'reserved', class: {
+      id: 'class1', classTypeVersion: 1, classTypeId: 'type', coachId: 'alex', venueId: 'pool',
+      capacity: 6, version: 1, region: 'hk-island', level: 'Beginner', seriesId: null,
+      classTypeName: 'Booked youth lesson', startsAt: '2026-11-18T15:30:00Z', endsAt: '2026-11-18T16:30:00Z',
+      venueName: 'Harbour Pool', coachName: 'Coach Alex',
+    },
+  };
+  const mock = api(role, path => path.includes('/bookings?') ? response({ items: [booking] }) : undefined);
+  render(<App />);
+  await screen.findByRole('heading', { name: 'Amy Chan' });
+  if (role === 'coach') {
+    expect(screen.queryByRole('heading', { name: 'Booked lessons' })).not.toBeInTheDocument();
+    expect(mock.mock.calls.some(([path]) => String(path).includes('/bookings'))).toBe(false);
+    return;
+  }
+  expect(await screen.findByText('Booked youth lesson')).toBeVisible();
+  if (role === 'student') expect(screen.queryByRole('button', { name: 'Book a lesson' })).not.toBeInTheDocument();
+  else expect(screen.getByRole('button', { name: 'Book a lesson' })).toBeVisible();
+  expect(screen.getByText('2026-11-18 23:30')).toBeVisible();
+  expect(screen.getByText('2026-11-19 00:30')).toBeVisible();
+  expect(mock).toHaveBeenCalledWith(expect.stringMatching(/\/students\/amy\/bookings\?from=\d{4}-\d{2}-\d{2}&to=\d{4}-\d{2}-\d{2}$/), expect.objectContaining({ signal: expect.any(AbortSignal) }));
+  expect(mock.mock.calls.filter(([path]) => String(path).includes('/bookings')).every(([, options]) => !options?.method)).toBe(true);
+});
+
+it('discards a pending child read after navigation and lets the guardian retry the current child', async () => {
+  at('/students/amy');
+  const old = deferred();
+  let unavailable = true;
+  const mock = api('parent', path => {
+    if (path.includes('/amy/bookings?')) return old.promise;
+    if (path.includes('/ben/bookings?')) return unavailable ? response({}, 500) : response({ items: [] });
+  });
+  render(<App />);
+  await screen.findByText('Loading booked lessons…');
+  pop('/students/ben');
+  expect(await screen.findByText('Could not load booked lessons. Use the button above to retry.')).toHaveAttribute('role', 'alert');
+  unavailable = false;
+  const user = userEvent.setup();
+  await user.click(screen.getByRole('button', { name: 'Load booked lessons' }));
+  expect(await screen.findByText('No booked lessons on these dates.')).toBeVisible();
+  await act(async () => old.resolve(response({}, 401)));
+  expect(screen.getByRole('heading', { name: 'Ben Lee' })).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Sign out' })).toBeVisible();
+  const oldSignal = mock.mock.calls.find(([path]) => String(path).includes('/amy/bookings?'))?.[1]?.signal;
+  expect(oldSignal?.aborted).toBe(true);
+});
+
+it.each(['parent', 'admin'] as const)('books with explicit confirmation and refreshes scoped reads for %s', async role => {
+  at('/students/amy');
+  const startsAt = new Date(Date.now() + 3 * 86400000).toISOString();
+  const endsAt = new Date(Date.parse(startsAt) + 3600000).toISOString();
+  const lesson = {
+    id: 'c1', classTypeId: 't1', classTypeVersion: 3, version: 2, classTypeName: 'Lesson to reserve',
+    level: role === 'admin' ? 'Advanced' : amy.level, startsAt, endsAt, venueName: 'Harbour Pool', coachName: 'Alex',
+  };
+  const bookedLesson = { id: 'b1', status: 'reserved', class: lesson };
+  const pack = { id: 'pack-recovered', expiresOn: null, available: 1, reserved: 0, consumed: 0, expired: 0, movements: [] };
+  const writes: Record<string, unknown>[] = [];
+  let booked = false;
+  const mock = api(role, (path, options) => {
+    if (path.includes('/classes?')) return response({ items: [lesson, { ...lesson, id: 'c2', level: 'Expert' }] });
+    if (path.endsWith('/credit-history')) return response({ items: [{ ...pack, available: booked ? 0 : 1, reserved: booked ? 1 : 0 }], recoveries: [] });
+    if (path.includes('/bookings?')) return response({ items: booked ? [bookedLesson] : [] });
+    if (path.endsWith('/bookings') && options?.method === 'POST') {
+      writes.push(JSON.parse(String(options.body)));
+      if (writes.length === 1) return response({}, 500);
+      booked = true;
+      return response(bookedLesson);
+    }
+  });
+  render(<App />);
+  const user = userEvent.setup();
+  await user.click(await screen.findByRole('button', { name: 'Book a lesson' }));
+  await user.selectOptions(await screen.findByLabelText('Class to book'), 'c1');
+  await user.selectOptions(screen.getByLabelText('Credit package'), pack.id);
+  if (role === 'admin') {
+    expect(screen.getByRole('button', { name: 'Review booking' })).toBeDisabled();
+    await user.type(screen.getByLabelText('Level override reason'), 'Coach assessment');
+  } else {
+    expect(screen.queryByLabelText('Level override reason')).not.toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: /Expert/ })).not.toBeInTheDocument();
+  }
+  await user.click(screen.getByRole('button', { name: 'Review booking' }));
+  expect(writes).toHaveLength(0);
+  await user.click(screen.getByRole('button', { name: 'Confirm booking' }));
+  const retry = await screen.findByRole('button', { name: 'Retry same booking' });
+  await user.click(retry);
+  await screen.findByText('Lesson booked. One place and one credit are reserved.');
+  await screen.findByText('Lesson to reserve');
+  expect(writes).toHaveLength(2);
+  expect(writes[0]).toEqual(writes[1]);
+  expect(writes[0]).toEqual({
+    classId: lesson.id, classVersion: 2, classTypeVersion: 3, creditPackageId: pack.id, idempotencyKey: expect.any(String),
+    ...(role === 'admin' ? { overrideReason: 'Coach assessment' } : {}),
+  });
+  expect(mock).toHaveBeenCalledWith('/api/v1/students/amy/bookings', expect.objectContaining({ headers: expect.objectContaining({ 'X-CSRF-Token': `csrf-${role}` }) }));
+  expect(await screen.findByText(/Available 0 · Reserved 1/)).toBeVisible();
+});
+
+it('refreshes stale choices and requires a fresh confirmation before submitting new versions', async () => {
+  at('/students/amy');
+  const startsAt = new Date(Date.now() + 3 * 86400000).toISOString();
+  const endsAt = new Date(Date.parse(startsAt) + 3600000).toISOString();
+  const writes: Record<string, unknown>[] = [];
+  const mock = api('parent', (path, options) => {
+    if (path.includes('/classes?')) return response({ items: [{
+      id: 'c1', classTypeVersion: writes.length + 1, version: 1, classTypeName: 'Updated lesson',
+      level: amy.level, startsAt, endsAt, venueName: 'Harbour Pool', coachName: 'Alex',
+    }] });
+    if (path.endsWith('/credit-history')) return response({ items: [{ id: 'pack', available: 1, expiresOn: null, reserved: 0, consumed: 0, expired: 0, credits: 1, movements: [], sourcePackageId: null }], recoveries: [] });
+    if (path.endsWith('/bookings') && options?.method === 'POST') {
+      writes.push(JSON.parse(String(options.body)));
+      return response({ error: { code: 'version_conflict' } }, 409);
+    }
+  });
+  render(<App />);
+  const user = userEvent.setup();
+  await user.click(await screen.findByRole('button', { name: 'Book a lesson' }));
+  async function chooseAndConfirm() {
+    await user.selectOptions(await screen.findByLabelText('Class to book'), 'c1');
+    await user.selectOptions(screen.getByLabelText('Credit package'), 'pack');
+    await user.click(screen.getByRole('button', { name: 'Review booking' }));
+    await user.click(screen.getByRole('button', { name: 'Confirm booking' }));
+  }
+  await chooseAndConfirm();
+  expect(await screen.findByText('The class changed. Choose from the refreshed options.')).toHaveAttribute('role', 'alert');
+  await screen.findByLabelText('Class to book');
+  expect(screen.getByLabelText('Class to book')).toHaveValue('');
+  expect(screen.getByRole('button', { name: 'Review booking' })).toBeDisabled();
+  expect(writes).toHaveLength(1);
+  await chooseAndConfirm();
+  await waitFor(() => expect(writes).toHaveLength(2));
+  expect(writes.map(body => body.classTypeVersion)).toEqual([1, 2]);
+  expect(writes[0].idempotencyKey).not.toBe(writes[1].idempotencyKey);
+  expect(mock.mock.calls.filter(([path]) => String(path).includes('/classes?')).length).toBeGreaterThan(1);
+});

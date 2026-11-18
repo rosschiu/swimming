@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { Fragment, useEffect, useRef, useState, type FormEvent } from 'react';
+import ClassRoster from './ClassRoster';
 import { APIError, type User } from './api';
 import { isAborted, useProtectedRequest, type ProtectedProps } from './useProtectedRequest';
 import { hkDate, hkTime, rangeEnd, regionNames, type Venue, type ClassType, type ClassSession, type ClassSeries, type AdminUser } from './scheduling';
@@ -11,6 +12,7 @@ export default function Schedule({ csrfToken, expired, t, role }: ProtectedProps
   const [venueFilter, setVenueFilter] = useState('');
   const [coachFilter, setCoachFilter] = useState('');
   const [regionFilter, setRegionFilter] = useState('');
+  const [rosterClassId, setRosterClassId] = useState<string | null>(null);
   const [classes, setClasses] = useState<ClassSession[]>([]);
   const [venues, setVenues] = useState<Venue[]>([]);
   const [types, setTypes] = useState<ClassType[]>([]);
@@ -38,6 +40,7 @@ export default function Schedule({ csrfToken, expired, t, role }: ProtectedProps
 
   async function load() {
     const current = ++listGeneration.current;
+    setRosterClassId(null);
     if (!from || !to || to < from || (Date.parse(to) - Date.parse(from)) / 86400000 > 92) { setError(t('Choose a date range of at most 93 days, with the end on or after the start.', '請選擇最多 93 日的日期範圍，結束日期不可早於開始日期。')); setLoading(false); return; }
     setLoading(true); setError('');
     const query = new URLSearchParams({ from, to });
@@ -82,7 +85,33 @@ export default function Schedule({ csrfToken, expired, t, role }: ProtectedProps
     {error && <p role="alert" className="error">{error}</p>}{notice && <p role="status" className="success">{notice}</p>}
     {form && <section className="panel"><h2>{form === 'series' ? t('New weekly series', '新增每週系列') : editing ? t('Edit class', '編輯課堂') : t('New class', '新增課堂')}</h2>{editing?.seriesId && <p className="muted">{t('This changes only this session, not the other classes in its weekly series.', '此操作只更改這一堂，不影響系列的其他課堂。')}</p>}<form onSubmit={save} className="field-grid"><div><label htmlFor="class-venue">{t('Class venue', '課堂場地')}</label><select id="class-venue" required value={venueId} onChange={e => setVenueId(e.target.value)}><option value="">{t('Choose a venue', '選擇場地')}</option>{selectableVenues.map(v => <option key={v.id} value={v.id}>{v.name}{!v.active ? ` (${t('archived', '已封存')})` : ''}</option>)}</select></div><div><label htmlFor="class-type">{t('Class type', '班別')}</label><select id="class-type" required value={classTypeId} onChange={e => setClassTypeId(e.target.value)}><option value="">{t('Choose a class type', '選擇班別')}</option>{selectableTypes.map(c => <option key={c.id} value={c.id}>{c.name} · {c.level}</option>)}</select></div><div><label htmlFor="class-coach">{t('Assigned coach', '授課教練')}</label><select id="class-coach" required value={coachId} onChange={e => setCoachId(e.target.value)}><option value="">{t('Choose a coach', '選擇教練')}</option>{selectableCoaches.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div><div><label htmlFor="class-capacity">{t('Capacity', '名額')}</label><input id="class-capacity" type="number" min={1} max={2147483647} step={1} required value={capacity} onChange={e => setCapacity(Number(e.target.value))}/></div><div><label htmlFor="class-date">{form === 'series' ? t('Series start date', '系列開始日期') : t('Class date', '課堂日期')}</label><input id="class-date" type="date" required value={date} onChange={e => { setDate(e.target.value); if (form === 'single' && (!editing || endDate === date)) setEndDate(e.target.value); }}/></div>{form === 'single' && <div><label htmlFor="class-end-date">{t('Class end date', '課堂結束日期')}</label><input id="class-end-date" type="date" required min={date} value={endDate} onChange={e => setEndDate(e.target.value)}/></div>}{form === 'series' && <><div><label htmlFor="series-end">{t('Series end date', '系列結束日期')}</label><input id="series-end" type="date" required min={date} value={endDate} onChange={e => setEndDate(e.target.value)}/></div><div><label htmlFor="series-weekday">{t('Repeat every', '每週重複')}</label><select id="series-weekday" value={weekday} onChange={e => setWeekday(Number(e.target.value))}>{weekdays.map((day, i) => <option value={i + 1} key={day}>{day}</option>)}</select></div></>}<div><label htmlFor="class-start">{t('Start time (Hong Kong)', '開始時間（香港）')}</label><input id="class-start" type="time" required value={startTime} onChange={e => setStartTime(e.target.value)}/></div><div><label htmlFor="class-end">{t('End time (Hong Kong)', '結束時間（香港）')}</label><input id="class-end" type="time" required value={endTime} onChange={e => setEndTime(e.target.value)}/></div><div className="form-actions full-row"><button disabled={busy}>{form === 'series' ? t('Create weekly series', '建立每週系列') : t('Save class', '儲存課堂')}</button><button type="button" className="outline" disabled={busy} onClick={() => { setForm(null); setEditing(null); setError(''); }}>{t('Cancel', '取消')}</button></div></form></section>}
     <form onSubmit={e => { e.preventDefault(); void load(); }} className="panel schedule-filters section-gap"><div><label htmlFor="schedule-from">{t('From date', '開始日期')}</label><input id="schedule-from" type="date" required value={from} onChange={e => setFrom(e.target.value)}/></div><div><label htmlFor="schedule-to">{t('To date', '結束日期')}</label><input id="schedule-to" type="date" required min={from} value={to} onChange={e => setTo(e.target.value)}/></div><div><label htmlFor="schedule-region">{t('Filter region', '篩選地區')}</label><select id="schedule-region" value={regionFilter} onChange={e => setRegionFilter(e.target.value)}><option value="">{t('All regions', '所有地區')}</option>{Object.entries(regions).map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></div><div><label htmlFor="schedule-venue">{t('Filter venue', '篩選場地')}</label><select id="schedule-venue" value={venueFilter} onChange={e => setVenueFilter(e.target.value)}><option value="">{t('All venues', '所有場地')}</option>{venues.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}</select></div>{admin && <div><label htmlFor="schedule-coach">{t('Filter coach', '篩選教練')}</label><select id="schedule-coach" value={coachFilter} onChange={e => setCoachFilter(e.target.value)}><option value="">{t('All coaches', '所有教練')}</option>{coaches.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>}<button disabled={loading || busy}>{t('Apply filters', '套用篩選')}</button></form>
-    {loading ? <p role="status" className="section-gap">{t('Loading classes…', '載入課堂中…')}</p> : <><p role="status" className="result-count">{classes.length} {t('classes', '堂課')}{loadedRange && ` · ${t('Loaded dates', '已載入日期')}: ${loadedRange}`}</p><div className="record-list">{classes.map(c => <article className="panel class-card" key={c.id}><div className="class-date"><strong>{hkDate(new Date(c.startsAt))}</strong><span>{hkTime(c.startsAt)}–{hkDate(new Date(c.startsAt)) !== hkDate(new Date(c.endsAt)) ? `${hkDate(new Date(c.endsAt))} ` : ''}{hkTime(c.endsAt)}</span></div><div className="class-description"><h2>{c.classTypeName}</h2><p>{c.venueName} · {regions[c.region]}</p><p className="muted">{c.coachName} · {c.level} · {t('Capacity', '名額')} {c.capacity}</p>{c.seriesId && <span className="tag">{t('Weekly series', '每週系列')}</span>}</div>{admin && <button className="outline" disabled={busy} onClick={() => edit(c)} aria-label={`${t('Edit class', '編輯課堂')} ${c.classTypeName} ${hkDate(new Date(c.startsAt))} ${hkTime(c.startsAt)}`}>{t('Edit', '編輯')}</button>}</article>)}</div>{!classes.length && <p className="panel empty">{t('No classes match these filters. Try another date range or location.', '沒有符合篩選的課堂，請嘗試其他日期或地點。')}</p>}</>}
+    {loading ? <p role="status" className="section-gap">{t('Loading classes…', '載入課堂中…')}</p> : <>
+      <p role="status" className="result-count">{classes.length} {t('classes', '堂課')}{loadedRange && ` · ${t('Loaded dates', '已載入日期')}: ${loadedRange}`}</p>
+      <div className="record-list">{classes.map(c => {
+        const day = hkDate(new Date(c.startsAt));
+        const endDay = hkDate(new Date(c.endsAt));
+        const time = hkTime(c.startsAt);
+        const label = `${c.classTypeName} ${day} ${time}`;
+        const rosterOpen = rosterClassId === c.id;
+        return <Fragment key={c.id}>
+          <article className="panel class-card">
+            <div className="class-date"><strong>{day}</strong><span>{time}–{day !== endDay && `${endDay} `}{hkTime(c.endsAt)}</span></div>
+            <div className="class-description">
+              <h2>{c.classTypeName}</h2><p>{c.venueName} · {regions[c.region]}</p>
+              <p className="muted">{c.coachName} · {c.level} · {t('Capacity', '名額')} {c.capacity}</p>
+              {c.seriesId && <span className="tag">{t('Weekly series', '每週系列')}</span>}
+            </div>
+            {(admin || role === 'coach') && <div className="heading-actions">
+              {admin && <button className="outline" disabled={busy} onClick={() => edit(c)} aria-label={`${t('Edit class', '編輯課堂')} ${label}`}>{t('Edit', '編輯')}</button>}
+              <button className="outline" aria-expanded={rosterOpen} aria-label={`${t('View roster', '查看名單')} ${label}`}
+                onClick={() => setRosterClassId(rosterOpen ? null : c.id)}>{t('View roster', '查看名單')}</button>
+            </div>}
+          </article>
+          {rosterOpen && <ClassRoster classId={c.id} expired={expired} t={t}/>}
+        </Fragment>;
+      })}</div>
+      {!classes.length && <p className="panel empty">{t('No classes match these filters. Try another date range or location.', '沒有符合篩選的課堂，請嘗試其他日期或地點。')}</p>}
+    </>}
     {admin && series.length > 0 && <section className="section-gap"><h2>{t('Weekly series in this date range', '此日期範圍的每週系列')}</h2><div className="record-list">{series.map(s => <details className="panel" key={s.id}><summary>{s.startDate}–{s.endDate} · {weekdays[s.weekday - 1]} · {s.startTime}–{s.endTime}</summary><p className="muted">{t('Individual sessions can be edited in the schedule above.', '可在上方時間表編輯個別課堂。')}</p><ul>{s.sessions.map(c => <li key={c.id}>{hkDate(new Date(c.startsAt))} {hkTime(c.startsAt)}–{hkDate(new Date(c.startsAt)) !== hkDate(new Date(c.endsAt)) ? `${hkDate(new Date(c.endsAt))} ` : ''}{hkTime(c.endsAt)} · {c.classTypeName} · {c.venueName} · {c.coachName}</li>)}</ul></details>)}</div></section>}
   </section>;
 }
