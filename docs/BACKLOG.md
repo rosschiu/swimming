@@ -80,3 +80,7 @@ Stage 05f merged in [PR #20](https://github.com/rosschiu/swimming/pull/20) at `7
 Stage 03b merged in [PR #17](https://github.com/rosschiu/swimming/pull/17) at `8447350`. Flexible bookings reserve seats and credits atomically. Administrators control the school-wide validity rule. Both CI runs, the full Go suite, 175 frontend tests and 25 Chromium journeys passed. The merged tree matched the reviewed commit and contract regeneration passed.
 
 Stage 04 timing settings merged in [PR #18](https://github.com/rosschiu/swimming/pull/18) at `2595ec4`. The full PostgreSQL Go race suite, 179 frontend tests and both CI runs passed. Independent upgrade and Chromium tests verified that an existing school's booking-validity setting survives migration and that stale timing edits require a reload. The merged tree matched the reviewed commit and passed contract regeneration.
+
+### Demo VM rollout evidence
+
+The first deployment serves reviewed main commit 17a83e2 at swimmer.bsoltest.com. PostgreSQL, the Go API and static web server listen on loopback. Traefik terminates TLS and accepts optional PROXY headers from 10.70.2.10 on both public ports. Checks covered HTTP redirects, the HTTPS access gate, authenticated web and API responses, and original client addresses. IPv4 was tested externally. The IPv6 check used the VM's global address from the VM. Automatic deployment still requires the outbound artifact updater, a dedicated read-only repository credential and an observed update to a newer tested revision.
