@@ -1,4 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
+import { execFileSync } from 'node:child_process';
+import type { components } from '../apps/web/src/generated/api';
 import { expectContract } from './contract';
 
 async function signIn(page: Page, role: string) {
@@ -69,11 +71,43 @@ test('paid credits reserve a guardian lesson and an administrator override, visi
   await expect(page.getByRole('heading', { name: 'Review booking' })).toBeVisible();
   expect((await credit()).reserved).toBe(0);
   async function confirm(className: string) {
+    const created = page.waitForResponse(r => r.url().endsWith('/students/amy/bookings') && r.request().method() === 'POST');
     await page.getByRole('button', { name: 'Confirm booking' }).click();
+    const response = await created;
+    expect(response.status()).toBe(201);
     await expect(page.getByText('Lesson booked. One place and one credit are reserved.')).toBeVisible();
     await expect(page.getByRole('region', { name: 'Booked lessons' }).getByText(className, { exact: true })).toBeVisible();
+    return (await response.json()).id as string;
   }
-  await confirm(beginner.classTypeName);
+  async function readConfirmation(bookingId: string) {
+    await page.getByRole('link', { name: /^Notifications/ }).click();
+    const response = await page.request.get('/api/v1/notifications?limit=25');
+    expect(response.status()).toBe(200);
+    const data = await response.json();
+    expectContract('NotificationList', data);
+    const items: components['schemas']['Notification'][] = data.items;
+    const matches = items.filter(item => item.kind === 'booking.created' && item.sourceId === bookingId);
+    expect(matches).toHaveLength(1);
+    const [notice] = matches;
+    expect(notice).toMatchObject({ studentId: 'amy', studentName: 'Amy', readAt: null });
+    expect(Object.keys(notice).sort()).toEqual(['id', 'kind', 'sourceId', 'sourceVersion', 'studentId', 'studentName', 'createdAt', 'readAt'].sort());
+    const card = page.getByRole('article').nth(items.findIndex(item => item.id === notice.id));
+    await expect(card.getByText('A lesson was booked.', { exact: true })).toBeVisible();
+    await expect(card).not.toContainText(pack.id);
+    await expect(card).not.toContainText('Assessment approved for synthetic swimmer');
+    const marked = page.waitForResponse(r => r.url().endsWith('/notifications/' + notice.id + '/read') && r.request().method() === 'PUT');
+    await card.getByRole('button', { name: 'Mark read' }).click();
+    expect((await marked).status()).toBe(200);
+    await page.reload();
+    await expect(card.getByText(/· Read$/)).toBeVisible();
+    const link = card.getByRole('link', { name: 'Open current student profile' });
+    await expect(link).toHaveAttribute('href', '/students/amy');
+    await link.click();
+    await expect(page).toHaveURL(/\/students\/amy$/);
+    await expect(page.getByRole('heading', { name: 'Booked lessons' })).toBeVisible();
+  }
+  const firstBooking = await confirm(beginner.classTypeName);
+  await readConfirmation(firstBooking);
   expect(await credit()).toMatchObject({ available: 1, reserved: 1 });
   await page.getByRole('link', { name: /Back to directory/ }).click();
   await page.getByRole('link', { name: new RegExp(sibling.name) }).click();
@@ -87,7 +121,7 @@ test('paid credits reserve a guardian lesson and an administrator override, visi
   await expect(page.getByRole('button', { name: 'Review booking' })).toBeDisabled();
   await page.getByLabel('Level override reason').fill('Assessment approved for synthetic swimmer');
   await page.getByRole('button', { name: 'Review booking' }).click();
-  await confirm(advanced.classTypeName);
+  const secondBooking = await confirm(advanced.classTypeName);
   expect(await credit()).toMatchObject({ available: 0, reserved: 2 });
 
   async function openList(day: string) {
@@ -96,7 +130,7 @@ test('paid credits reserve a guardian lesson and an administrator override, visi
     await page.getByRole('button', { name: 'Load booked lessons' }).click();
   }
   await switchRole('student');
-  await page.goto('/students/amy');
+  await readConfirmation(secondBooking);
   await openList(date);
   const list = page.getByRole('region', { name: 'Booked lessons' });
   await expect(list.getByText(beginner.classTypeName, { exact: true })).toBeVisible();
@@ -118,4 +152,12 @@ test('paid credits reserve a guardian lesson and an administrator override, visi
   expect(savedRoster.classId).toBe(advanced.id);
   expect(savedRoster.items).toHaveLength(1);
   expectContract('RosterEntry', savedRoster.items[0]);
+  // The mail worker can send only queued deliveries. Check every recipient of these two bookings.
+  const dsn = process.env.DATABASE_URL;
+  expect(dsn, 'dedicated synthetic database required').toBeTruthy();
+  const queued = execFileSync('psql', [dsn!, '-XtA', '-v', 'ON_ERROR_STOP=1', '-v', 'first=' + firstBooking, '-v', 'second=' + secondBooking], {
+    input: "SELECT count(*) FROM notification_deliveries d JOIN notifications n ON n.id=d.notification_id WHERE n.kind='booking.created' AND n.source_id IN (:'first', :'second');",
+    encoding: 'utf8',
+  });
+  expect(queued.trim()).toBe('0');
 });
