@@ -98,12 +98,14 @@ test('coach records attendance once and administrator, guardian and student see 
   const path = '/api/v1/classes/' + lesson.id + '/roster/' + booking.id + '/attendance';
   await roster.getByRole('button', { name: 'Mark present Amy' }).click();
   const saved = page.waitForResponse(response => response.url().endsWith(path) && response.request().method() === 'PUT');
-  await roster.getByRole('button', { name: 'Confirm present' }).click();
+  await roster.getByRole('button', { name: 'Confirm present' }).focus();
+  await page.keyboard.press('Enter');
   const response = await saved;
   expect(response.status()).toBe(200);
   const attendance = await response.json();
   expect(attendance).toMatchObject({ status: 'present', markedAt: expect.any(String) });
   await expect(roster.getByText('Present', { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.activeElement?.tagName)).toBe('BODY');
 
   await switchRole('admin');
   await expect(missingQueue).toHaveAccessibleDescription('0');
