@@ -25,7 +25,7 @@ Web is first. The eventual product also includes iOS, Android and a WeChat mini 
 | Recovery | Coach can manually recover credits for a parent |
 | Payments | Manual verification today; fully integrated before the end game is complete |
 
-Later approvals below establish administrator-entered expiry, renewal carry-forward, explicit renewal and configurable timing defaults. Recovery limits and the detailed interaction with existing reservations remain unresolved.
+Later approvals below establish administrator-entered expiry, renewal carry-forward, explicit renewal and configurable timing defaults. The booking and recovery approvals below define the recovery limit and default handling of existing reservations.
 
 ### Technology direction
 
@@ -82,18 +82,18 @@ Coach scheduling requires a 30-minute gap between classes at different venues by
 - Generate recurring bookings for a bounded enrolment period, rather than indefinitely.
 - Policies default at school level, with package overrides. Store the applicable policy version on relevant records; changes apply prospectively unless an authorised correction is made.
 - Expired credits remain in history; recovery creates an adjustment with quantity, reason, actor and new expiry.
-- Coaches recover credits only for students in their authorised scope. Exact scope and financial limits need agreement.
+- Coaches recover credits only for students in their authorised scope. Assigned coaches can restore actual expired unused credits with a reason and new expiry. Extra grants require an administrator.
 - School cancellation returns the entitlement and explicitly handles any validity problem.
 - Normal administration is web-first; the exact mobile/WeChat feature matrix remains to be agreed.
 
 ## Questions to resolve before dependent implementation
 
-1. Fixed enrolment: explicit renewal is approved. Confirm all-or-nothing allocation and whether unpaid future sessions may ever be provisionally held.
-2. Package validity: administrator-entered expiry is approved. The user confirmed individually entered dates per purchase on 2026-11-18. Whether validity must cover the lesson end remains unresolved for booking.
-3. Carry-forward: transfer unused credits on renewal to the new expiry is approved. Confirm treatment of reserved credits, matching package eligibility and any quantity limits.
-4. Recovery: assigned coaches, a reason and a new expiry are approved. Confirm whether recovery is limited to actual expired unused credits or needs administrator approval in some cases.
+1. Fixed enrolment: explicit renewal is approved. All-or-nothing allocation is the approved default. Confirm alternate allocation settings before implementing them.
+2. Package validity: administrator-entered expiry is approved. The user confirmed individually entered dates per purchase on 2026-11-18. Validity through lesson end is the approved default. The alternate validity setting and scope of coach overrides are pending.
+3. Carry-forward: transfer unused credits on renewal to the new expiry is approved. Reserved credits retain their original expiry by default. Confirm alternative settings, matching package eligibility and any quantity limits.
+4. Recovery: assigned coaches, a reason and a new expiry are approved. Recovery is limited to actual expired unused credits. Extra grants require an administrator.
 5. Timing defaults are approved and admin-configurable:24-hour parent cutoff,72-hour availability restriction, attendance opening15 minutes after start and three-day corrections. No new timing decision is required before implementing those defaults.
-6. Class eligibility: confirm enforced swimming-level eligibility versus guidance, and any package/class-type restrictions. Coach travel defaults30 minutes, configurable; concurrent classes at a venue are allowed with venue/lane limits managed by administrators.
+6. Class eligibility: enforce matching levels with an administrator override. Package/class-type restrictions remain unconfirmed. Coach travel defaults30 minutes, configurable; concurrent classes at a venue are allowed with venue/lane limits managed by administrators.
 7. Are 500 students registered or active weekly? Confirm capacity planning.
 8. Payments: this goal is mock-only. Real provider selection and actual transactions are excluded. Any partial refund or financial exception policy must be agreed before implementing it.
 9. Language: Traditional Chinese and English as proposed; Simplified Chinese requirement? Supported voice languages and acceptable recognition quality?

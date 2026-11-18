@@ -21,3 +21,11 @@ Proposed admin school defaults with assigned-coach student overrides, and validi
 ## Acceptance
 
 Meaningful PostgreSQL race tests cover last place/last credit, scope revocation, class/level edits, duplicate requests, rollback and Hong Kong expiry boundaries. Frontend/browser tests cover guardian booking, student read-only lessons, current coach roster, administrator override and child switching. Sol develops, Astra independently tests/reviews, lead integrates/releases after cumulative CI.
+
+## Integration with recovered credits
+
+Select the exact package ID when reserving credit. A recovered package can share its purchase with several other packages. Store the booking, its available-to-reserved movement and audit record in one transaction. Include both the class version and class-type version in the booking request, since a class type can change level independently of its sessions.
+
+Use the same booking records for guardian and student lesson lists and the current class coach's roster. Keep package identifiers, prices and override reasons out of roster and student responses. Verify reassignment transfers roster access and guardian unlinking prevents replay.
+
+Test a booking using a recovered package while other credits share the original purchase. Include a stale class type edit, overlap at adjacent lesson boundaries and concurrent requests for the last place and last credit. Record the effective policy and compared levels on each booking so later changes can be applied prospectively.
