@@ -84,6 +84,9 @@ test('administrator reviews both ends of a pending move without changing either 
       const details = await (await sectionRead).json();
       expect(details.requests).toMatchObject([{ id: change.id, bookingId: booking.id, studentName: 'Amy', otherClassId: index === 0 ? target.id : original.id }]);
       await expect(panel).toContainText('Amy');
+      const counterpart = index === 0 ? 'Replacement lesson ' + date + ' 13:00' : 'Original lesson ' + date + ' 10:00';
+      await expect(panel.getByRole('listitem')).toContainText(counterpart);
+      await expect(panel.getByRole('listitem')).toContainText(venue.name);
       await expect(panel.getByRole('button', { name: /Confirm cancellation|Cancel class/i })).toHaveCount(0);
     }
     expect(writes).toEqual([]);
