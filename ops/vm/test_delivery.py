@@ -104,14 +104,14 @@ esac
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(self.trace.read_text(), f"{NEW}\ntested release")
 
-    def install(self, active, healthy):
+    def install(self, active, healthy, cached=False):
         if active:
             release = self.work / "releases" / active
             release.mkdir()
             self.current.symlink_to(release)
         script = self.work / "install-release"
         source = (FILES / "install-release.sh").read_text()
-        script.write_text(source.replace("root=/opt/swimming\n", f"root={self.work}\n", 1))
+        script.write_text("umask 077\n" + source.replace("root=/opt/swimming\n", f"root={self.work}\n", 1))
         self.mock("chown", "true")
         self.mock("runuser", 'shift 3; exec "$@"')
         self.mock("sleep", "true")
@@ -132,7 +132,30 @@ echo "ready $release" >> "$TRACE"
                 member = tarfile.TarInfo(name)
                 member.size, member.mode = len(data), mode
                 bundle.addfile(member, io.BytesIO(data))
+        if cached:
+            release = self.work / "releases" / NEW
+            with tarfile.open(fileobj=io.BytesIO(archive.getvalue()), mode="r:gz") as bundle:
+                bundle.extractall(release, filter="data")
+            for entry in release.rglob("*"):
+                entry.chmod(0o700 if entry.is_dir() or entry.name.startswith("swimming-") else 0o600)
         return self.run_script(script, NEW, archive=archive.getvalue(), HEALTHY=healthy)
+
+    def assert_release_modes(self):
+        release = self.work / "releases" / NEW
+        for path, mode in [(".", 0o755), ("swimming-api", 0o755), ("swimming-migrate", 0o755),
+                           ("web", 0o755), ("web/index.html", 0o644)]:
+            self.assertEqual((release / path).stat().st_mode & 0o777, mode, path)
+
+    def test_private_timer_umask_keeps_release_usable(self):
+        result = self.install(None, NEW)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assert_release_modes()
+
+    def test_retry_repairs_cached_release_permissions(self):
+        result = self.install(OLD, NEW, cached=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.current.readlink().name, NEW)
+        self.assert_release_modes()
 
     def test_unhealthy_retry_preserves_active_link(self):
         result = self.install(NEW, OLD)

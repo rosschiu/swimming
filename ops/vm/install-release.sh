@@ -31,7 +31,7 @@ fi
 staging=$(mktemp -d "$root/releases/.incoming.XXXXXXXX")
 trap 'rm -rf "$staging"; rm -f "$root/.current-next"' EXIT
 chown swimming:swimming "$staging"
-runuser -u swimming -- tar --no-same-owner --no-same-permissions -xzf - -C "$staging"
+(umask 022; runuser -u swimming -- tar --no-same-owner --no-same-permissions -xzf - -C "$staging")
 chown -hR root:root "$staging"
 [[ -z $(find "$staging" ! -type d ! -type f -print -quit) ]]
 [[ $(cat "$staging/REVISION") == "$revision" ]]
@@ -41,6 +41,13 @@ chmod 755 "$staging"
 if [[ ! -d "$release" ]]; then
   mv -- "$staging" "$release"
 fi
+
+# Repair cached releases extracted by an older installer under a restrictive umask.
+[[ ! -L "$release" && -z $(find "$release" ! -type d ! -type f -print -quit) ]]
+[[ $(cat "$release/REVISION") == "$revision" && -f "$release/web/index.html" ]]
+chmod 755 "$release" "$release/swimming-api" "$release/swimming-migrate"
+find "$release/web" -type d -exec chmod 755 {} +
+find "$release/web" -type f -exec chmod 644 {} +
 
 switch_to() {
   ln -s -- "$1" "$root/.current-next"

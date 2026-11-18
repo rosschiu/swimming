@@ -1,12 +1,12 @@
-# Private VM delivery
+# VM delivery
 
 The optional GitHub Actions deployment packages a tested push to `main` for a Linux x86-64 VM. Pull requests run the application checks without packaging or deployment. A VM timer makes outbound HTTPS requests to fetch the artifact only when current `main` has a successful CI run. No GitHub runner needs private network access. The workflow ships the API, migration binary and built web files. It uses the existing PostgreSQL database and HTTPS proxy.
 
 ## Prepare the VM
 
-- Provision a VM with systemd, Bash, GNU tar, curl, flock, jq, unzip, sudo, SSH and PostgreSQL. CI uses PostgreSQL 17. The inspected VM uses PostgreSQL 18.6, where the deployed revision passed migrations and readiness. Permit outbound HTTPS to GitHub’s API and artifact storage. Keep application access limited to the intended users through the existing private network or authenticated HTTPS edge.
+- Provision a VM with systemd, Bash, GNU tar, curl, flock, jq, unzip, sudo, SSH and PostgreSQL. CI uses PostgreSQL 17. The inspected VM uses PostgreSQL 18.6, where the deployed revision passed migrations and readiness. Permit outbound HTTPS to GitHub’s API and artifact storage. The public demo uses application sign-in over HTTPS. Operator SSH remains private.
 - Create a system account and group named `swimming` for the application service. Install the service files in `/etc/systemd/system` and keep installers, service definitions and releases owned by root.
-- Create `/etc/swimming/app.env` as a root-owned file with mode `0600`. Set `DATABASE_URL` with the app’s database credentials, `ADDR=127.0.0.1:18083`, `APP_ORIGIN` to the exact private HTTPS origin and `COOKIE_SECURE=true`. PostgreSQL permissions must allow the app to run its migrations. Set SMTP and the teaching email allowlist only as intended for this environment.
+- Create `/etc/swimming/app.env` as a root-owned file with mode `0600`. Set `DATABASE_URL` with the app’s database credentials, `ADDR=127.0.0.1:18083`, `APP_ORIGIN` to the exact HTTPS origin and `COOKIE_SECURE=true`. PostgreSQL permissions must allow the app to run its migrations. Set SMTP and the teaching email allowlist only as intended for this environment.
 - Configure the existing HTTPS proxy to serve `/opt/swimming/current/web`. Forward `/api/v1/*` without rewriting the path to `http://127.0.0.1:18083`. Serve `index.html` for application routes and allow hashed assets to be cached. Apply access and rate limits at the edge. The API’s direct peer address can be the proxy address. If the edge accepts PROXY protocol, accept it only on listeners and from sources explicitly provisioned for it. Direct IPv6 connections should use the ordinary HTTP and TLS listeners as provisioned.
 From an approved copy of this repository, install the VM files and enable the API service for boot.
 
