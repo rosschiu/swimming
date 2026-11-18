@@ -121,3 +121,27 @@ func TestMigrateLessonRequestNotifications(t *testing.T) {
 		t.Fatalf("existing decision notification preserved: %v, %v", preserved, err)
 	}
 }
+
+func TestMigrateAuditEntityIndex(t *testing.T) {
+	db := testDB(t)
+	ctx := context.Background()
+	_, err := db.Exec(ctx, `DELETE FROM schema_migrations WHERE version=21;
+		DROP INDEX audit_events_entity_id_id;
+		INSERT INTO audit_events(actor_id,action,entity_id,details)
+		VALUES ('coach','attendance.present','existing-booking','{"markedAt":"2026-11-18T10:00:00Z"}')`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for range 2 {
+		if err = Migrate(ctx, db); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var indexed, preserved bool
+	err = db.QueryRow(ctx, `SELECT to_regclass('audit_events_entity_id_id') IS NOT NULL,
+		EXISTS(SELECT 1 FROM audit_events WHERE actor_id='coach' AND action='attendance.present'
+		AND entity_id='existing-booking' AND details->>'markedAt'='2026-11-18T10:00:00Z')`).Scan(&indexed, &preserved)
+	if err != nil || !indexed || !preserved {
+		t.Fatalf("audit entity migration: indexed=%v preserved=%v err=%v", indexed, preserved, err)
+	}
+}
