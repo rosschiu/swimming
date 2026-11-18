@@ -12,22 +12,17 @@ import (
 )
 
 type bookingInput struct {
-	ClassID          string `json:"classId"`
-	ClassVersion     int    `json:"classVersion"`
-	ClassTypeVersion int    `json:"classTypeVersion"`
-	CreditPackageID  string `json:"creditPackageId"`
-	IdempotencyKey   string `json:"idempotencyKey"`
-	OverrideReason   string `json:"overrideReason,omitempty"`
-}
-
-const bookingValidityLessonEnd = "lesson_end"
-
-func effectiveBookingValidity() string {
-	return bookingValidityLessonEnd
+	ClassID                string `json:"classId"`
+	ClassVersion           int    `json:"classVersion"`
+	ClassTypeVersion       int    `json:"classTypeVersion"`
+	CreditPackageID        string `json:"creditPackageId"`
+	IdempotencyKey         string `json:"idempotencyKey"`
+	OverrideReason         string `json:"overrideReason,omitempty"`
+	BookingValidityVersion *int   `json:"bookingValidityVersion,omitempty"`
 }
 
 func bookingCreditCovers(rule string, class ClassSession, expiry *time.Time, now time.Time) bool {
-	if rule != bookingValidityLessonEnd {
+	if rule != bookingValidityLessonEnd && rule != bookingValidityLessonStart {
 		return false
 	}
 	if expiry == nil {
@@ -35,8 +30,14 @@ func bookingCreditCovers(rule string, class ClassSession, expiry *time.Time, now
 	}
 	year, month, day := expiry.Date()
 	cutoff := time.Date(year, month, day+1, 0, 0, 0, 0, hongKong)
+	if !now.Before(cutoff) {
+		return false
+	}
+	if rule == bookingValidityLessonStart {
+		return class.StartsAt.Before(cutoff)
+	}
 	// Lesson occupancy excludes its end, so ending at midnight uses only the expiry date.
-	return now.Before(cutoff) && !class.EndsAt.After(cutoff)
+	return !class.EndsAt.After(cutoff)
 }
 
 func (a *API) createBooking(w http.ResponseWriter, r *http.Request, s Session) {
@@ -49,7 +50,7 @@ func (a *API) createBooking(w http.ResponseWriter, r *http.Request, s Session) {
 		return
 	}
 	in.OverrideReason = strings.TrimSpace(in.OverrideReason)
-	if in.ClassVersion < 1 || in.ClassTypeVersion < 1 || !validFinanceKey(in.IdempotencyKey) ||
+	if in.ClassVersion < 1 || in.ClassTypeVersion < 1 || (in.BookingValidityVersion != nil && *in.BookingValidityVersion < 1) || !validFinanceKey(in.IdempotencyKey) ||
 		in.ClassID == "" || len(in.ClassID) > 100 || strings.ContainsRune(in.ClassID, 0) ||
 		in.CreditPackageID == "" || len(in.CreditPackageID) > 100 || strings.ContainsRune(in.CreditPackageID, 0) ||
 		utf8.RuneCountInString(in.OverrideReason) > 500 || strings.ContainsRune(in.OverrideReason, 0) {
@@ -119,6 +120,16 @@ func (a *API) createBooking(w http.ResponseWriter, r *http.Request, s Session) {
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
 		internal(w, err)
+		return
+	}
+
+	validity, err := effectiveBookingValidity(ctx, tx)
+	if err != nil {
+		internal(w, err)
+		return
+	}
+	if in.BookingValidityVersion != nil && *in.BookingValidityVersion != validity.Version {
+		fail(w, 409, "booking_validity_changed", "Credit validity settings changed; reload booking options")
 		return
 	}
 
@@ -197,8 +208,7 @@ func (a *API) createBooking(w http.ResponseWriter, r *http.Request, s Session) {
 		fail(w, 409, "class_unavailable", "This class has already started")
 		return
 	}
-	rule := effectiveBookingValidity()
-	if !bookingCreditCovers(rule, class, expiry, now) {
+	if !bookingCreditCovers(validity.ValidityRule, class, expiry, now) {
 		fail(w, 409, "credit_unavailable", "Credit package does not cover this lesson")
 		return
 	}
@@ -228,7 +238,7 @@ func (a *API) createBooking(w http.ResponseWriter, r *http.Request, s Session) {
 		class_version,class_type_version,student_level,class_level,override_actor_id,override_reason,validity_rule,status,created_at)
 		VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
 		booking.ID, booking.StudentID, class.ID, in.CreditPackageID, s.User.ID, in.IdempotencyKey, canonical,
-		class.Version, class.ClassTypeVersion, studentLevel, class.Level, overrideActor, overrideReason, rule, booking.Status, now)
+		class.Version, class.ClassTypeVersion, studentLevel, class.Level, overrideActor, overrideReason, validity.ValidityRule, booking.Status, now)
 	if err == nil {
 		_, err = tx.Exec(ctx, `INSERT INTO credit_movements(id,package_id,source,available,reserved,consumed,expired,actor_id,reason,created_at)
 			VALUES($1,$2,$3,-1,1,0,0,$4,'Class booking reservation',$5)`,
@@ -237,7 +247,7 @@ func (a *API) createBooking(w http.ResponseWriter, r *http.Request, s Session) {
 	if err == nil {
 		err = audit(ctx, tx, s.User.ID, "booking.created", booking.ID, map[string]any{
 			"studentId": booking.StudentID, "classId": class.ID, "creditPackageId": in.CreditPackageID,
-			"studentLevel": studentLevel, "classLevel": class.Level, "overrideReason": overrideReason, "validityRule": rule,
+			"studentLevel": studentLevel, "classLevel": class.Level, "overrideReason": overrideReason, "validityRule": validity.ValidityRule, "validityVersion": validity.Version,
 		})
 	}
 	if err != nil {

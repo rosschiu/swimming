@@ -29,6 +29,8 @@ type ClassRoster struct {
 }
 
 func (a *API) bookingRoutes(mux *http.ServeMux) {
+	mux.HandleFunc("GET /api/v1/settings/booking-validity", a.auth(a.bookingValiditySettings))
+	mux.HandleFunc("PATCH /api/v1/settings/booking-validity", a.auth(a.bookingValiditySettings))
 	mux.HandleFunc("GET /api/v1/students/{id}/bookings", a.auth(a.listStudentBookings))
 	mux.HandleFunc("POST /api/v1/students/{id}/bookings", a.auth(a.createBooking))
 	mux.HandleFunc("GET /api/v1/classes/{id}/roster", a.auth(a.getClassRoster))

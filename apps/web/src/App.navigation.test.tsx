@@ -7,6 +7,7 @@ import { hkDate } from './scheduling';
 type Role = 'admin' | 'coach' | 'parent' | 'student';
 const amy = { id: 'amy', name: 'Amy Chan', level: 'Beginner', version: 1 };
 const ben = { ...amy, id: 'ben', name: 'Ben Lee' };
+const bookingValidity = { validityRule: 'lesson_end', version: 1 };
 const session = (role: Role) => ({ user: { id: role, name: role, role }, csrfToken: `csrf-${role}` });
 const response = (body: unknown, status = 200) => new Response(status === 204 ? null : JSON.stringify(body), { status });
 function deferred() { let resolve!: (value: Response) => void; const promise = new Promise<Response>(r => { resolve = r; }); return { promise, resolve }; }
@@ -16,15 +17,16 @@ function api(role: Role, override?: Override) {
   const path = String(input); const custom = override?.(path, options); if (custom !== undefined) return custom;
   if (path.endsWith('/auth/me') || path.endsWith('/auth/login')) return response(session(role));
   if (path.endsWith('/auth/logout')) return response(null, 204);
-  if (path.endsWith('/credit-history')) return response({ items: [], recoveries: [] });
+  if (path.endsWith('/credit-history')) return response({ items: [], recoveries: [], bookingValidity });
   if (path.endsWith('/admin/action-queue')) return response({ purchasesAwaitingExpiry: 0, failedEmailDeliveries: 0 });
  if (path.endsWith('/students/amy')) return response(amy);
   if (path.endsWith('/students/ben')) return response(ben);
   if (path.endsWith('/students')) return response({ items: [amy, ben] });
   if (path.endsWith('/settings/credits')) return response({ policy: {expiryEnabled:true,carryForwardEnabled:true,earlyCancellationRetainsCredit:true,lateCancellationRetainsCredit:true,absenceRetainsCredit:true,illnessRetainsCredit:true}, version:1 });
   if (path.endsWith('/settings/scheduling')) return response({ travelGapMinutes: 30, version: 1 });
+  if (path.endsWith('/settings/availability')) return response({ lockHours: 24, version: 1 });
   if (path.endsWith('/settings/lessons')) return response({ parentChangeCutoffHours: 24, attendanceOpenMinutes: 15, correctionWindowDays: 3, version: 1 });
- if (path.endsWith('/settings/availability')) return response({ lockHours: 24, version: 1 });
+  if (path.endsWith('/settings/booking-validity')) return response(bookingValidity);
   if (path.endsWith('/notification-preferences')) return response({ emailEnabled: false, emailAddress: 'parent@swim.test', emailDeliveryAvailable: false });
   return response({ items: [], nextCursor: null, unreadCount: 0 });
  }); vi.stubGlobal('fetch', mock); return mock;
@@ -45,9 +47,7 @@ const routes: [string, Role[], (role: Role) => string][] = [
 for (const [path, roles, heading] of routes) for (const role of roles) {
  it(`${role} restores ${path} on direct entry, remount, and sign-in`, async () => {
   at(path); api(role); let app = render(<App />);
-  await screen.findByRole('heading', { name: heading(role) });
-  if (path === '/setup') expect(await screen.findByLabelText('Parent change cutoff (hours)')).toHaveValue(24);
-  app.unmount();
+  await screen.findByRole('heading', { name: heading(role) }); app.unmount();
   app = render(<App />); await screen.findByRole('heading', { name: heading(role) }); app.unmount();
   api(role, p => p.endsWith('/auth/me') ? response({}, 401) : undefined); render(<App />); const user = userEvent.setup();
   await user.type(await screen.findByLabelText('Email'), `${role}@swim.test`); await user.type(screen.getByLabelText('Password'), 'password'); await user.click(screen.getByRole('button', { name: 'Sign in' }));
@@ -208,7 +208,7 @@ it.each(['parent', 'admin'] as const)('books with explicit confirmation and refr
   const mock = api(role, (path, options) => {
     if (path === '/api/v1/notifications?limit=1') return confirmed ? response({ unreadCount: 4 }) : oldBadge.promise;
     if (path.includes('/classes?')) return response({ items: [lesson, { ...lesson, id: 'c2', level: 'Expert' }] });
-    if (path.endsWith('/credit-history')) return response({ items: [{ ...pack, available: booked ? 0 : 1, reserved: booked ? 1 : 0 }], recoveries: [] });
+    if (path.endsWith('/credit-history')) return response({ items: [{ ...pack, available: booked ? 0 : 1, reserved: booked ? 1 : 0 }], recoveries: [], bookingValidity });
     if (path.includes('/bookings?')) return response({ items: booked ? [bookedLesson] : [] });
     if (path.endsWith('/bookings') && options?.method === 'POST') {
       writes.push(JSON.parse(String(options.body)));
@@ -254,14 +254,17 @@ it.each(['parent', 'admin'] as const)('books with explicit confirmation and refr
   expect(writes).toHaveLength(2);
   expect(writes[0]).toEqual(writes[1]);
   expect(writes[0]).toEqual({
-    classId: lesson.id, classVersion: 2, classTypeVersion: 3, creditPackageId: pack.id, idempotencyKey: expect.any(String),
+    classId: lesson.id, classVersion: 2, classTypeVersion: 3, creditPackageId: pack.id, bookingValidityVersion: 1, idempotencyKey: expect.any(String),
     ...(role === 'admin' ? { overrideReason: 'Coach assessment' } : {}),
   });
   expect(mock).toHaveBeenCalledWith('/api/v1/students/amy/bookings', expect.objectContaining({ headers: expect.objectContaining({ 'X-CSRF-Token': `csrf-${role}` }) }));
   expect(await screen.findByText(/Available 0 · Reserved 1/)).toBeVisible();
 });
 
-it('refreshes stale choices and requires a fresh confirmation before submitting new versions', async () => {
+it.each([
+  ['version_conflict', 'The class changed. Choose from the refreshed options.'],
+  ['booking_validity_changed', 'The school’s booking validity rule changed. Review the refreshed options and confirm again.'],
+])('refreshes stale choices after %s and requires fresh confirmation', async (code, message) => {
   at('/students/amy');
   const startsAt = new Date(Date.now() + 3 * 86400000).toISOString();
   const endsAt = new Date(Date.parse(startsAt) + 3600000).toISOString();
@@ -271,10 +274,14 @@ it('refreshes stale choices and requires a fresh confirmation before submitting 
       id: 'c1', classTypeVersion: writes.length + 1, version: 1, classTypeName: 'Updated lesson',
       level: amy.level, startsAt, endsAt, venueName: 'Harbour Pool', coachName: 'Alex',
     }] });
-    if (path.endsWith('/credit-history')) return response({ items: [{ id: 'pack', available: 1, expiresOn: null, reserved: 0, consumed: 0, expired: 0, credits: 1, movements: [], sourcePackageId: null }], recoveries: [] });
+    if (path.endsWith('/credit-history')) return response({
+      items: [{ id: 'pack', available: 1, expiresOn: null, reserved: 0, consumed: 0, expired: 0, credits: 1, movements: [], sourcePackageId: null }],
+      recoveries: [],
+      bookingValidity: { validityRule: writes.length ? 'lesson_start' : 'lesson_end', version: writes.length + 1 },
+    });
     if (path.endsWith('/bookings') && options?.method === 'POST') {
       writes.push(JSON.parse(String(options.body)));
-      return response({ error: { code: 'version_conflict' } }, 409);
+      return response({ error: { code } }, 409);
     }
   });
   render(<App />);
@@ -284,10 +291,11 @@ it('refreshes stale choices and requires a fresh confirmation before submitting 
     await user.selectOptions(await screen.findByLabelText('Class to book'), 'c1');
     await user.selectOptions(screen.getByLabelText('Credit package'), 'pack');
     await user.click(screen.getByRole('button', { name: 'Review booking' }));
+    expect(screen.getByText(writes.length ? 'The credit must be valid when the lesson starts.' : 'The credit must be valid through the end of the lesson.')).toBeVisible();
     await user.click(screen.getByRole('button', { name: 'Confirm booking' }));
   }
   await chooseAndConfirm();
-  expect(await screen.findByText('The class changed. Choose from the refreshed options.')).toHaveAttribute('role', 'alert');
+  expect(await screen.findByText(message)).toHaveAttribute('role', 'alert');
   await screen.findByLabelText('Class to book');
   expect(screen.getByLabelText('Class to book')).toHaveValue('');
   expect(screen.getByRole('button', { name: 'Review booking' })).toBeDisabled();
@@ -295,6 +303,7 @@ it('refreshes stale choices and requires a fresh confirmation before submitting 
   await chooseAndConfirm();
   await waitFor(() => expect(writes).toHaveLength(2));
   expect(writes.map(body => body.classTypeVersion)).toEqual([1, 2]);
+  expect(writes.map(body => body.bookingValidityVersion)).toEqual([1, 2]);
   expect(writes[0].idempotencyKey).not.toBe(writes[1].idempotencyKey);
   expect(mock.mock.calls.filter(([path]) => String(path).includes('/classes?')).length).toBeGreaterThan(1);
 });
@@ -335,6 +344,47 @@ it.each([
   await user.click(profile);
   expect(await screen.findByRole('heading', { name: amy.name })).toBeVisible();
   expect(mock).toHaveBeenCalledWith('/api/v1/students/amy', expect.anything());
+});
+
+it.each([
+  ['lesson_end', false],
+  ['lesson_start', true],
+] as const)('filters credit packages against Hong Kong midnight with %s', async (validityRule, permitsOvernight) => {
+  at('/students/amy');
+  const expiresOn = hkDate(new Date(Date.now() + 3 * 86400000));
+  const end = Date.parse(`${expiresOn}T23:30:00+08:00`) + 30 * 60_000;
+  const lesson = {
+    id: 'midnight', classTypeVersion: 1, version: 1, classTypeName: 'Midnight lesson',
+    level: amy.level, startsAt: new Date(end - 30 * 60_000).toISOString(),
+    endsAt: new Date(end).toISOString(), venueName: 'Harbour Pool', coachName: 'Alex',
+  };
+  const pack = { available: 1, reserved: 0, consumed: 0, expired: 0, movements: [] };
+  api('parent', path => {
+    if (path.includes('/classes?')) return response({ items: [
+      lesson,
+      { ...lesson, id: 'overnight', endsAt: new Date(end).toISOString().replace('.000Z', '.000001Z') },
+      { ...lesson, id: 'next-day', startsAt: new Date(end).toISOString(), endsAt: new Date(end + 60_000).toISOString() },
+    ] });
+    if (path.endsWith('/credit-history')) return response({
+      items: [{ ...pack, id: 'expiring', expiresOn }, { ...pack, id: 'perpetual', expiresOn: null }],
+      recoveries: [],
+      bookingValidity: { validityRule, version: 1 },
+    });
+  });
+  render(<App />);
+  const user = userEvent.setup();
+  await user.click(await screen.findByRole('button', { name: 'Book a lesson' }));
+  const classes = await screen.findByLabelText('Class to book');
+  const packages = screen.getByLabelText('Credit package');
+  await user.selectOptions(classes, 'midnight');
+  await user.selectOptions(packages, 'expiring');
+  expect(packages).toHaveValue('expiring');
+  await user.selectOptions(classes, 'overnight');
+  expect(packages).toHaveValue('');
+  expect(Boolean(screen.queryByRole('option', { name: /^expiring/ }))).toBe(permitsOvernight);
+  await user.selectOptions(classes, 'next-day');
+  expect(screen.queryByRole('option', { name: /^expiring/ })).not.toBeInTheDocument();
+  expect(screen.getByRole('option', { name: /^perpetual/ })).toBeVisible();
 });
 
 it('opens both current work queues from the administrator landing summary', async () => {

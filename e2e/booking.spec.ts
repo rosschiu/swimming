@@ -161,3 +161,107 @@ test('paid credits reserve a guardian lesson and an administrator override, visi
   });
   expect(queued.trim()).toBe('0');
 });
+
+test('school validity controls an overnight reservation and preserves it after the rule changes', async ({ page: admin, browser }) => {
+  test.setTimeout(60000);
+  const headers = await signIn(admin, 'admin');
+  const parent = await browser.newPage({ baseURL: 'http://localhost:18573' });
+  const coach = await browser.newPage({ baseURL: 'http://localhost:18573' });
+  const settings = '/api/v1/settings/booking-validity';
+  const original = await (await admin.request.get(settings)).json();
+  const rule = admin.getByLabel('Credit validity rule');
+  async function setRule(value: string) {
+    if (await rule.inputValue() === value) return;
+    await rule.selectOption(value);
+    const saved = admin.waitForResponse(r => r.url().endsWith(settings) && r.request().method() === 'PATCH');
+    await admin.getByRole('button', { name: 'Save booking validity' }).click();
+    expect((await saved).status()).toBe(200);
+    await expect(admin.getByText('Booking validity saved.', { exact: true })).toBeVisible();
+  }
+  try {
+    const guardianHeaders = await signIn(parent, 'parent');
+    const coachHeaders = await signIn(coach, 'coach');
+    await coach.goto('/setup');
+    await expect(coach.getByLabel('Credit validity rule')).toHaveCount(0);
+    expect((await coach.request.patch(settings, { headers: coachHeaders, data: {
+      validityRule: 'lesson_start', version: original.version,
+    } })).status()).toBe(403);
+    await admin.goto('/setup');
+    await setRule('lesson_end');
+
+    const suffix = Date.now();
+    const midnight = Date.UTC(2200, 0, 1) + (suffix % 100000) * 86400000;
+    const expiryDay = new Date(midnight).toISOString().slice(0, 10);
+    const nextDay = new Date(midnight + 86400000).toISOString().slice(0, 10);
+    async function create(path: string, data: object, actor = admin) {
+      const response = await actor.request.post('/api/v1/' + path, { data, headers: actor === admin ? headers : guardianHeaders });
+      expect(response.status(), await response.text()).toBe(201);
+      return response.json();
+    }
+    const venue = await create('venues', { name: 'Overnight pool ' + suffix, address: 'Synthetic pool', region: 'hk-island' });
+    const kind = await create('class-types', { name: 'Overnight class ' + suffix, level: 'Beginner' });
+    const lesson = await create('classes', { venueId: venue.id, classTypeId: kind.id, coachId: 'coach', capacity: 2,
+      startsAt: expiryDay + 'T23:30:00+08:00', endsAt: nextDay + 'T00:30:00+08:00' });
+    const offer = await create('package-offers', { name: 'Overnight credit ' + suffix, credits: 1, priceMinor: 10000, currency: 'HKD', active: true,
+      policyOverride: { expiryEnabled: true, carryForwardEnabled: false, earlyCancellationRetainsCredit: true, lateCancellationRetainsCredit: false, absenceRetainsCredit: false, illnessRetainsCredit: true } });
+    const purchase = await create('students/amy/purchases', { offerId: offer.id, offerVersion: offer.version, idempotencyKey: offer.id }, parent);
+    expect((await admin.request.post('/api/v1/purchases/' + purchase.id + '/expiry', { headers, data: {
+      version: purchase.version, expiresOn: expiryDay,
+    } })).status()).toBe(200);
+    const payment = await create('purchases/' + purchase.id + '/payment-attempts', { idempotencyKey: purchase.id }, parent);
+    expect((await parent.request.post('/api/v1/payment-attempts/' + payment.id + '/mock-outcome', {
+      headers: guardianHeaders, data: { outcome: 'succeeded' },
+    })).status()).toBe(200);
+    const credit = async () => (await (await parent.request.get('/api/v1/students/amy/credits')).json())
+      .items.find((item: { purchaseId: string }) => item.purchaseId === purchase.id);
+    const pack = await credit();
+    const denied = await parent.request.post('/api/v1/students/amy/bookings', { headers: guardianHeaders, data: {
+      classId: lesson.id, classVersion: lesson.version, classTypeVersion: lesson.classTypeVersion,
+      creditPackageId: pack.id, idempotencyKey: purchase.id,
+    } });
+    expect(denied.status()).toBe(409);
+    expect(await denied.json()).toMatchObject({ error: { code: 'credit_unavailable' } });
+    expect(await credit()).toMatchObject({ available: 1, reserved: 0 });
+
+    await parent.goto('/students/amy');
+    await parent.getByRole('button', { name: 'Book a lesson' }).click();
+    await parent.getByLabel('Find classes from (Hong Kong)').fill(expiryDay);
+    async function chooseLesson() {
+      await parent.getByRole('button', { name: 'Load classes and credits' }).click();
+      await parent.getByLabel('Class to book').selectOption(lesson.id);
+    }
+    await chooseLesson();
+    await expect(parent.getByLabel('Credit package', { exact: true }).getByRole('option', { name: new RegExp(pack.id) })).toHaveCount(0);
+    await setRule('lesson_start');
+    async function review() {
+      await chooseLesson();
+      await parent.getByLabel('Credit package', { exact: true }).selectOption(pack.id);
+      await parent.getByRole('button', { name: 'Review booking' }).click();
+      await expect(parent.getByText('The credit must be valid when the lesson starts.')).toBeVisible();
+    }
+    await review();
+    await setRule('lesson_end');
+    await parent.getByRole('button', { name: 'Confirm booking' }).click();
+    await expect(parent.getByRole('alert')).toContainText('booking validity rule changed');
+    expect(await credit()).toMatchObject({ available: 1, reserved: 0 });
+    await setRule('lesson_start');
+    await review();
+    await parent.getByRole('button', { name: 'Confirm booking' }).click();
+    const list = parent.getByRole('region', { name: 'Booked lessons' });
+    await expect(list.getByText(kind.name, { exact: true })).toBeVisible();
+    const booked = async () => (await (await parent.request.get('/api/v1/students/amy/bookings?from=' + expiryDay + '&to=' + nextDay)).json())
+      .items.find((item: { class: { id: string } }) => item.class.id === lesson.id);
+    const reservation = await booked();
+    expect(reservation.status).toBe('reserved');
+    await setRule('lesson_end');
+    expect(await booked()).toEqual(reservation);
+    expect(await credit()).toMatchObject({ available: 0, reserved: 1 });
+  } finally {
+    const current = await (await admin.request.get(settings)).json();
+    if (current.validityRule !== original.validityRule) {
+      expect((await admin.request.patch(settings, { headers, data: { validityRule: original.validityRule, version: current.version } })).status()).toBe(200);
+    }
+    await parent.close();
+    await coach.close();
+  }
+});
