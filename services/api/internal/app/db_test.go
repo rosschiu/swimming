@@ -32,8 +32,11 @@ func TestMigrateSchoolSettingsUpgrade(t *testing.T) {
 		},
 		{
 			name: "from booking validity",
-			setup: `DROP TABLE lesson_settings;
-				DELETE FROM schema_migrations WHERE version = 12;
+			// Migration 26 extends lesson settings, so undo it as well to re-create the table as of migration 12.
+			setup: `DROP TABLE booking_cancellations;
+				ALTER TABLE users DROP COLUMN service_email_enabled;
+				DROP TABLE lesson_settings;
+				DELETE FROM schema_migrations WHERE version IN (12, 26);
                 ALTER TABLE bookings DROP COLUMN enrolment_id;
                 ALTER TABLE bookings ALTER COLUMN idempotency_key SET NOT NULL;
                 DROP TABLE enrolments;
@@ -60,7 +63,7 @@ func TestMigrateSchoolSettingsUpgrade(t *testing.T) {
 			var attendanceTable bool
 			err := db.QueryRow(ctx, `SELECT parent_change_cutoff_hours, validity_rule,
 				(SELECT count(*) FROM schema_migrations WHERE version IN (12, 14, 15, 16, 17)),
-				to_regclass('booking_attendance') IS NOT NULL
+				to_regclass('booking_attendance') IS NOT NULL AND cancellation_email
 				FROM lesson_settings CROSS JOIN booking_validity_settings`).Scan(&cutoff, &rule, &recordedVersions, &attendanceTable)
 			if err != nil {
 				t.Fatal(err)

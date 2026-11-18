@@ -14,7 +14,9 @@ type StudentBooking struct {
 	Status     string             `json:"status"`
 	CreatedAt  time.Time          `json:"createdAt"`
 	Attendance *BookingAttendance `json:"attendance,omitempty"`
-	Class      ClassSession       `json:"class"`
+	// Cancellation keeps the lesson as reviewed when the guardian cancelled, even if the class is later edited.
+	Cancellation *BookingCancellation `json:"cancellation,omitempty"`
+	Class        ClassSession         `json:"class"`
 }
 
 type StudentBookingDetail struct {
@@ -126,6 +128,15 @@ func (a *API) listStudentBookings(w http.ResponseWriter, r *http.Request, s Sess
 		internal(w, err)
 		return
 	}
+	rows.Close()
+	for i := range items {
+		if items[i].Status == "cancelled" {
+			if items[i].Cancellation, err = loadBookingCancellation(ctx, tx, items[i].ID); err != nil {
+				internal(w, err)
+				return
+			}
+		}
+	}
 	respond(w, 200, map[string]any{"items": items})
 }
 
@@ -156,6 +167,12 @@ func (a *API) getStudentBooking(w http.ResponseWriter, r *http.Request, s Sessio
 	if err != nil {
 		internal(w, err)
 		return
+	}
+	if booking.Status == "cancelled" {
+		if booking.Cancellation, err = loadBookingCancellation(ctx, tx, booking.ID); err != nil {
+			internal(w, err)
+			return
+		}
 	}
 	detail.StudentBooking = booking
 	respond(w, 200, detail)
@@ -201,7 +218,7 @@ func (a *API) getClassRoster(w http.ResponseWriter, r *http.Request, s Session) 
 		FROM bookings b JOIN students st ON st.id=b.student_id
 		LEFT JOIN booking_attendance ba ON ba.booking_id=b.id
 		LEFT JOIN users marker ON $2 AND marker.id=ba.actor_id
-		WHERE b.class_id=$1 ORDER BY st.name,st.id,b.id`, id, s.User.Role == "admin")
+		WHERE b.class_id=$1 AND b.status='reserved' ORDER BY st.name,st.id,b.id`, id, s.User.Role == "admin")
 	if err != nil {
 		internal(w, err)
 		return

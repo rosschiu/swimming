@@ -30,7 +30,7 @@ function api(role: Role, override?: Override) {
   if (path.endsWith('/settings/lessons')) return response({ parentChangeCutoffHours: 24, attendanceOpenMinutes: 15, correctionWindowDays: 3, version: 1 });
   if (path.endsWith('/settings/booking-validity')) return response(bookingValidity);
   if (path.endsWith('/settings/fixed-enrolment')) return response({ allocationPolicy: 'all_or_none', renewalPolicy: 'same_offer', version: 1 });
-  if (path.endsWith('/notification-preferences')) return response({ emailEnabled: false, emailAddress: 'parent@swim.test', emailDeliveryAvailable: false });
+  if (path.endsWith('/notification-preferences')) return response({ emailEnabled: false, serviceEmailEnabled: true, emailAddress: 'parent@swim.test', emailDeliveryAvailable: false });
   return response({ items: [], nextCursor: null, unreadCount: 0 });
  }); vi.stubGlobal('fetch', mock); return mock;
 }
@@ -352,7 +352,7 @@ it.each([
   expect(await screen.findByText(message)).toBeVisible();
   expect(screen.getByRole('link', { name: `${badge} (1)` })).toBeVisible();
   expect(screen.getByText(unread, { exact: false })).toBeVisible();
-  expect(screen.getByRole('checkbox')).not.toBeChecked();
+  expect(screen.getAllByRole('checkbox')[0]).not.toBeChecked();
   await user.click(screen.getByRole('button', { name: markRead }));
   expect(await screen.findByRole('link', { name: `${badge} (0)` })).toBeVisible();
   expect(screen.getByText(new RegExp(`^· ${read}$`))).toBeVisible();

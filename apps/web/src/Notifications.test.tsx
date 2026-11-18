@@ -8,7 +8,7 @@ function notifyNavigation(next: (destination: unknown) => void) {
  return (event: MouseEvent<HTMLAnchorElement>, destination: unknown) => { if (isLocalNavigation(event)) { event.preventDefault(); next(destination); } };
 }
 const note={id:'notification',studentId:'amy',studentName:'Amy',kind:'progress.created',sourceId:'note',sourceVersion:1,createdAt:'2030-01-01T00:00:00Z',readAt:null};
-const preference={emailEnabled:false,emailAddress:'parent@swim.test',emailDeliveryAvailable:false};
+const preference={emailEnabled:false,serviceEmailEnabled:true,emailAddress:'parent@swim.test',emailDeliveryAvailable:false};
 const t=(en:string)=>en;const expired=()=>false;
 function response(body:unknown,status=200){return new Response(JSON.stringify(body),{status});}
 beforeEach(()=>vi.unstubAllGlobals());
@@ -23,7 +23,7 @@ it('sends only the self-service boolean and explains unavailable demo delivery',
 });
 it('preserves the displayed preference on failure and recovers Chinese empty states',async()=>{
  let loads=0;vi.stubGlobal('fetch',vi.fn(async(path:string,options?:RequestInit)=>{if(options?.method==='PUT')return response({error:{message:'failed'}},500);if(path.endsWith('/notification-preferences'))return response(preference);if(++loads===1)return response({error:{message:'failed'}},500);return response({items:[],nextCursor:null,unreadCount:0});}));
- const user=userEvent.setup();render(<Notifications csrfToken="csrf" expired={expired} t={(_en,zh)=>zh} onUnreadCount={()=>{}} follow={()=>{}}/>);await screen.findByRole('alert');await user.click(screen.getByRole('button',{name:'重新載入'}));await screen.findByText('暫無通知。');const checkbox=screen.getByRole('checkbox');await user.click(checkbox);await screen.findByText('未能儲存電郵設定，請重試。');expect(checkbox).not.toBeChecked();
+ const user=userEvent.setup();render(<Notifications csrfToken="csrf" expired={expired} t={(_en,zh)=>zh} onUnreadCount={()=>{}} follow={()=>{}}/>);await screen.findByRole('alert');await user.click(screen.getByRole('button',{name:'重新載入'}));await screen.findByText('暫無通知。');const checkbox=screen.getAllByRole('checkbox')[0];await user.click(checkbox);await screen.findByText('未能儲存電郵設定，請重試。');expect(checkbox).not.toBeChecked();
 });
 it('account-keyed remount aborts stale lists and preferences without updating the next account badge',async()=>{
  const pending:((value:Response)=>void)[]=[];const signals:AbortSignal[]=[];let old=true;const oldCount=vi.fn(),newCount=vi.fn();vi.stubGlobal('fetch',vi.fn((path:string,options:RequestInit)=>{if(old){signals.push(options.signal as AbortSignal);return new Promise<Response>(resolve=>pending.push(resolve));}return Promise.resolve(response(path.endsWith('/notification-preferences')?{...preference,emailAddress:'other-parent@swim.test'}:{items:[],nextCursor:null,unreadCount:0}));}));
