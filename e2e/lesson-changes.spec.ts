@@ -128,7 +128,9 @@ test('fixed booking stays reserved on a full replacement and follows coach appro
     const matching = initialInbox.items.filter((entry: { sourceId: string }) => entry.sourceId === change.id);
     expect(matching).toHaveLength(1);
     expect(matching[0]).toMatchObject({ kind: 'lesson_change.requested', readAt: null });
-    await noticeLink.click();
+    await noticeLink.focus();
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('main')).toBeFocused();
     await page.reload();
     await expect(page.getByRole('button', { name: 'Approve change' })).toBeVisible();
     await page.getByRole('link', { name: 'Lesson changes', exact: true }).click();
