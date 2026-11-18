@@ -163,8 +163,8 @@ func (a *API) createEnrolment(w http.ResponseWriter, r *http.Request, s Session)
 		return
 	}
 
-	rows, err := tx.Query(ctx, "SELECT b.id,b.student_id,b.status,b.created_at,"+classColumns+classJoin+
-		"JOIN bookings b ON b.class_id=c.id WHERE b.enrolment_id=$1 ORDER BY c.starts_at,c.id", enrolment.ID)
+	rows, err := tx.Query(ctx, "SELECT b.id,b.student_id,b.status,b.created_at,ba.marked_at,"+classColumns+classJoin+
+		"JOIN bookings b ON b.class_id=c.id LEFT JOIN booking_attendance ba ON ba.booking_id=b.id WHERE b.enrolment_id=$1 ORDER BY c.starts_at,c.id", enrolment.ID)
 	if err == nil {
 		enrolment.Bookings, err = pgx.CollectRows(rows, func(row pgx.CollectableRow) (StudentBooking, error) {
 			return scanStudentBooking(row)
