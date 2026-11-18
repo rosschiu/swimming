@@ -1178,6 +1178,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/students/{id}/credit-grants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Grant complimentary credits
+         * @description Administrator only. Creates a separate complimentary credit package for the student under the current school credit policy, with the given credits, expiry and reason. Works for students without purchases. No purchase or receipt is created, and the package is not offered as a paid renewal package. Booking, attendance and coach recovery treat it like other packages. Returns 201 for a new grant and 200 for an exact replay.
+         */
+        post: operations["grantCredits"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/lesson-changes": {
         parameters: {
             query?: never;
@@ -2112,7 +2132,7 @@ export interface components {
         CreditPackage: {
             offerId: string;
             id: string;
-            purchaseId: string;
+            purchaseId?: string;
             credits: number;
             /** Format: date */
             expiresOn: string | null;
@@ -2123,6 +2143,8 @@ export interface components {
             expired: number;
             movements: components["schemas"]["CreditMovement"][];
             sourcePackageId: string | null;
+            /** @description Set on complimentary packages created by an administrator grant; such packages have no purchase. */
+            grantId?: string;
         };
         PackageOfferList: {
             items: components["schemas"]["PackageOffer"][];
@@ -2146,6 +2168,8 @@ export interface components {
             expired: number;
             movements: components["schemas"]["CreditMovement"][];
             sourcePackageId: string | null;
+            /** @description True for credits granted by an administrator rather than purchased. */
+            complimentary: boolean;
         };
         CreditRecovery: {
             id: string;
@@ -2333,6 +2357,28 @@ export interface components {
             reason: string;
             /** Format: date-time */
             substitutedAt: string;
+        };
+        CreditGrantInput: {
+            credits: number;
+            /**
+             * Format: date
+             * @description Hong Kong date, today or later; credits remain usable through this date.
+             */
+            expiresOn: string;
+            reason: string;
+            idempotencyKey: string;
+        };
+        CreditGrant: {
+            id: string;
+            studentId: string;
+            packageId: string;
+            credits: number;
+            /** Format: date */
+            expiresOn: string;
+            reason: string;
+            actorId: string;
+            /** Format: date-time */
+            createdAt: string;
         };
     };
     responses: never;
@@ -5787,6 +5833,52 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CreditRecovery"];
+                };
+            };
+            /** @description Request failed */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    grantCredits: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-Token": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreditGrantInput"];
+            };
+        };
+        responses: {
+            /** @description Replayed grant */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreditGrant"];
+                };
+            };
+            /** @description Grant created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreditGrant"];
                 };
             };
             /** @description Request failed */
