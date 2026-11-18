@@ -50,7 +50,7 @@ function ChangeSummary({ item, role, t }: { item: LessonChange; role?: string; t
   </>;
 }
 
-export function LessonChangeDetail({ studentId, changeId, expired, t }: Pick<ProtectedProps, 'expired' | 't'> & { studentId: string; changeId: string }) {
+export function LessonChangeDetail({ studentId, changeId, expired, t, standalone, coachCsrfToken }: Pick<ProtectedProps, 'expired' | 't'> & { studentId: string; changeId: string; standalone?: boolean; coachCsrfToken?: string }) {
   const api = useProtectedRequest(expired);
   const [item, setItem] = useState<LessonChange>();
   const [state, setState] = useState<'loading' | 'unavailable' | 'error'>();
@@ -67,12 +67,17 @@ export function LessonChangeDetail({ studentId, changeId, expired, t }: Pick<Pro
   }, [api, studentId, changeId]);
   useEffect(() => { void load(); }, [load]);
 
+  const Heading = standalone ? 'h1' : 'h2';
+  const title = !item ? t('Lesson change', '調課') : item.status === 'pending'
+    ? t('Lesson change request', '調課申請') : t('Lesson change decision', '調課結果');
   return <section className="panel section-gap">
-    <h2>{item?.status === 'pending' ? t('Lesson change request', '調課申請') : t('Lesson change decision', '調課結果')}</h2>
+    <Heading>{title}</Heading>
     {state === 'loading' && <p role="status">{t('Loading lesson change…', '正在載入調課申請…')}</p>}
     {state === 'unavailable' && <p role="alert">{t('This lesson change is unavailable for your current access.', '目前權限無法存取此調課申請。')}</p>}
     {state === 'error' && <><p role="alert">{t('Could not load this lesson change.', '未能載入此調課申請。')}</p><button className="outline" onClick={() => void load()}>{t('Retry', '重試')}</button></>}
     {item && <ChangeSummary item={item} t={t}/>}
+    {coachCsrfToken && state !== 'unavailable' && state !== 'error' && <button className="outline" disabled={state === 'loading'} onClick={() => void load()}>{t('Refresh request', '重新載入申請')}</button>}
+    {coachCsrfToken && item?.status === 'pending' && <CoachDecision changeId={item.id} onDecision={setItem} expired={expired} t={t} csrfToken={coachCsrfToken}/>}
   </section>;
 }
 

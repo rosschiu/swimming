@@ -290,6 +290,10 @@ func (a *API) lessonChangeOptions(w http.ResponseWriter, r *http.Request, s Sess
 }
 
 func (a *API) requestLessonChange(w http.ResponseWriter, r *http.Request, s Session) {
+	a.saveLessonChangeRequest(w, r, s, true)
+}
+
+func (a *API) saveLessonChangeRequest(w http.ResponseWriter, r *http.Request, s Session, notifyCoach bool) {
 	if s.User.Role != "parent" {
 		fail(w, 403, "forbidden", "Guardian access is required")
 		return
@@ -411,6 +415,12 @@ func (a *API) requestLessonChange(w http.ResponseWriter, r *http.Request, s Sess
 	if err != nil {
 		internal(w, err)
 		return
+	}
+	if notifyCoach {
+		if err := createLessonChangeRequestNotice(ctx, tx, b.StudentID, original.CoachID, id, now); err != nil {
+			internal(w, err)
+			return
+		}
 	}
 	a.respondLessonChange(w, r, tx, id, 201)
 }

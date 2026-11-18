@@ -43,7 +43,7 @@ const routes: [string, Role[], (role: Role) => string][] = [
  ['/availability', ['admin','coach'], () => 'Available time slots'],
  ['/packages', ['admin','parent'], () => 'Packages and payments'],
  ['/accounts', ['admin'], () => 'Accounts & invitations'], ['/setup', ['admin'], () => 'School setup'], ['/audit', ['admin'], () => 'Audit history'],
- ['/notification-deliveries', ['admin'], () => 'Notification deliveries'], ['/notifications', ['parent','student'], () => 'Notifications'],
+ ['/notification-deliveries', ['admin'], () => 'Notification deliveries'], ['/notifications', ['parent','student','coach'], () => 'Notifications'],
 ];
 for (const [path, roles, heading] of routes) for (const role of roles) {
  it(`${role} restores ${path} on direct entry, remount, and sign-in`, async () => {

@@ -3808,6 +3808,7 @@
     "/api/v1/notifications": {
       "get": {
         "operationId": "listNotifications",
+        "description": "Lists family notices within current student access and submission notices for the assigned original lesson coach.",
         "security": [
           {
             "sessionCookie": []
@@ -3861,6 +3862,7 @@
     "/api/v1/notifications/{notificationId}/read": {
       "put": {
         "operationId": "markNotificationRead",
+        "description": "Marks a notice in the current account inbox. Coach access requires current ownership of the original lesson.",
         "security": [
           {
             "sessionCookie": []
@@ -7467,6 +7469,7 @@
               "milestone.achieved",
               "milestone.revoked",
               "booking.created",
+              "lesson_change.requested",
               "lesson_change.approved",
               "lesson_change.rejected"
             ]

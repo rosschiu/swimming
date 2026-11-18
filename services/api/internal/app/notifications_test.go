@@ -66,8 +66,9 @@ func TestIntegrationNotificationsSourcesScopeReadAndPagination(t *testing.T) {
 	parent := login(t, h, "parent@swim.test")
 	student := login(t, h, "student@swim.test")
 	other := login(t, h, "other-parent@swim.test")
+	expectStatus(t, request(t, h, "GET", "/api/v1/notifications", nil, admin), 403)
+	expectStatus(t, request(t, h, "GET", "/api/v1/notifications", nil, coach), 200)
 	for _, actor := range []authState{admin, coach} {
-		expectStatus(t, request(t, h, "GET", "/api/v1/notifications", nil, actor), 403)
 		expectStatus(t, request(t, h, "GET", "/api/v1/notification-preferences", nil, actor), 403)
 	}
 	for _, actor := range []authState{parent, student, coach} {
