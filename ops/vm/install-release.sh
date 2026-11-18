@@ -9,8 +9,22 @@ current="$root/current"
 exec 9>"$root/deploy.lock"
 flock 9
 
+ready() {
+  curl -fsS --max-time 2 http://127.0.0.1:18083/api/v1/ready > /dev/null
+}
+
+wait_until_ready() {
+  for ((attempt=0; attempt<30; attempt++)); do
+    if ready; then
+      return 0
+    fi
+    sleep 1
+  done
+  return 1
+}
+
 previous=$(readlink "$current" || true)
-if [[ "$previous" == "$release" ]] && curl -fsS --max-time 2 http://127.0.0.1:18083/api/v1/ready > /dev/null; then
+if [[ "$previous" == "$release" ]] && ready; then
   exit 0
 fi
 
@@ -36,21 +50,20 @@ switch_to() {
 systemctl start "swimming-migrate@$revision.service"
 switch_to "$release"
 
-if systemctl restart swimming.service; then
-  for ((attempt=0; attempt<30; attempt++)); do
-    if curl -fsS --max-time 2 http://127.0.0.1:18083/api/v1/ready > /dev/null; then
-      exit 0
-    fi
-    sleep 1
-  done
+if systemctl restart swimming.service && wait_until_ready; then
+  exit 0
 fi
 
-if [[ -n "$previous" && "$previous" != "$release" ]]; then
-  switch_to "$previous"
-  systemctl restart swimming.service
-else
+echo "Release $revision failed readiness" >&2
+if [[ -z "$previous" ]]; then
   systemctl stop swimming.service
   rm -f "$current"
+elif [[ "$previous" != "$release" ]]; then
+  switch_to "$previous"
+  if systemctl restart swimming.service && wait_until_ready; then
+    echo "Previous release restored and ready" >&2
+  else
+    echo "Previous release restored but failed readiness" >&2
+  fi
 fi
-echo "Release $revision failed readiness" >&2
 exit 1

@@ -42,6 +42,8 @@ jobs:
       - run: npm ci
       - run: npm ci --prefix apps/web
       - run: npm run contracts:check
+      - name: Test VM delivery control flow
+        run: python3 ops/vm/test_delivery.py
       - name: Go formatting, static checks and tests
         working-directory: services/api
         run: |
@@ -89,10 +91,11 @@ jobs:
   deliver-vm:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.SWIMMING_VM_DELIVERY == 'enabled'
     needs: test
-    runs-on: [self-hosted, linux, x64, swimming-private-vm]
+    runs-on:
+      group: swimming-private-vm
+      labels: [self-hosted, linux, x64, swimming-private-vm]
     environment: private-vm
     timeout-minutes: 12
-    concurrency: swimming-private-vm
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -106,7 +109,15 @@ jobs:
           VM_KNOWN_HOSTS: ${{ secrets.VM_KNOWN_HOSTS }}
         run: |
           set -euo pipefail
-          if [[ "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')" != "$GITHUB_SHA" ]]; then
+          if ! main_sha=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha'); then
+            echo 'Could not read the current main revision.' >&2
+            exit 1
+          fi
+          if [[ ! "$main_sha" =~ ^[0-9a-f]{40}$ || ! "$GITHUB_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo 'GitHub returned an invalid release revision.' >&2
+            exit 1
+          fi
+          if [[ "$main_sha" != "$GITHUB_SHA" ]]; then
             echo 'A newer revision is on main. Skipping this release.'
             exit 0
           fi
