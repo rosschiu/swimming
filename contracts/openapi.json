@@ -7842,8 +7842,6 @@
           }
         },
         "required": [
-          "purchaseId",
-          "offerId",
           "id",
           "credits",
           "expiresOn",

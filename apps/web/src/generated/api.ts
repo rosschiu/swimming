@@ -1759,8 +1759,8 @@ export interface components {
             items: components["schemas"]["CreditPackage"][];
         };
         CreditHistoryPackage: {
-            purchaseId: string;
-            offerId: string;
+            purchaseId?: string;
+            offerId?: string;
             id: string;
             credits: number;
             /** Format: date */
