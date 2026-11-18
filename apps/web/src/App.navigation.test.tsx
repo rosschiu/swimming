@@ -2,6 +2,7 @@ import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, it, vi } from 'vitest';
 import App from './App';
+import { hkDate } from './scheduling';
 
 type Role = 'admin' | 'coach' | 'parent' | 'student';
 const amy = { id: 'amy', name: 'Amy Chan', level: 'Beginner', version: 1 };
@@ -187,7 +188,8 @@ it('discards a pending child read after navigation and lets the guardian retry t
 
 it.each(['parent', 'admin'] as const)('books with explicit confirmation and refreshes scoped reads for %s', async role => {
   at('/students/amy');
-  const startsAt = new Date(Date.now() + 3 * 86400000).toISOString();
+  const day = hkDate(new Date(Date.now() + 3 * 86400000));
+  const startsAt = new Date(`${day}T${role === 'parent' ? '09:30' : '23:30'}:00+08:00`).toISOString();
   const endsAt = new Date(Date.parse(startsAt) + 3600000).toISOString();
   const lesson = {
     id: 'c1', classTypeId: 't1', classTypeVersion: 3, version: 2, classTypeName: 'Lesson to reserve',
@@ -211,7 +213,9 @@ it.each(['parent', 'admin'] as const)('books with explicit confirmation and refr
   render(<App />);
   const user = userEvent.setup();
   await user.click(await screen.findByRole('button', { name: 'Book a lesson' }));
-  await user.selectOptions(await screen.findByLabelText('Class to book'), 'c1');
+  const shownTime = role === 'parent' ? `${day} 09:30–10:30` : `${day} 23:30–${hkDate(new Date(endsAt))} 00:30`;
+  const classOption = await screen.findByRole('option', { name: new RegExp(`^${shownTime} · .* · ${lesson.level}$`) });
+  await user.selectOptions(screen.getByLabelText('Class to book'), classOption);
   await user.selectOptions(screen.getByLabelText('Credit package'), pack.id);
   if (role === 'admin') {
     expect(screen.getByRole('button', { name: 'Review booking' })).toBeDisabled();
@@ -221,6 +225,7 @@ it.each(['parent', 'admin'] as const)('books with explicit confirmation and refr
     expect(screen.queryByRole('option', { name: /Expert/ })).not.toBeInTheDocument();
   }
   await user.click(screen.getByRole('button', { name: 'Review booking' }));
+  expect(screen.getByText(new RegExp(`Amy Chan · ${shownTime}`))).toBeVisible();
   expect(writes).toHaveLength(0);
   await user.click(screen.getByRole('button', { name: 'Confirm booking' }));
   const retry = await screen.findByRole('button', { name: 'Retry same booking' });

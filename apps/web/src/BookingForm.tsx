@@ -54,7 +54,12 @@ export default function BookingForm({ csrfToken, expired, t, student, admin, onB
   const lesson = options?.classes.find(item => item.id === classId);
   const creditPackage = options?.packages.find(item => item.id === packageId);
   const override = admin && !!lesson && lesson.level !== student.level;
-  const label = (value: ClassSession) => `${hkDate(new Date(value.startsAt))} ${hkTime(value.startsAt)} · ${value.classTypeName} · ${value.venueName} · ${value.coachName}`;
+  function label(value: ClassSession) {
+    const day = hkDate(new Date(value.startsAt));
+    const endDay = hkDate(new Date(value.endsAt));
+    const end = day === endDay ? hkTime(value.endsAt) : `${endDay} ${hkTime(value.endsAt)}`;
+    return `${day} ${hkTime(value.startsAt)}–${end} · ${value.classTypeName} · ${value.venueName} · ${value.coachName}`;
+  }
   const packageLabel = (value: CreditPackage) => `${value.id} · ${t('Available', '可用堂數')} ${value.available} · ${value.expiresOn ? `${t('Expires', '到期日')} ${value.expiresOn}` : t('No expiry', '無到期日')}`;
 
   async function submit() {

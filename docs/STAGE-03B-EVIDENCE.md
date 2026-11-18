@@ -13,3 +13,5 @@ Draft [PR #17](https://github.com/rosschiu/swimming/pull/17) starts from verifie
 ## Outstanding
 
 Configurable booking validity, including coach authority scope, remains pending. Lesson-end validity is the implemented default. Final integration and CI results must cover the complete stage before merge.
+
+Class choices and confirmation now show start and end in Hong Kong time, including both dates for an overnight lesson. The revised frontend passed all 163 tests, the production build and the real-stack booking journey.
