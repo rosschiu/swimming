@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { expect, test, type Page } from '@playwright/test';
+import { expectContract } from './contract';
 
 async function login(page: Page, role: string) {
   await page.goto('/');
@@ -66,6 +67,7 @@ test('administrator reviews both ends of a pending move without changing either 
       const response = await read;
       expect(response.status()).toBe(200);
       const impact = await response.json();
+      expectContract('CancellationImpact', impact);
       expect(impact).toMatchObject({
         lesson: { id }, bookedSwimmers: 1 - index, unmarkedBookings: 1 - index, recordedAttendance: 0,
         pendingInbound: index, pendingOutbound: 1 - index,
@@ -101,6 +103,10 @@ test('administrator reviews both ends of a pending move without changing either 
       headers: { Origin: 'http://localhost:18573', 'X-CSRF-Token': coachSession.csrfToken }, data: { decision: 'approved' },
     });
     expect(decision.status()).toBe(200);
+    const panel = page.getByRole('region', { name: 'Cancellation impact' });
+    await panel.getByRole('button', { name: 'Refresh impact' }).click();
+    await expect(panel).toContainText('Showing 0 of 0 on this page.');
+    await expect(panel.getByText('Amy', { exact: true })).toHaveCount(0);
     for (const [index, id] of [original.id, target.id].entries()) {
       const read = page.waitForResponse(response => new URL(response.url()).pathname === readPath(id));
       await buttons.nth(index).click();
@@ -111,6 +117,23 @@ test('administrator reviews both ends of a pending move without changing either 
     expect(await exact.json()).toMatchObject({ id: booking.id, class: { id: target.id } });
     const after = await (await page.request.get('/api/v1/students/amy/credits')).json();
     expect(after.items.find((item: { id: string }) => item.id === pack.id)).toMatchObject({ available: 1, reserved: 1, consumed: 0 });
+
+    // Set the date only for this fixture, then use the normal attendance endpoint.
+    const past = execFileSync('psql', [process.env.DATABASE_URL!, '-XqtA', '-v', 'ON_ERROR_STOP=1', '-v', 'id=' + target.id], {
+      input: "UPDATE class_sessions SET starts_at=now()-interval '2 days', ends_at=now()-interval '47 hours' WHERE id=:'id' RETURNING (starts_at AT TIME ZONE 'Asia/Hong_Kong')::date;", encoding: 'utf8',
+    }).trim();
+    const marked = await page.request.put('/api/v1/classes/' + target.id + '/roster/' + booking.id + '/attendance', { headers: adminHeaders });
+    expect(marked.status()).toBe(200);
+    await page.getByLabel('From date', { exact: true }).fill(past);
+    await page.getByLabel('To date', { exact: true }).fill(past);
+    await page.getByLabel('Filter venue').selectOption(venue.id);
+    await page.getByRole('button', { name: 'Apply filters' }).click();
+    const historical = page.waitForResponse(response => new URL(response.url()).pathname === readPath(target.id));
+    await buttons.first().click();
+    const impact = await (await historical).json();
+    expect(impact).toMatchObject({ bookedSwimmers: 1, recordedAttendance: 1, unmarkedBookings: 0, bookings: [{ bookingId: booking.id, attendanceMarkedAt: expect.any(String) }] });
+    await expect(panel).toContainText('Ended');
+    await expect(panel).toContainText('Attendance recorded');
   } finally {
     await parent.close();
   }
