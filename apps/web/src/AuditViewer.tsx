@@ -4,10 +4,10 @@ import { isAborted, useProtectedRequest, type ProtectedProps } from './useProtec
 
 type AuditEvent = components['schemas']['AuditEvent'];
 
-export default function AuditViewer({ expired, t }: ProtectedProps) {
+export default function AuditViewer({ expired, t, initialEntity = '' }: ProtectedProps & { initialEntity?: string }) {
   const api = useProtectedRequest(expired);
   const [events, setEvents] = useState<AuditEvent[]>([]);
-  const [entityId, setEntityId] = useState('');
+  const [entityId, setEntityId] = useState(initialEntity);
   const [appliedEntity, setAppliedEntity] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -24,7 +24,7 @@ export default function AuditViewer({ expired, t }: ProtectedProps) {
     } catch (e) { if (!isAborted(e)) setError(t('Could not load audit history. Please retry.', '未能載入操作紀錄，請重試。')); }
     finally { setLoading(false); }
   }
-  useEffect(() => { void load(''); }, [api]);
+  useEffect(() => { void load(initialEntity); }, [api, initialEntity]);
   function filter(event: FormEvent) { event.preventDefault(); void load(entityId.trim()); }
   return <section><div className="page-heading"><div><p className="eyebrow">{t('ACCOUNTABILITY', '操作追蹤')}</p><h1>{t('Audit history', '操作紀錄')}</h1><p className="muted">{t('Review recorded changes and the account responsible.', '查看已記錄的變更及操作帳戶。')}</p></div></div><form onSubmit={filter} className="directory-tools"><div><label htmlFor="audit-entity">{t('Filter by record ID', '按紀錄編號篩選')}</label><input id="audit-entity" value={entityId} onChange={e => setEntityId(e.target.value)}/></div><button disabled={loading}>{t('Apply filter', '套用篩選')}</button><button type="button" className="outline" disabled={loading} onClick={() => { setEntityId(''); void load(''); }}>{t('Clear', '清除')}</button></form>
     {error && <p role="alert" className="error">{error}</p>}{loading && <p role="status">{t('Loading history…', '載入紀錄中…')}</p>}

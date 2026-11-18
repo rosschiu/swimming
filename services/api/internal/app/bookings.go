@@ -191,9 +191,12 @@ func (a *API) getClassRoster(w http.ResponseWriter, r *http.Request, s Session) 
 		internal(w, err)
 		return
 	}
-	rows, err := tx.Query(ctx, `SELECT b.id,b.student_id,st.name,st.level,b.status,ba.marked_at FROM bookings b
-     JOIN students st ON st.id=b.student_id LEFT JOIN booking_attendance ba ON ba.booking_id=b.id
-     WHERE b.class_id=$1 ORDER BY st.name,st.id,b.id`, id)
+	rows, err := tx.Query(ctx, `SELECT b.id,b.student_id,st.name,st.level,b.status,ba.marked_at,marker.name,
+		CASE WHEN marker.id IS NOT NULL THEN `+attendanceAuditExists+` ELSE false END
+		FROM bookings b JOIN students st ON st.id=b.student_id
+		LEFT JOIN booking_attendance ba ON ba.booking_id=b.id
+		LEFT JOIN users marker ON $2 AND marker.id=ba.actor_id
+		WHERE b.class_id=$1 ORDER BY st.name,st.id,b.id`, id, s.User.Role == "admin")
 	if err != nil {
 		internal(w, err)
 		return
@@ -202,11 +205,16 @@ func (a *API) getClassRoster(w http.ResponseWriter, r *http.Request, s Session) 
 	for rows.Next() {
 		var entry RosterEntry
 		var markedAt *time.Time
-		if err = rows.Scan(&entry.BookingID, &entry.StudentID, &entry.StudentName, &entry.Level, &entry.Status, &markedAt); err != nil {
+		var recordedBy *string
+		var hasAudit bool
+		if err = rows.Scan(&entry.BookingID, &entry.StudentID, &entry.StudentName, &entry.Level, &entry.Status, &markedAt, &recordedBy, &hasAudit); err != nil {
 			internal(w, err)
 			return
 		}
 		entry.Attendance = presentAttendance(markedAt)
+		if recordedBy != nil {
+			entry.Attendance.Evidence = &AttendanceEvidence{RecordedBy: *recordedBy, HasAudit: hasAudit}
+		}
 		roster.Items = append(roster.Items, entry)
 	}
 	if err = rows.Err(); err != nil {
