@@ -58,6 +58,7 @@ func TestIntegrationMarkPresent(t *testing.T) {
 	expectBookingError(t, request(t, routes, "PUT", path, nil, student), 403, "forbidden")
 	expectBookingError(t, request(t, routes, "PUT", path, nil, otherCoach), 404, "not_found")
 	expectBookingError(t, request(t, routes, "PUT", rosterURL+"/missing/attendance", nil, f.admin), 404, "not_found")
+	expectBookingError(t, request(t, routes, "PUT", rosterURL+"/"+lateBooking.ID+"/attendance", nil, f.admin), 404, "not_found")
 	expectBookingError(t, request(t, routes, "PUT", path, nil, coach), 409, "attendance_not_open")
 
 	w = request(t, routes, "PATCH", "/api/v1/settings/lessons", LessonSettings{
