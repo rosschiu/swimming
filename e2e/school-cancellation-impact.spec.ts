@@ -66,10 +66,21 @@ test('administrator reviews both ends of a pending move without changing either 
       const response = await read;
       expect(response.status()).toBe(200);
       const impact = await response.json();
-      const counts = index === 0 ? [1, 1, 0, 0, 1] : [0, 0, 0, 1, 0];
-      expect(impact.counts).toMatchObject(Object.fromEntries(['bookedSwimmers', 'unmarkedBookings', 'recordedAttendance', 'pendingInbound', 'pendingOutbound'].map((key, i) => [key, counts[i]])));
+      expect(impact).toMatchObject({
+        lesson: { id }, bookedSwimmers: 1 - index, unmarkedBookings: 1 - index, recordedAttendance: 0,
+        pendingInbound: index, pendingOutbound: 1 - index,
+      });
+      if (index === 0) expect(impact.bookings).toMatchObject([{ bookingId: booking.id, packageId: pack.id, studentName: 'Amy' }]);
+      else expect(impact.bookings).toEqual([]);
       const panel = page.getByRole('region', { name: 'Cancellation impact' });
-      await panel.getByLabel('Impact details').selectOption(index === 0 ? 'outbound' : 'inbound');
+      const section = index === 0 ? 'outbound' : 'inbound';
+      const sectionRead = page.waitForResponse(response => {
+        const url = new URL(response.url());
+        return url.pathname === readPath(id) && url.searchParams.get('section') === section;
+      });
+      await panel.getByLabel('Impact details').selectOption(section);
+      const details = await (await sectionRead).json();
+      expect(details.requests).toMatchObject([{ id: change.id, bookingId: booking.id, studentName: 'Amy', otherClassId: index === 0 ? target.id : original.id }]);
       await expect(panel).toContainText('Amy');
       await expect(panel.getByRole('button', { name: /Confirm cancellation|Cancel class/i })).toHaveCount(0);
     }
@@ -90,7 +101,7 @@ test('administrator reviews both ends of a pending move without changing either 
       const read = page.waitForResponse(response => new URL(response.url()).pathname === readPath(id));
       await buttons.nth(index).click();
       const impact = await (await read).json();
-      expect(impact.counts).toMatchObject({ bookedSwimmers: index, unmarkedBookings: index, recordedAttendance: 0, pendingInbound: 0, pendingOutbound: 0 });
+      expect(impact).toMatchObject({ bookedSwimmers: index, unmarkedBookings: index, recordedAttendance: 0, pendingInbound: 0, pendingOutbound: 0 });
     }
     const exact = await page.request.get('/api/v1/students/amy/bookings/' + booking.id);
     expect(await exact.json()).toMatchObject({ id: booking.id, class: { id: target.id } });
