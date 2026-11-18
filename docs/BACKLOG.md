@@ -84,3 +84,5 @@ Stage 04 timing settings merged in [PR #18](https://github.com/rosschiu/swimming
 ### Demo VM rollout evidence
 
 The first deployment serves reviewed main commit 17a83e2 at swimmer.bsoltest.com. PostgreSQL, the Go API and static web server listen on loopback. Traefik terminates TLS and accepts optional PROXY headers from 10.70.2.10 on both public ports. Checks covered HTTP redirects, the HTTPS access gate, authenticated web and API responses, and original client addresses. IPv4 was tested externally. The IPv6 check used the VM's global address from the VM. Automatic deployment still requires the outbound artifact updater, a dedicated read-only repository credential and an observed update to a newer tested revision.
+
+At the operator’s request, the demo now opens directly at the application sign-in screen. With no credentials, the homepage returns 200, readiness reports OK and the students API returns the application’s 401 sign-in response.
