@@ -9,3 +9,9 @@ Renewal must be explicit. The default transfers unused, unreserved credits to th
 Verify the approved default with concurrent retries, a conflict on the last selected lesson, insufficient credits, a forged mixed-series request and a guardian/student/coach browser journey. Check all affected booking, credit, notification and audit records after a rollback.
 
 The school-wide credit validity decision applies to every selected session. The family reviews the effective rule before confirming. If an administrator changes it before the first successful submission, the family must review the refreshed choices. If the original submission succeeded but its response was lost, the same request returns the existing enrolment after checking current access. Verify both branches and check the credit ledger for duplicate reservations.
+
+## Renewal acceptance
+
+Use an original package with four credits, two already reserved, and a new paid package with three credits for the same student. With carry-forward enabled, renewing into two next lessons leaves two reserved credits on the original package and three available plus two reserved on the new one. Replaying the renewal preserves those balances, the expiry dates of the original reservations and both purchase receipts.
+
+With carry-forward disabled, the original package keeps its two available credits. Verify that changing the school setting between review and confirmation requires a new review, and that a conflict on the final selected lesson rolls back the entire renewal, including any transfer. Exercise both package-type settings. A recovered package that funded the original enrolment can be a source; the destination must come from a separate paid purchase.
