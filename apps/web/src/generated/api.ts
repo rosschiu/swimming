@@ -556,6 +556,24 @@ export interface paths {
         patch: operations["updateAvailabilitySettings"];
         trace?: never;
     };
+    "/api/v1/settings/booking-validity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Administrators may read the school-wide booking validity rule. */
+        get: operations["getBookingValiditySettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** @description Administrators may change the school-wide rule for new bookings. A stale version returns version_conflict. */
+        patch: operations["updateBookingValiditySettings"];
+        trace?: never;
+    };
     "/api/v1/availability/{id}/classes": {
         parameters: {
             query?: never;
@@ -1132,6 +1150,8 @@ export interface components {
             creditPackageId: string;
             idempotencyKey: string;
             overrideReason?: string;
+            /** @description Version of the booking validity rule presented for review. A stale version returns booking_validity_changed for a new request. */
+            bookingValidityVersion?: number;
         };
         StudentBooking: {
             id: string;
@@ -1235,6 +1255,14 @@ export interface components {
         };
         AvailabilitySettings: {
             lockHours: number;
+            version: number;
+        };
+        BookingValiditySettings: {
+            /**
+             * @description Default lesson_end requires validity through the end of the lesson. lesson_start requires validity when the lesson starts. The expiry cutoff is midnight after the expiry date in Asia/Hong_Kong. Lesson end may equal the cutoff. Lesson start must precede it.
+             * @enum {string}
+             */
+            validityRule: "lesson_end" | "lesson_start";
             version: number;
         };
         AvailabilityClassInput: {
@@ -1586,6 +1614,7 @@ export interface components {
         CreditHistory: {
             items: components["schemas"]["CreditHistoryPackage"][];
             recoveries: components["schemas"]["CreditRecovery"][];
+            bookingValidity: components["schemas"]["BookingValiditySettings"];
         };
     };
     responses: never;
@@ -1986,6 +2015,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StudentBooking"];
+                };
+            };
+            /** @description Booking conflict. booking_validity_changed indicates that the school rule changed after review. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
                 };
             };
             /** @description Request failed */
@@ -3244,6 +3282,97 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AvailabilitySettings"];
+                };
+            };
+            /** @description Request failed */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getBookingValiditySettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookingValiditySettings"];
+                };
+            };
+            /** @description Administrator access required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request failed */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    updateBookingValiditySettings: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-Token": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookingValiditySettings"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookingValiditySettings"];
+                };
+            };
+            /** @description Administrator access required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Settings version changed */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
                 };
             };
             /** @description Request failed */

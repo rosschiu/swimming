@@ -5,8 +5,9 @@ import { hkDate, hkTime, rangeEnd, type ClassSession } from './scheduling';
 import { isAborted, useProtectedRequest, type ProtectedProps } from './useProtectedRequest';
 
 type CreditPackage = components['schemas']['CreditHistoryPackage'];
+type CreditHistory = components['schemas']['CreditHistory'];
 type BookingInput = components['schemas']['BookingInput'];
-type Choices = { classes: ClassSession[]; packages: CreditPackage[] };
+type Choices = { classes: ClassSession[]; packages: CreditPackage[]; validity: CreditHistory['bookingValidity'] };
 type Props = ProtectedProps & { student: Student; admin: boolean; onBooked: (startsAt: string) => void };
 
 export default function BookingForm({ csrfToken, expired, t, student, admin, onBooked }: Props) {
@@ -32,11 +33,12 @@ export default function BookingForm({ csrfToken, expired, t, student, admin, onB
     if (!open) return;
     let current = true;
     const query = new URLSearchParams({ from: range.from, to: rangeEnd(range.from) });
-    void Promise.all([api<{ items: ClassSession[] }>(`/classes?${query}`), api<{ items: CreditPackage[] }>(`${path}/credit-history`)])
+    void Promise.all([api<{ items: ClassSession[] }>(`/classes?${query}`), api<CreditHistory>(`${path}/credit-history`)])
       .then(([classes, history]) => {
         if (current) setChoices({
           classes: classes.items.filter(lesson => Date.parse(lesson.startsAt) > Date.now() && (admin || lesson.level === student.level)),
           packages: history.items.filter(item => item.available > 0),
+          validity: history.bookingValidity,
         });
       })
       .catch(error => { if (current && !isAborted(error)) setChoices('error'); });
@@ -52,7 +54,16 @@ export default function BookingForm({ csrfToken, expired, t, student, admin, onB
   }
   const options = choices === 'error' ? null : choices;
   const lesson = options?.classes.find(item => item.id === classId);
-  const creditPackage = options?.packages.find(item => item.id === packageId);
+  const lessonPackages = lesson && options ? options.packages.filter(item => {
+    if (!item.expiresOn) return true;
+    const cutoff = Date.parse(`${item.expiresOn}T00:00:00+08:00`) + 86_400_000;
+    if (Date.now() >= cutoff) return false;
+    if (options.validity.validityRule === 'lesson_start') return Date.parse(lesson.startsAt) < cutoff;
+    const end = Date.parse(lesson.endsAt);
+    // Date.parse truncates precision below a millisecond.
+    return end < cutoff || (end === cutoff && !/\.\d{3}\d*[1-9]\d*(?:Z|[+-])/.test(lesson.endsAt));
+  }) : [];
+  const creditPackage = (input ? options?.packages : lessonPackages)?.find(item => item.id === packageId);
   const override = admin && !!lesson && lesson.level !== student.level;
   function label(value: ClassSession) {
     const day = hkDate(new Date(value.startsAt));
@@ -97,6 +108,7 @@ export default function BookingForm({ csrfToken, expired, t, student, admin, onB
 
   const messages: Record<string, string> = {
     version_conflict: t('The class changed. Choose from the refreshed options.', '課堂已變更，請從最新選項重新選擇。'),
+    booking_validity_changed: t('The school’s booking validity rule changed. Review the refreshed options and confirm again.', '全校預約有效期規則已變更。請查看最新選項並重新確認。'),
     class_unavailable: t('This class is no longer available.', '此課堂已無法預約。'),
     class_full: t('This class is full. Choose another class.', '此課堂已滿，請選擇其他課堂。'),
     student_overlap: t('This lesson overlaps with another booking for this student.', '此課堂與這位學員的另一項預約重疊。'),
@@ -111,10 +123,13 @@ export default function BookingForm({ csrfToken, expired, t, student, admin, onB
     {open && <div className="panel">
       <h3>{t('Book a lesson', '預約課堂')}</h3>
       {failure && <p role="alert" className="error">{Object.hasOwn(messages, failure) ? messages[failure] : t('Could not book the lesson. Review the refreshed options and try again.', '未能預約課堂。請檢查最新選項後再試。')}</p>}
-      {input && lesson && creditPackage ? <div>
+      {input && options && lesson && creditPackage ? <div>
         <h4>{t('Review booking', '檢查預約')}</h4>
         <p>{student.name} · {label(lesson)}</p>
         <p>{packageLabel(creditPackage)}</p>
+        <p>{options.validity.validityRule === 'lesson_start'
+          ? t('The credit must be valid when the lesson starts.', '堂數須於課堂開始時有效。')
+          : t('The credit must be valid through the end of the lesson.', '堂數須有效至課堂結束。')}</p>
         <p>{t('Confirm to reserve one place and one credit.', '確認後將預留一個名額及一堂套票堂數。')}</p>
         {input.overrideReason && <p>{t('Level override reason', '程度例外原因')} · {input.overrideReason}</p>}
         {uncertain && <p role="alert" className="error">{t('The result could not be confirmed. Retry this same booking to check its outcome.', '未能確認預約結果。請重試同一項預約以確認結果。')}</p>}
@@ -131,27 +146,29 @@ export default function BookingForm({ csrfToken, expired, t, student, admin, onB
         <p className="muted">{range.from}–{rangeEnd(range.from)} · {t('Hong Kong time', '香港時間')}</p>
         {choices === 'error' ? <p role="alert">{t('Could not load booking options. Use the button above to retry.', '未能載入預約選項。請使用上方按鈕重試。')}</p> : !options ? <p role="status">{t('Loading booking options…', '正在載入預約選項…')}</p> : <form onSubmit={event => {
           event.preventDefault();
-          if (!lesson || !creditPackage || (override && (!reason.trim() || [...reason.trim()].length > 500))) return;
+          if (!options || !lesson || !creditPackage || (override && (!reason.trim() || [...reason.trim()].length > 500))) return;
           const intent = {
             classId: lesson.id, classVersion: lesson.version, classTypeVersion: lesson.classTypeVersion,
-            creditPackageId: creditPackage.id, ...(override ? { overrideReason: reason.trim() } : {}),
+            creditPackageId: creditPackage.id, bookingValidityVersion: options.validity.version,
+            ...(override ? { overrideReason: reason.trim() } : {}),
           };
           const fingerprint = JSON.stringify(intent);
           if (lastIntent.current?.fingerprint !== fingerprint) lastIntent.current = { fingerprint, input: { ...intent, idempotencyKey: crypto.randomUUID() } };
           setInput(lastIntent.current.input);
         }}>
           <label htmlFor={`${id}-class`}>{t('Class to book', '預約課堂')}</label>
-          <select id={`${id}-class`} required value={classId} onChange={event => { setClassId(event.target.value); setReason(''); }}>
+          <select id={`${id}-class`} required value={classId} onChange={event => { setClassId(event.target.value); setPackageId(''); setReason(''); }}>
             <option value="">{t('Choose a class', '選擇課堂')}</option>
             {options.classes.map(value => <option key={value.id} value={value.id}>{label(value)} · {value.level}</option>)}
           </select>
           {!options.classes.length && <p role="status">{t('No eligible classes on these dates.', '這段日期內沒有符合預約條件的課堂。')}</p>}
           <label htmlFor={`${id}-package`}>{t('Credit package', '堂數套票')}</label>
-          <select id={`${id}-package`} required value={packageId} onChange={event => setPackageId(event.target.value)}>
+          <select id={`${id}-package`} required disabled={!lesson} value={packageId} onChange={event => setPackageId(event.target.value)}>
             <option value="">{t('Choose a package', '選擇套票')}</option>
-            {options.packages.map(value => <option key={value.id} value={value.id}>{packageLabel(value)}</option>)}
+            {lessonPackages.map(value => <option key={value.id} value={value.id}>{packageLabel(value)}</option>)}
           </select>
           {!options.packages.length && <p role="status">{t('This student has no packages with available credits.', '這位學員沒有可用堂數的套票。')}</p>}
+          {lesson && options.packages.length > 0 && !lessonPackages.length && <p role="status">{t('No credit package is valid for this lesson.', '沒有適用於此課堂的有效堂數套票。')}</p>}
           {override && <><p>{t('Student level', '學員程度')} · {student.level} / {t('Class level', '班別程度')} · {lesson.level}</p>
             <label htmlFor={`${id}-reason`}>{t('Level override reason', '程度例外原因')}</label>
             <textarea id={`${id}-reason`} required maxLength={500} value={reason} onChange={event => setReason(event.target.value)}/>

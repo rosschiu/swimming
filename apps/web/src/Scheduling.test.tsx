@@ -26,6 +26,7 @@ function mockAPI(status = 200, roster?: () => Response) {
     if (path.endsWith('/roster') && roster) return roster();
     if (path.includes('/classes')) return response({ items: [session] });
     if (path.endsWith('/settings/availability')) return response({ lockHours: 72, version: 1 });
+    if (path.endsWith('/settings/booking-validity')) return response({ validityRule: 'lesson_end', version: 1 });
     if (path.endsWith('/settings/scheduling')) return response({ travelGapMinutes: 30, version: 1 });
     throw new Error(`Unexpected ${path}`);
   }); vi.stubGlobal('fetch', mock); return mock;

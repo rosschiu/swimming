@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import AvailabilitySettings from './AvailabilitySettings';
+import BookingValiditySettings from './BookingValiditySettings';
 import SkillCatalogue from './SkillCatalogue';
 import { APIError } from './api';
 import { isAborted, useProtectedRequest, type ProtectedProps } from './useProtectedRequest';
@@ -54,5 +55,6 @@ export default function SchoolSetup({ csrfToken, expired, t }: ProtectedProps) {
     {loading ? <p role="status">{t('Loading school setup…', '載入學校設定中…')}</p> : <><section className="section-gap"><div className="page-heading"><h2>{t('Venues', '場地')}</h2><button disabled={busy} onClick={() => editVenue(null)}>{t('Add venue', '新增場地')}</button></div><div className="record-list">{venues.map(v => <article className="panel record-row" key={v.id}><div><h3>{v.name}</h3><p>{v.address}</p><p className="muted">{regions[v.region]} · {v.active ? t('Active', '使用中') : t('Archived', '已封存')}</p></div><button className="outline" disabled={busy} aria-label={`${t('Edit venue', '編輯場地')} ${v.name}`} onClick={() => editVenue(v)}>{t('Edit', '編輯')}</button></article>)}{!venues.length && <p>{t('No venues yet.', '暫無場地。')}</p>}</div></section><section className="section-gap"><div className="page-heading"><h2>{t('Class types', '班別')}</h2><button disabled={busy} onClick={() => editType(null)}>{t('Add class type', '新增班別')}</button></div><div className="record-list">{types.map(c => <article className="panel record-row" key={c.id}><div><h3>{c.name}</h3><p className="muted">{c.level} · {c.active ? t('Active', '使用中') : t('Archived', '已封存')}</p></div><button className="outline" disabled={busy} aria-label={`${t('Edit class type', '編輯班別')} ${c.name}`} onClick={() => editType(c)}>{t('Edit', '編輯')}</button></article>)}{!types.length && <p>{t('No class types yet.', '暫無班別。')}</p>}</div></section>{settings && <section className="panel section-gap"><h2>{t('Coach travel time', '教練交通時間')}</h2><p className="muted">{t('Minimum gap between a coach’s classes at different venues. Classes at the same venue may run in parallel with different coaches.', '教練於不同場地授課所需的最短間隔。不同教練可在同一場地同時授課。')}</p><form onSubmit={saveSettings}><label htmlFor="travel-gap">{t('Travel gap (minutes)', '交通間隔（分鐘）')}</label><input id="travel-gap" type="number" min={0} max={1440} step={1} required value={gap} onChange={e => setGap(Number(e.target.value))}/><button className="section-gap" disabled={busy}>{t('Save travel time', '儲存交通時間')}</button></form></section>}</>}
     <SkillCatalogue csrfToken={csrfToken} expired={expired} t={t}/>
     <AvailabilitySettings csrfToken={csrfToken} expired={expired} t={t}/>
+    <BookingValiditySettings csrfToken={csrfToken} expired={expired} t={t}/>
   </section>;
 }
