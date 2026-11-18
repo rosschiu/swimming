@@ -9,4 +9,4 @@ Development workspace for a swimming-school operations application.
 
 Current status: active staged web development; see [delivery backlog](docs/BACKLOG.md). Payments are mock-only for this goal. Real payment integration, native clients, hosting selection and public deployment remain outside scope.
 
-Run the current application using [local development instructions](docs/DEVELOPMENT.md). Stage 01 validation is recorded in [foundation evidence](docs/STAGE-01-EVIDENCE.md).
+Run the current application using [local development instructions](docs/DEVELOPMENT.md). An operator can enable [private VM delivery](docs/VM-DELIVERY.md) for an approved target. Stage 01 validation is recorded in [foundation evidence](docs/STAGE-01-EVIDENCE.md).
