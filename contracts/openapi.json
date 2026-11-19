@@ -3780,7 +3780,7 @@
             }
           }
         ],
-        "description": "Administrator or currently assigned coach. Actor-scoped requestId replays the same student/body with200; different payload reuse returns409. Saved notes are shared immediately."
+        "description": "Administrator or currently assigned coach. With bookingId, the swimmer must be marked present for that lesson (409 lesson_not_eligible otherwise) and a coach must be the class coach. Actor-scoped requestId replays the same student/body/lesson with 200; different payload reuse returns 409. Saved notes are shared immediately."
       }
     },
     "/api/v1/students/{id}/progress-notes/{noteId}": {
@@ -8209,6 +8209,9 @@
           },
           "editable": {
             "type": "boolean"
+          },
+          "lesson": {
+            "$ref": "#/components/schemas/NoteLesson"
           }
         },
         "additionalProperties": false
@@ -8231,6 +8234,12 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 4000
+          },
+          "bookingId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Links the note to a lesson the swimmer was marked present for. A coach must be that class's coach."
           }
         }
       },
@@ -10729,6 +10738,28 @@
           }
         },
         "additionalProperties": false
+      },
+      "NoteLesson": {
+        "type": "object",
+        "description": "Snapshot of the lesson a note was written for, taken when the note was shared.",
+        "required": [
+          "bookingId",
+          "name",
+          "startsAt"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "bookingId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "startsAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
       }
     },
     "securitySchemes": {

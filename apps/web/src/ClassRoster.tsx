@@ -3,6 +3,7 @@ import { APIError } from './api';
 import type { components, operations } from './generated/api';
 import { routePath, type Route } from './navigation';
 import { creditLabel, outcomeLabel } from './attendanceLabels';
+import LessonFeedback from './LessonFeedback';
 import { hkDate, hkTime } from './scheduling';
 import { isAborted, useProtectedRequest, type ProtectedProps } from './useProtectedRequest';
 
@@ -194,6 +195,8 @@ export default function ClassRoster({ classId, csrfToken, expired, t, follow }: 
               updateEntry(entry.bookingId, attendance);
               setNotice(t(`Attendance corrected for ${entry.studentName}.`, `已更正 ${entry.studentName} 的出席。`));
             }}/>}
+            {entry.attendance?.status === 'present' && <LessonFeedback studentId={entry.studentId} studentName={entry.studentName} bookingId={entry.bookingId} csrfToken={csrfToken} expired={expired} t={t}
+              onShared={() => setNotice(t(`Feedback shared with ${entry.studentName}'s family.`, `已向 ${entry.studentName} 的家長分享回饋。`))}/>}
             {!entry.attendance && (['present', ...(absenceOpen ? ['absent', 'ill'] : [])] as Outcome[]).map(status => <button key={status}
               className="outline" disabled={(status === 'present' ? !isOpen : !absenceOpen) || saving}
               aria-expanded={reviewing?.entry.bookingId === entry.bookingId && reviewing.status === status}

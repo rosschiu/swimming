@@ -28,3 +28,11 @@ Planning draft based on main at `55a4a9a`. Let staff share a progress note for a
 ## Verification
 
 PostgreSQL integration covers legacy notes and migration, mismatch and missing booking/class, cross-role scope and revocation races, reassignment, stale booking state, immutable association, replay uniqueness, correction conflict and notification rollback. Frontend tests cover role controls, bilingual lesson labels, stale options and switching rows/accounts. A real browser journey starts in a coach roster, marks present, shares feedback, checks guardian and student history, and confirms unrelated users have no access.
+
+## Delivered: lesson feedback text (stage 8a of the mobile-first plan)
+
+- A roster row marked present shows **Share feedback**. The class coach or an administrator writes the feedback there; it is saved as a progress note linked to that booking (migration 32 adds `booking_id`, `class_id` and a snapshot of the lesson name and start time to `progress_notes`).
+- `POST /api/v1/students/{id}/progress-notes` accepts an optional `bookingId`. The booking must belong to the swimmer and have a present outcome (`409 lesson_not_eligible` otherwise); a coach must be the class's current coach and still assigned to the swimmer (`403`). The booking, class and attendance rows are locked while the note is written, so a concurrent correction cannot slip in.
+- Several notes per lesson are allowed. A request ID reused with a different lesson, or with none, returns `409 request_conflict`.
+- Families and the student see the note in Progress notes at once, labelled with the lesson name and Hong Kong date and time. A later class rename does not change it, corrections keep the link, and the database refuses to rewrite it.
+- Notifications and teaching email work exactly as for other progress notes. Voice, picture and video attachments follow in stage 8b.

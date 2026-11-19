@@ -12,25 +12,38 @@ import (
 )
 
 type ProgressNote struct {
-	ID            string    `json:"id"`
-	StudentID     string    `json:"studentId"`
-	AuthorID      string    `json:"authorId"`
-	AuthorName    string    `json:"authorName"`
-	Body          string    `json:"body"`
-	CreatedAt     time.Time `json:"createdAt"`
-	UpdatedAt     time.Time `json:"updatedAt"`
-	UpdatedByID   string    `json:"updatedById"`
-	UpdatedByName string    `json:"updatedByName"`
-	Version       int       `json:"version"`
-	Editable      bool      `json:"editable"`
+	ID            string      `json:"id"`
+	StudentID     string      `json:"studentId"`
+	AuthorID      string      `json:"authorId"`
+	AuthorName    string      `json:"authorName"`
+	Body          string      `json:"body"`
+	CreatedAt     time.Time   `json:"createdAt"`
+	UpdatedAt     time.Time   `json:"updatedAt"`
+	UpdatedByID   string      `json:"updatedById"`
+	UpdatedByName string      `json:"updatedByName"`
+	Version       int         `json:"version"`
+	Editable      bool        `json:"editable"`
+	Lesson        *NoteLesson `json:"lesson,omitempty"`
 }
 
-const progressColumns = "n.id,n.student_id,n.author_id,author.name,n.body,n.created_at,n.updated_at,n.updated_by_id,editor.name,n.version"
+// NoteLesson is the family-safe snapshot of the lesson a note was written for.
+type NoteLesson struct {
+	BookingID string    `json:"bookingId"`
+	Name      string    `json:"name"`
+	StartsAt  time.Time `json:"startsAt"`
+}
+
+const progressColumns = "n.id,n.student_id,n.author_id,author.name,n.body,n.created_at,n.updated_at,n.updated_by_id,editor.name,n.version,n.booking_id,n.lesson_name,n.lesson_starts_at"
 const progressJoin = " FROM progress_notes n JOIN users author ON author.id=n.author_id JOIN users editor ON editor.id=n.updated_by_id"
 
 func scanProgress(row pgx.Row, s Session) (ProgressNote, error) {
 	var n ProgressNote
-	err := row.Scan(&n.ID, &n.StudentID, &n.AuthorID, &n.AuthorName, &n.Body, &n.CreatedAt, &n.UpdatedAt, &n.UpdatedByID, &n.UpdatedByName, &n.Version)
+	var bookingID, lessonName *string
+	var lessonStarts *time.Time
+	err := row.Scan(&n.ID, &n.StudentID, &n.AuthorID, &n.AuthorName, &n.Body, &n.CreatedAt, &n.UpdatedAt, &n.UpdatedByID, &n.UpdatedByName, &n.Version, &bookingID, &lessonName, &lessonStarts)
+	if bookingID != nil {
+		n.Lesson = &NoteLesson{BookingID: *bookingID, Name: *lessonName, StartsAt: *lessonStarts}
+	}
 	n.Editable = s.User.Role == "admin" || s.User.Role == "coach" && n.AuthorID == s.User.ID
 	return n, err
 }
@@ -109,8 +122,9 @@ func (a *API) listProgressNotes(w http.ResponseWriter, r *http.Request, s Sessio
 
 func (a *API) createProgressNote(w http.ResponseWriter, r *http.Request, s Session) {
 	var input struct {
-		RequestID string `json:"requestId"`
-		Body      string `json:"body"`
+		RequestID string  `json:"requestId"`
+		Body      string  `json:"body"`
+		BookingID *string `json:"bookingId"`
 	}
 	if !decode(w, r, &input) {
 		return
@@ -122,7 +136,7 @@ func (a *API) createProgressNote(w http.ResponseWriter, r *http.Request, s Sessi
 			validID = false
 		}
 	}
-	if !validID || !validProgressText(input.Body, 4000) {
+	if !validID || !validProgressText(input.Body, 4000) || input.BookingID != nil && (*input.BookingID == "" || len(*input.BookingID) > 128) {
 		fail(w, 422, "validation_error", "Provide a note of 1–4000 characters and an ASCII request ID of 1–128 characters")
 		return
 	}
@@ -136,9 +150,11 @@ func (a *API) createProgressNote(w http.ResponseWriter, r *http.Request, s Sessi
 		return
 	}
 	var noteID, studentID, originalBody string
-	err = tx.QueryRow(r.Context(), "SELECT id,student_id,original_body FROM progress_notes WHERE author_id=$1 AND request_id=$2", s.User.ID, input.RequestID).Scan(&noteID, &studentID, &originalBody)
+	var noteBooking *string
+	err = tx.QueryRow(r.Context(), "SELECT id,student_id,original_body,booking_id FROM progress_notes WHERE author_id=$1 AND request_id=$2", s.User.ID, input.RequestID).Scan(&noteID, &studentID, &originalBody, &noteBooking)
 	if err == nil {
-		if studentID != r.PathValue("id") || originalBody != input.Body {
+		sameBooking := noteBooking == nil && input.BookingID == nil || noteBooking != nil && input.BookingID != nil && *noteBooking == *input.BookingID
+		if studentID != r.PathValue("id") || originalBody != input.Body || !sameBooking {
 			fail(w, 409, "request_conflict", "This request ID was already used for different note details")
 			return
 		}
@@ -154,12 +170,42 @@ func (a *API) createProgressNote(w http.ResponseWriter, r *http.Request, s Sessi
 		internal(w, err)
 		return
 	}
+	var classID, lessonName *string
+	var lessonStarts *time.Time
+	if input.BookingID != nil {
+		// Feedback belongs to a lesson the swimmer attended; the coach must be teaching that class.
+		var coachID, attendance string
+		err = tx.QueryRow(r.Context(), `SELECT b.class_id,ct.name,cs.starts_at,cs.coach_id
+			FROM bookings b JOIN class_sessions cs ON cs.id=b.class_id JOIN class_types ct ON ct.id=cs.class_type_id
+			WHERE b.id=$1 AND b.student_id=$2 FOR SHARE OF b,cs`, *input.BookingID, r.PathValue("id")).Scan(&classID, &lessonName, &lessonStarts, &coachID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			fail(w, 404, "not_found", "Lesson not found for this student")
+			return
+		}
+		if err != nil {
+			internal(w, err)
+			return
+		}
+		err = tx.QueryRow(r.Context(), "SELECT status FROM booking_attendance WHERE booking_id=$1 FOR SHARE", *input.BookingID).Scan(&attendance)
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			internal(w, err)
+			return
+		}
+		if s.User.Role == "coach" && coachID != s.User.ID {
+			fail(w, 403, "forbidden", "Only the class coach or an administrator may share feedback for this lesson")
+			return
+		}
+		if attendance != "present" {
+			fail(w, 409, "lesson_not_eligible", "Feedback can be shared only for a swimmer marked present")
+			return
+		}
+	}
 	id, err := RandomToken()
 	if err != nil {
 		internal(w, err)
 		return
 	}
-	if _, err = tx.Exec(r.Context(), "INSERT INTO progress_notes(id,student_id,author_id,body,updated_by_id,request_id,original_body) VALUES($1,$2,$3,$4,$3,$5,$4)", id, r.PathValue("id"), s.User.ID, input.Body, input.RequestID); err != nil {
+	if _, err = tx.Exec(r.Context(), "INSERT INTO progress_notes(id,student_id,author_id,body,updated_by_id,request_id,original_body,booking_id,class_id,lesson_name,lesson_starts_at) VALUES($1,$2,$3,$4,$3,$5,$4,$6,$7,$8,$9)", id, r.PathValue("id"), s.User.ID, input.Body, input.RequestID, input.BookingID, classID, lessonName, lessonStarts); err != nil {
 		internal(w, err)
 		return
 	}
