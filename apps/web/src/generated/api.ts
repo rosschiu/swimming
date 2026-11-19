@@ -790,7 +790,7 @@ export interface paths {
         /** @description Notes shared with currently authorised student, guardians and coaches; administrators see all. Inaccessible student returns404. Ordered newest first. */
         get: operations["listProgressNotes"];
         put?: never;
-        /** @description Administrator or currently assigned coach. Actor-scoped requestId replays the same student/body with200; different payload reuse returns409. Saved notes are shared immediately. */
+        /** @description Administrator or currently assigned coach. With bookingId, the swimmer must be marked present for that lesson (409 lesson_not_eligible otherwise) and a coach must be the class coach. Actor-scoped requestId replays the same student/body/lesson with 200; different payload reuse returns 409. Saved notes are shared immediately. */
         post: operations["createProgressNote"];
         delete?: never;
         options?: never;
@@ -1921,10 +1921,13 @@ export interface components {
             updatedAt: string;
             version: number;
             editable: boolean;
+            lesson?: components["schemas"]["NoteLesson"];
         };
         ProgressNoteInput: {
             requestId: string;
             body: string;
+            /** @description Links the note to a lesson the swimmer was marked present for. A coach must be that class's coach. */
+            bookingId?: string;
         };
         ProgressNoteUpdate: {
             body: string;
@@ -2503,6 +2506,13 @@ export interface components {
                 message: string;
             };
             preview: components["schemas"]["ImportPreview"];
+        };
+        /** @description Snapshot of the lesson a note was written for, taken when the note was shared. */
+        NoteLesson: {
+            bookingId: string;
+            name: string;
+            /** Format: date-time */
+            startsAt: string;
         };
     };
     responses: never;

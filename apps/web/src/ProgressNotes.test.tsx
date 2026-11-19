@@ -47,3 +47,9 @@ it('account/student keyed remount aborts old loads and clears private drafts',as
  rerender(<ProgressNotes key="admin:ben" studentId="ben" role="admin" csrfToken="two" expired={expired} t={t}/>);
  await screen.findByText('No progress notes yet.');expect(oldSignal?.aborted).toBe(true);expect(screen.getByLabelText('Progress note')).toHaveValue('');finish(response({items:[note]}));expect(screen.queryByText(note.body)).not.toBeInTheDocument();
 });
+it('labels lesson feedback with its lesson for families',async()=>{
+ vi.stubGlobal('fetch',vi.fn(async ()=>response({items:[{...note,editable:false,lesson:{bookingId:'b1',name:'Beginner squad',startsAt:'2030-01-07T02:00:00Z'}}]})));
+ render(<ProgressNotes studentId="amy" role="parent" csrfToken="csrf" expired={expired} t={t}/>);
+ expect(await screen.findByText(/Lesson: Beginner squad/)).toBeVisible();
+ expect(screen.getByText(/Lesson: Beginner squad/).querySelector('time')).toHaveAttribute('dateTime','2030-01-07T02:00:00Z');
+});
