@@ -98,3 +98,30 @@ test('guardian and coach land on a phone home with the next lesson, credits and 
   await expect(page.getByRole('region', { name: 'Class roster' })).toBeVisible();
   await expectNoSidewaysScroll(page);
 });
+
+test('administrator setup and accounts show one area at a time on a phone', async ({ page }) => {
+  await signIn(page, 'admin');
+  const height = () => page.evaluate(() => document.documentElement.scrollHeight);
+  const sizes: Record<string, number> = {};
+  await page.goto('/setup');
+  await expect(page.getByRole('heading', { name: 'Venues' })).toBeVisible();
+  for (const [tab, heading] of [['Places', 'Venues'], ['Skills', 'Skills'], ['Coach hours', 'Availability editing cutoff'], ['Lessons', 'Lesson timing'], ['Bookings', 'Booking validity']]) {
+    await page.getByRole('tab', { name: tab }).click();
+    await expect(page.getByRole('heading', { name: heading, exact: true })).toBeVisible();
+    await expectNoSidewaysScroll(page);
+    sizes['setup ' + tab] = await height();
+  }
+  await expect(page).toHaveURL(/\/setup\?section=bookings$/);
+  await page.reload();
+  await expect(page.getByRole('tab', { name: 'Bookings' })).toHaveAttribute('aria-selected', 'true');
+  await page.goto('/accounts');
+  for (const [tab, heading] of [['Accounts', 'School accounts'], ['Invite', 'Invite a member'], ['Invitations', 'Invitation history']]) {
+    await page.getByRole('tab', { name: tab, exact: true }).click();
+    await expect(page.getByRole('heading', { name: heading })).toBeVisible();
+    await expectNoSidewaysScroll(page);
+    sizes['accounts ' + tab] = await height();
+  }
+  test.info().annotations.push({ type: 'phone page heights', description: JSON.stringify(sizes) });
+  expect(sizes['setup Lessons']).toBeLessThan(2500);
+  expect(sizes['accounts Invite']).toBeLessThan(2000);
+});

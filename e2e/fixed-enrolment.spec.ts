@@ -287,6 +287,7 @@ for (const carry of [true, false]) {
     }
     try {
       await admin.getByRole('link', { name: 'School setup' }).click();
+      await admin.getByRole('tab', { name: 'Bookings' }).click();
       const allocation = admin.getByLabel('When some weeks are unavailable');
       const renewal = admin.getByLabel('Packages eligible for renewal');
       await expect(allocation).toHaveValue('all_or_none');

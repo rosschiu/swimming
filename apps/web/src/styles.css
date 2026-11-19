@@ -82,6 +82,6 @@ a.action-link,.sidebar nav a{display:block;min-height:44px;padding:11px 18px;bor
 }
 
 /* Profile sections on phones */
-.segments { display: flex; gap: 4px; margin: 20px 0 4px; padding: 4px; background: #edf3f1; border-radius: 12px; }
-.segment { flex: 1; min-height: 44px; padding: 8px 6px; border: 0; border-radius: 9px; background: transparent; color: #39665e; font-weight: 600; }
+.segments { display: flex; gap: 4px; margin: 20px 0 4px; padding: 4px; background: #edf3f1; border-radius: 12px; overflow-x: auto; }
+.segment { flex: 1 0 auto; white-space: nowrap; min-height: 44px; padding: 8px 6px; border: 0; border-radius: 9px; background: transparent; color: #39665e; font-weight: 600; }
 .segment-active { background: #fff; color: #176a65; box-shadow: 0 1px 3px #173e3a1f; }
