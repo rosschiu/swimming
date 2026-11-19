@@ -50,7 +50,7 @@ test('a coach shares a photo, a video and a voice recording; the family can open
     const item = page.getByRole('listitem').filter({ hasText: text });
     const photo = item.getByRole('img', { name: 'Photo from the lesson' });
     await expect(photo).toBeVisible();
-    expect(await photo.evaluate((element: HTMLImageElement) => element.naturalWidth)).toBe(8);
+    await expect.poll(() => photo.evaluate((element: HTMLImageElement) => element.complete && element.naturalWidth)).toBe(8);
     await expect(item.locator('audio')).toHaveAttribute('src', note.media[2].url);
     await expect(item.locator('video')).toHaveAttribute('src', note.media[1].url);
     const recording = await page.request.get(note.media[2].url);
