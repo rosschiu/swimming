@@ -7630,6 +7630,8 @@
           "attendanceOpenMinutes",
           "correctionWindowDays",
           "cancellationEmail",
+          "reminderHours",
+          "reminderEmail",
           "version"
         ],
         "properties": {
@@ -7657,6 +7659,18 @@
           "cancellationEmail": {
             "type": "boolean",
             "description": "When true, guardian cancellations also queue a generic email to linked guardians and the student, subject to each recipient's service email preference and the delivery allowlist. In-app notices are always created."
+          },
+          "reminderHours": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0,
+            "maximum": 168,
+            "example": 24,
+            "description": "Hours before a reserved lesson when linked guardians and the student get an in-app reminder. 0 turns reminders off. Nothing is created after the lesson starts."
+          },
+          "reminderEmail": {
+            "type": "boolean",
+            "description": "When true, reminders also queue a generic email, subject to each recipient's service email preference and the delivery allowlist. The email is suppressed if the lesson is cancelled, moved, attended or started before it is sent."
           },
           "version": {
             "type": "integer",
@@ -8370,7 +8384,8 @@
               "lesson_change.rejected",
               "booking.cancelled",
               "class.cancelled",
-              "class.coach_changed"
+              "class.coach_changed",
+              "booking.reminder"
             ]
           },
           "sourceId": {

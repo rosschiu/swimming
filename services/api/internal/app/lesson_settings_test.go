@@ -15,7 +15,7 @@ func TestIntegrationLessonSettingsDefaultsUpdateAndAudit(t *testing.T) {
 	parent := login(t, h, "parent@swim.test")
 	coach := login(t, h, "coach@swim.test")
 	path := "/api/v1/settings/lessons"
-	defaults := LessonSettings{24, 15, 3, true, 1}
+	defaults := LessonSettings{24, 15, 3, true, 24, true, 1}
 	w := request(t, h, "GET", path, nil, admin)
 	expectStatus(t, w, 200)
 	if got := decodeBody[LessonSettings](t, w); got != defaults {
@@ -27,15 +27,16 @@ func TestIntegrationLessonSettingsDefaultsUpdateAndAudit(t *testing.T) {
 	}
 	for _, input := range []any{
 		map[string]int{"parentChangeCutoffHours": 1, "version": 1},
-		LessonSettings{-1, 0, 0, true, 1}, LessonSettings{8761, 0, 0, true, 1},
-		LessonSettings{0, -1, 0, true, 1}, LessonSettings{0, 1441, 0, true, 1},
-		LessonSettings{0, 0, -1, true, 1}, LessonSettings{0, 0, 366, true, 1},
-		LessonSettings{0, 0, 0, true, 0},
+		LessonSettings{-1, 0, 0, true, 24, true, 1}, LessonSettings{8761, 0, 0, true, 24, true, 1},
+		LessonSettings{0, -1, 0, true, 24, true, 1}, LessonSettings{0, 1441, 0, true, 24, true, 1},
+		LessonSettings{0, 0, -1, true, 24, true, 1}, LessonSettings{0, 0, 366, true, 24, true, 1},
+		LessonSettings{0, 0, 0, true, -1, true, 1}, LessonSettings{0, 0, 0, true, 169, true, 1},
+		LessonSettings{0, 0, 0, true, 24, true, 0},
 	} {
 		expectStatus(t, request(t, h, "PATCH", path, input, admin), 422)
 	}
 
-	input := LessonSettings{0, 1440, 365, true, 1}
+	input := LessonSettings{0, 1440, 365, true, 168, false, 1}
 	results := make(chan *httptest.ResponseRecorder, 2)
 	for range 2 {
 		go func() { results <- request(t, h, "PATCH", path, input, admin) }()
@@ -72,7 +73,7 @@ func TestIntegrationLessonSettingsDefaultsUpdateAndAudit(t *testing.T) {
 	if _, err := db.Exec(ctx, "ALTER TABLE audit_events ADD CONSTRAINT test_reject_lesson_audit CHECK (action <> 'lesson.settings.updated') NOT VALID"); err != nil {
 		t.Fatal(err)
 	}
-	input = LessonSettings{1, 0, 0, true, 2}
+	input = LessonSettings{1, 0, 0, true, 24, true, 2}
 	expectStatus(t, request(t, h, "PATCH", path, input, admin), 500)
 	w = request(t, h, "GET", path, nil, admin)
 	expectStatus(t, w, 200)
@@ -97,7 +98,7 @@ func TestIntegrationLessonSettingsRechecksAdminAfterLock(t *testing.T) {
 	}
 	results := make(chan *httptest.ResponseRecorder, 1)
 	go func() {
-		results <- request(t, h, "PATCH", "/api/v1/settings/lessons", LessonSettings{12, 5, 1, true, 1}, admin)
+		results <- request(t, h, "PATCH", "/api/v1/settings/lessons", LessonSettings{12, 5, 1, true, 24, true, 1}, admin)
 	}()
 	waitCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
