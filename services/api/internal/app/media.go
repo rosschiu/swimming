@@ -85,8 +85,11 @@ func (a *API) uploadNoteMedia(w http.ResponseWriter, r *http.Request, s Session)
 	if !a.checkProgressAccess(w, r, s, true) {
 		return
 	}
-	// A video from a phone can take minutes to arrive; the server's default read timeout is for small JSON requests.
-	http.NewResponseController(w).SetReadDeadline(time.Now().Add(mediaTransferTime))
+	// A video from a phone can take minutes to arrive; the server's default timeouts are for small JSON requests.
+	// The write deadline starts with the request too, so it must move as well or the reply is lost.
+	transfer := http.NewResponseController(w)
+	transfer.SetReadDeadline(time.Now().Add(mediaTransferTime))
+	transfer.SetWriteDeadline(time.Now().Add(mediaTransferTime))
 	tmp, err := os.CreateTemp(a.cfg.MediaDir, ".upload-")
 	if err != nil {
 		internal(w, err)
