@@ -190,14 +190,18 @@ The [application review](APP-REVIEW-2026-11-18.md) found the backend sound and t
 | 8 | Lesson-linked feedback | Planned | Proposed defaults need confirmation |
 | 9 | Scheduled reminders, in-app and email by default, configurable (migration 30) | Merged [#48](https://github.com/rosschiu/swimming/pull/48) as `9939fce` | Decision confirmed; external email needs recipients |
 | 10 | Administrator pages on the new shell: School setup and Accounts in tabs | Merged [#49](https://github.com/rosschiu/swimming/pull/49) as `e7e0b6e` | None |
-| 11 | [Excel (.xlsx) migration import](STAGE-11-MIGRATION-IMPORT.md) (migration 31) | In review, [#50](https://github.com/rosschiu/swimming/pull/50) | Column mapping proposed in the stage document; owner can adjust headings |
+| 11 | [Excel (.xlsx) migration import](STAGE-11-MIGRATION-IMPORT.md) (migration 31) | Merged [#50](https://github.com/rosschiu/swimming/pull/50) as `6223a28` | Column mapping proposed in the stage document; owner can adjust headings |
 | 12 | Final acceptance, external email proof, live rollback, automatic delivery | Planned | Demo recipients and SMTP; VM read-only GitHub token |
 
 ### Waiting on the owner
 
 - Confirmation of the remaining proposed defaults in DECISIONS.md (UI and lesson feedback). Attendance, cancellation, substitution, extra grants and the import balance format were approved on 2026-11-18.
 - Approved demo email recipients with SMTP access, and a fine-grained read-only GitHub token for VM delivery (promised for the next round).
-- NetBird SSO for each demo VM rollout.
+- NetBird SSO for each demo VM rollout. The live demo still runs `f6232c3`; main now carries migrations 22–31 (stages 0–11 except 8). Before migrating, verify a fresh backup restores, then roll out and check the synthetic school, the four demo sign-in buttons, Traefik routing and direct IPv6. On rollout, synthetic lessons already within 24 hours get one in-app reminder; email reaches only allowlisted addresses. Confirm the reverse proxy accepts 5 MB import uploads.
+
+### Status on 2026-11-19
+
+Every stage that needs no further owner input is merged: 0–7 and 9–11, through [#50](https://github.com/rosschiu/swimming/pull/50). Stage 8 (lesson feedback) waits for confirmation of its proposed defaults: class coach only, swimmers marked present only, several notes per lesson, visible to the family immediately. Stage 12 waits for the email recipients, SMTP access, the GitHub token and NetBird access above. The import's column layout is a proposal the owner can adjust.
 
 ### Progress log
 
