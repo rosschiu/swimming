@@ -51,6 +51,11 @@ test('attendance cancel and retry preserve a keyboard path through the remaining
   const badge = (name: string) => roster.getByRole('listitem').filter({ has: page.getByText(name, { exact: true }) }).getByText('Present', { exact: true });
   await expect(badge('Amy')).toBeFocused();
   expect(await badge('Amy').evaluate(el => getComputedStyle(el).outlineStyle)).not.toBe('none');
+  // Swimmers marked present (Amy, and Ben before her) offer lesson feedback on the way to the next swimmer.
+  await page.keyboard.press('Tab');
+  await expect(button('Share feedback for Amy')).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(button('Share feedback for Ben')).toBeFocused();
   await page.keyboard.press('Tab');
   const chloe = button('Mark present Chloe');
   await expect(chloe).toBeFocused();
