@@ -139,7 +139,7 @@ Confirmed by the user:
 - **Import.** The import's primary purpose is migrating an existing school's records into the system, and it must accept Excel (.xlsx) files.
 - **Pending from the user:** approved demo email recipients with SMTP access, and a read-only GitHub token for VM delivery.
 
-Confirmed by the user later on 2026-11-18: the attendance, family cancellation, school cancellation, substitution and extra-grant defaults below are approved as written. Migrated credit balances are imported as one "Migrated balance" package per student with the imported credits and expiry, an audit entry, and no receipt or payment record. The UI and feedback rows remain proposals.
+Confirmed by the user later on 2026-11-18: the attendance, family cancellation, school cancellation, substitution and extra-grant defaults below are approved as written. Migrated credit balances are imported as one "Migrated balance" package per student with the imported credits and expiry, an audit entry, and no receipt or payment record. The proposed sheet layout (one row per swimmer, English or Chinese headings, guardian accounts created without email until an administrator sends the invitation) is in [the import stage document](STAGE-11-MIGRATION-IMPORT.md); it is a proposal the owner can adjust. The UI and feedback rows remain proposals.
 
 Proposed defaults (attendance, cancellation, substitution and grant rows approved; UI and feedback rows still proposals):
 

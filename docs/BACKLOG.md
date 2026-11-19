@@ -190,7 +190,7 @@ The [application review](APP-REVIEW-2026-11-18.md) found the backend sound and t
 | 8 | Lesson-linked feedback | Planned | Proposed defaults need confirmation |
 | 9 | Scheduled reminders, in-app and email by default, configurable (migration 30) | Merged [#48](https://github.com/rosschiu/swimming/pull/48) as `9939fce` | Decision confirmed; external email needs recipients |
 | 10 | Administrator pages on the new shell: School setup and Accounts in tabs | In review, [#49](https://github.com/rosschiu/swimming/pull/49) | None |
-| 11 | Excel (.xlsx) migration import | Planned | Confirmed purpose and format; column mapping to propose |
+| 11 | [Excel (.xlsx) migration import](STAGE-11-MIGRATION-IMPORT.md) (migration 31) | Built on `stage/import`, PR after #49 | Column mapping proposed in the stage document; owner can adjust headings |
 | 12 | Final acceptance, external email proof, live rollback, automatic delivery | Planned | Demo recipients and SMTP; VM read-only GitHub token |
 
 ### Waiting on the owner

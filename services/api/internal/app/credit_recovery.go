@@ -26,6 +26,7 @@ type CreditHistoryPackage struct {
 	ID              string           `json:"id"`
 	PurchaseID      string           `json:"purchaseId,omitempty"`
 	Complimentary   bool             `json:"complimentary"`
+	Migrated        bool             `json:"migrated"`
 	OfferID         string           `json:"offerId,omitempty"`
 	SourcePackageID *string          `json:"sourcePackageId"`
 	Credits         int              `json:"credits"`
@@ -92,7 +93,7 @@ func (a *API) creditHistory(w http.ResponseWriter, r *http.Request, s Session) {
 	items := []CreditHistoryPackage{}
 	for _, p := range packages {
 		item := CreditHistoryPackage{
-			ID: p.ID, SourcePackageID: p.SourcePackageID, Complimentary: p.GrantID != nil, Credits: p.Credits, ExpiresOn: p.ExpiresOn,
+			ID: p.ID, SourcePackageID: p.SourcePackageID, Complimentary: p.GrantID != nil && !p.Migrated, Migrated: p.Migrated, Credits: p.Credits, ExpiresOn: p.ExpiresOn,
 			Available: p.Available, Reserved: p.Reserved, Consumed: p.Consumed, Expired: p.Expired, Movements: p.Movements,
 		}
 		if s.User.Role == "parent" || s.User.Role == "admin" {

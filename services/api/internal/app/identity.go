@@ -256,7 +256,8 @@ func (a *API) updateUser(w http.ResponseWriter, r *http.Request, s Session) {
 	respond(w, 200, x)
 }
 
-const inviteColumns = "i.id,u.id,u.email,u.role,CASE WHEN i.status='pending' AND i.expires_at<=now() THEN 'expired' ELSE i.status END,COALESCE((SELECT e.status FROM email_deliveries e WHERE e.invitation_id=i.id ORDER BY e.id DESC LIMIT 1),'pending'),i.expires_at"
+// An imported guardian's invitation has no email yet: it stays pending, shown as not sent, until an administrator sends it.
+const inviteColumns = "i.id,u.id,u.email,u.role,CASE WHEN i.status='pending' AND i.expires_at<=now() AND EXISTS(SELECT 1 FROM email_deliveries e WHERE e.invitation_id=i.id) THEN 'expired' ELSE i.status END,COALESCE((SELECT e.status FROM email_deliveries e WHERE e.invitation_id=i.id ORDER BY e.id DESC LIMIT 1),'not_sent'),i.expires_at"
 
 func (a *API) listInvitations(w http.ResponseWriter, r *http.Request, s Session) {
 	if !admin(w, s) {
