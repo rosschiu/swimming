@@ -3,6 +3,8 @@ package app
 import (
 	"bytes"
 	"context"
+	"io"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -161,5 +163,39 @@ func TestIntegrationNoteMedia(t *testing.T) {
 	var remaining int
 	if err := db.QueryRow(ctx, "SELECT count(*) FROM note_media").Scan(&remaining); err != nil || remaining != 3 {
 		t.Fatal(remaining, err)
+	}
+}
+
+// A phone upload can outlast the server's short default timeouts; the reply must still arrive.
+func TestIntegrationSlowNoteMediaUpload(t *testing.T) {
+	db := testDB(t)
+	h := New(Config{Origin: testOrigin, SessionTTL: time.Hour, MediaDir: t.TempDir()}, db)
+	coach := login(t, h, "coach@swim.test")
+	server := httptest.NewUnstartedServer(h)
+	server.Config.ReadTimeout = 300 * time.Millisecond
+	server.Config.WriteTimeout = 300 * time.Millisecond
+	server.Start()
+	defer server.Close()
+	body, writer := io.Pipe()
+	go func() {
+		writer.Write([]byte{0xff, 0xd8, 0xff, 0xe0})
+		for i := 0; i < 8; i++ {
+			time.Sleep(100 * time.Millisecond)
+			writer.Write(bytes.Repeat([]byte("p"), 1000))
+		}
+		writer.Close()
+	}()
+	r, _ := http.NewRequest("POST", server.URL+"/api/v1/students/amy/note-media", body)
+	r.Header.Set("Origin", testOrigin)
+	r.Header.Set("Content-Type", "image/jpeg")
+	r.Header.Set("X-CSRF-Token", coach.csrf)
+	r.AddCookie(coach.cookie)
+	response, err := http.DefaultClient.Do(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != 201 {
+		t.Fatal(response.StatusCode)
 	}
 }
