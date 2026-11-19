@@ -37,8 +37,9 @@ type mediaFormat struct {
 }
 
 const (
-	maxNoteMedia     = 6
-	unattachedMaxAge = 24 * time.Hour
+	maxNoteMedia      = 6
+	unattachedMaxAge  = 24 * time.Hour
+	mediaTransferTime = 10 * time.Minute
 )
 
 func isISOBMFF(b []byte) bool { return len(b) >= 12 && string(b[4:8]) == "ftyp" }
@@ -84,6 +85,8 @@ func (a *API) uploadNoteMedia(w http.ResponseWriter, r *http.Request, s Session)
 	if !a.checkProgressAccess(w, r, s, true) {
 		return
 	}
+	// A video from a phone can take minutes to arrive; the server's default read timeout is for small JSON requests.
+	http.NewResponseController(w).SetReadDeadline(time.Now().Add(mediaTransferTime))
 	tmp, err := os.CreateTemp(a.cfg.MediaDir, ".upload-")
 	if err != nil {
 		internal(w, err)
@@ -202,7 +205,9 @@ func (a *API) serveNoteMedia(w http.ResponseWriter, r *http.Request, s Session) 
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Content-Security-Policy", "sandbox; default-src 'none'")
 	w.Header().Set("Content-Disposition", "inline")
-	w.Header().Set("Cache-Control", "private, max-age=3600")
+	// Revalidate each time so a reader who loses access cannot keep using a cached copy.
+	w.Header().Set("Cache-Control", "private, no-cache")
+	http.NewResponseController(w).SetWriteDeadline(time.Now().Add(mediaTransferTime))
 	w.Header().Set("ETag", `"`+digest+`"`)
 	// ServeContent answers range requests, which phones use to play and seek video.
 	http.ServeContent(w, r, "", created, f)

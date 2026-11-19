@@ -102,6 +102,14 @@ func TestIntegrationNoteMedia(t *testing.T) {
 	if w.Code != 206 || w.Body.Len() != 100 {
 		t.Fatal(w.Code, w.Body.Len())
 	}
+	r = httptest.NewRequest("GET", note.Media[2].URL, nil)
+	r.AddCookie(parent.cookie)
+	r.Header.Set("If-None-Match", w.Header().Get("ETag"))
+	w = httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if w.Code != 304 {
+		t.Fatal("cached copy not revalidated", w.Code)
+	}
 	expectStatus(t, request(t, h, "GET", note.Media[0].URL, nil, other), 404)
 	expectStatus(t, request(t, h, "GET", notesURL+"/missing/media/"+audio.ID, nil, parent), 404)
 	expectStatus(t, request(t, h, "GET", notesURL+"/"+note.ID+"/media/"+adminPhoto.ID, nil, admin), 404)
