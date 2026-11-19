@@ -189,7 +189,7 @@ The [application review](APP-REVIEW-2026-11-18.md) found the backend sound and t
 | 7 | Administrator extra credit grants (migration 29) | Merged [#47](https://github.com/rosschiu/swimming/pull/47) as `6ef6c84` | Defaults approved 2026-11-18 |
 | 8 | Lesson-linked feedback | Planned | Proposed defaults need confirmation |
 | 9 | Scheduled reminders, in-app and email by default, configurable (migration 30) | Merged [#48](https://github.com/rosschiu/swimming/pull/48) as `9939fce` | Decision confirmed; external email needs recipients |
-| 10 | Administrator pages on the new shell: School setup and Accounts in tabs | In review, [#49](https://github.com/rosschiu/swimming/pull/49) | None |
+| 10 | Administrator pages on the new shell: School setup and Accounts in tabs | Merged [#49](https://github.com/rosschiu/swimming/pull/49) as `e7e0b6e` | None |
 | 11 | [Excel (.xlsx) migration import](STAGE-11-MIGRATION-IMPORT.md) (migration 31) | Built on `stage/import`, PR after #49 | Column mapping proposed in the stage document; owner can adjust headings |
 | 12 | Final acceptance, external email proof, live rollback, automatic delivery | Planned | Demo recipients and SMTP; VM read-only GitHub token |
 
