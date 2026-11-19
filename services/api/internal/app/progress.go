@@ -25,6 +25,7 @@ type ProgressNote struct {
 	Version       int         `json:"version"`
 	Editable      bool        `json:"editable"`
 	Lesson        *NoteLesson `json:"lesson,omitempty"`
+	Media         []NoteMedia `json:"media,omitempty"`
 }
 
 // NoteLesson is the family-safe snapshot of the lesson a note was written for.
@@ -118,14 +119,20 @@ func (a *API) listProgressNotes(w http.ResponseWriter, r *http.Request, s Sessio
 		internal(w, err)
 		return
 	}
+	rows.Close()
+	if err = loadNoteMedia(r.Context(), tx, items); err != nil {
+		internal(w, err)
+		return
+	}
 	respond(w, 200, map[string]any{"items": items})
 }
 
 func (a *API) createProgressNote(w http.ResponseWriter, r *http.Request, s Session) {
 	var input struct {
-		RequestID string  `json:"requestId"`
-		Body      string  `json:"body"`
-		BookingID *string `json:"bookingId"`
+		RequestID string   `json:"requestId"`
+		Body      string   `json:"body"`
+		BookingID *string  `json:"bookingId"`
+		MediaIDs  []string `json:"mediaIds"`
 	}
 	if !decode(w, r, &input) {
 		return
@@ -137,8 +144,15 @@ func (a *API) createProgressNote(w http.ResponseWriter, r *http.Request, s Sessi
 			validID = false
 		}
 	}
-	if !validID || !validProgressText(input.Body, 4000) || input.BookingID != nil && (*input.BookingID == "" || len(*input.BookingID) > 128) {
-		fail(w, 422, "validation_error", "Provide a note of 1–4000 characters and an ASCII request ID of 1–128 characters")
+	validMedia := len(input.MediaIDs) <= maxNoteMedia
+	seen := map[string]bool{}
+	for _, id := range input.MediaIDs {
+		validMedia = validMedia && id != "" && len(id) <= 128 && !seen[id]
+		seen[id] = true
+	}
+	validBody := validProgressText(input.Body, 4000) || input.Body == "" && len(input.MediaIDs) > 0
+	if !validID || !validBody || !validMedia || input.BookingID != nil && (*input.BookingID == "" || len(*input.BookingID) > 128) {
+		fail(w, 422, "validation_error", "Provide a note of up to 4000 characters or at least one attachment, at most 6 attachments, and an ASCII request ID of 1–128 characters")
 		return
 	}
 	// Lesson feedback reads scheduling rows, so it takes the scheduling lock first, in the same order as attendance.
@@ -160,11 +174,16 @@ func (a *API) createProgressNote(w http.ResponseWriter, r *http.Request, s Sessi
 	err = tx.QueryRow(r.Context(), "SELECT id,student_id,original_body,booking_id FROM progress_notes WHERE author_id=$1 AND request_id=$2", s.User.ID, input.RequestID).Scan(&noteID, &studentID, &originalBody, &noteBooking)
 	if err == nil {
 		sameBooking := noteBooking == nil && input.BookingID == nil || noteBooking != nil && input.BookingID != nil && *noteBooking == *input.BookingID
-		if studentID != r.PathValue("id") || originalBody != input.Body || !sameBooking {
+		var attached []string
+		if err = tx.QueryRow(r.Context(), "SELECT COALESCE(array_agg(id ORDER BY position),'{}') FROM note_media WHERE note_id=$1", noteID).Scan(&attached); err != nil {
+			internal(w, err)
+			return
+		}
+		if studentID != r.PathValue("id") || originalBody != input.Body || !sameBooking || strings.Join(attached, ",") != strings.Join(input.MediaIDs, ",") {
 			fail(w, 409, "request_conflict", "This request ID was already used for different note details")
 			return
 		}
-		n, err := scanProgress(tx.QueryRow(r.Context(), "SELECT "+progressColumns+progressJoin+" WHERE n.id=$1", noteID), s)
+		n, err := loadProgressNote(r.Context(), tx, noteID, s)
 		if err != nil {
 			internal(w, err)
 			return
@@ -215,7 +234,14 @@ func (a *API) createProgressNote(w http.ResponseWriter, r *http.Request, s Sessi
 		internal(w, err)
 		return
 	}
-	n, err := scanProgress(tx.QueryRow(r.Context(), "SELECT "+progressColumns+progressJoin+" WHERE n.id=$1", id), s)
+	if ok, err := attachNoteMedia(r.Context(), tx, id, r.PathValue("id"), s.User.ID, input.MediaIDs); err != nil {
+		internal(w, err)
+		return
+	} else if !ok {
+		fail(w, 422, "media_unavailable", "An attachment was not found; add the photo, recording or video again")
+		return
+	}
+	n, err := loadProgressNote(r.Context(), tx, id, s)
 	if err != nil {
 		internal(w, err)
 		return
@@ -246,7 +272,7 @@ func (a *API) updateProgressNote(w http.ResponseWriter, r *http.Request, s Sessi
 	}
 	input.Body = strings.TrimSpace(input.Body)
 	input.Reason = strings.TrimSpace(input.Reason)
-	if input.Version < 1 || !validProgressText(input.Body, 4000) || !validProgressText(input.Reason, 500) {
+	if input.Version < 1 || !validProgressText(input.Body, 4000) && input.Body != "" || !validProgressText(input.Reason, 500) {
 		fail(w, 422, "validation_error", "Provide a note, current version and correction reason of 1–500 characters")
 		return
 	}
@@ -268,6 +294,16 @@ func (a *API) updateProgressNote(w http.ResponseWriter, r *http.Request, s Sessi
 		internal(w, err)
 		return
 	}
+	notes := []ProgressNote{before}
+	if err = loadNoteMedia(r.Context(), tx, notes); err != nil {
+		internal(w, err)
+		return
+	}
+	before = notes[0]
+	if input.Body == "" && len(before.Media) == 0 {
+		fail(w, 422, "validation_error", "A note without attachments needs text")
+		return
+	}
 	if !before.Editable {
 		fail(w, 403, "forbidden", "Only the author coach or an administrator may correct this note")
 		return
@@ -280,7 +316,7 @@ func (a *API) updateProgressNote(w http.ResponseWriter, r *http.Request, s Sessi
 		internal(w, err)
 		return
 	}
-	n, err := scanProgress(tx.QueryRow(r.Context(), "SELECT "+progressColumns+progressJoin+" WHERE n.id=$1", before.ID), s)
+	n, err := loadProgressNote(r.Context(), tx, before.ID, s)
 	if err != nil {
 		internal(w, err)
 		return
@@ -310,4 +346,14 @@ func (a *API) beginLessonFeedback(ctx context.Context) (pgx.Tx, error) {
 		return nil, err
 	}
 	return tx, nil
+}
+
+func loadProgressNote(ctx context.Context, tx pgx.Tx, id string, s Session) (ProgressNote, error) {
+	n, err := scanProgress(tx.QueryRow(ctx, "SELECT "+progressColumns+progressJoin+" WHERE n.id=$1", id), s)
+	if err != nil {
+		return n, err
+	}
+	notes := []ProgressNote{n}
+	err = loadNoteMedia(ctx, tx, notes)
+	return notes[0], err
 }

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import type { components } from './generated/api';
 import { APIError, type User } from './api';
+import { MediaPicker, NoteMediaList, uploadDrafts, type MediaDraft } from './NoteMedia';
 import { isAborted, useProtectedRequest, type ProtectedProps } from './useProtectedRequest';
 
 type ProgressNote = components['schemas']['ProgressNote'];
@@ -17,6 +18,7 @@ export default function ProgressNotes({ studentId, role, csrfToken, expired, t }
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [body, setBody] = useState('');
+  const [drafts, setDrafts] = useState<MediaDraft[]>([]);
   const pending = useRef<ProgressNoteInput | null>(null);
   const submitting = useRef(false);
   const [retryCreate, setRetryCreate] = useState(false);
@@ -37,13 +39,22 @@ export default function ProgressNotes({ studentId, role, csrfToken, expired, t }
   async function create(event: FormEvent) {
     event.preventDefault();
     if (submitting.current) return;
-    if (!pending.current && (!body.trim() || [...body.trim()].length > 4000)) { setError(t('Enter a note of 1–4000 characters.', '請輸入 1 至 4000 字的紀錄。')); return; }
-    pending.current ??= { requestId: crypto.randomUUID(), body: body.trim() };
+    if (!pending.current && (!body.trim() && !drafts.length || [...body.trim()].length > 4000)) { setError(t('Enter a note of up to 4000 characters, or add a photo, video or recording.', '請輸入最多 4000 字的紀錄，或加入相片、影片或錄音。')); return; }
     submitting.current = true; setBusy(true); setError(''); setNotice('');
+    if (!pending.current) {
+      try {
+        const mediaIds = await uploadDrafts(api, studentId, csrfToken, drafts, (key, uploadedId) => setDrafts(items => items.map(item => item.key === key ? { ...item, uploadedId } : item)));
+        pending.current = { requestId: crypto.randomUUID(), body: body.trim(), ...(mediaIds.length ? { mediaIds } : {}) };
+      } catch (e) {
+        if (!isAborted(e)) setError(e instanceof APIError && e.status < 500 ? e.message : t('An attachment could not be uploaded. Try again.', '未能上載附件，請再試。'));
+        submitting.current = false; setBusy(false);
+        return;
+      }
+    }
     try {
       const note = await api<ProgressNote>(base, { method: 'POST', headers: { 'X-CSRF-Token': csrfToken }, body: JSON.stringify(pending.current) });
       setNotes(items => [note, ...items.filter(item => item.id !== note.id)].sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
-      pending.current = null; setRetryCreate(false); setBody(''); setNotice(t('Progress note shared.', '已分享進度紀錄。'));
+      pending.current = null; setRetryCreate(false); setBody(''); setDrafts([]); setNotice(t('Progress note shared.', '已分享進度紀錄。'));
     } catch (e) {
       if (!isAborted(e)) {
         const uncertain = !(e instanceof APIError) || e.status >= 500 || e.status === 409;
@@ -56,7 +67,7 @@ export default function ProgressNotes({ studentId, role, csrfToken, expired, t }
   async function correct(event: FormEvent) {
     event.preventDefault();
     if (!editing || submitting.current || needsReview) return;
-    if (!correction.trim() || [...correction.trim()].length > 4000 || !reason.trim() || [...reason.trim()].length > 500) { setError(t('Enter a note of 1–4000 characters and a correction reason of 1–500 characters.', '請輸入 1 至 4000 字的紀錄及 1 至 500 字的更正原因。')); return; }
+    if (!correction.trim() && !editing.media?.length || [...correction.trim()].length > 4000 || !reason.trim() || [...reason.trim()].length > 500) { setError(t('Enter a note of 1–4000 characters and a correction reason of 1–500 characters.', '請輸入 1 至 4000 字的紀錄及 1 至 500 字的更正原因。')); return; }
     submitting.current = true; setBusy(true); setError(''); setNotice('');
     const input: ProgressNoteUpdate = { body: correction.trim(), version: editing.version, reason: reason.trim() };
     try {
@@ -77,8 +88,8 @@ export default function ProgressNotes({ studentId, role, csrfToken, expired, t }
     <div className="page-heading"><h2 id="progress-title">{t('Progress notes', '進度紀錄')}</h2><button className="outline" onClick={load} disabled={loading || busy}>{t('Reload notes', '重新載入紀錄')}</button></div>
     <p className="muted">{t('Notes and corrections are shared immediately with linked families and the student. Times are Hong Kong time.', '紀錄及更正會即時分享予已連結的家長及學員。時間以香港時間顯示。')}</p>
     {error && <p role="alert" className="error">{error}</p>}{notice && <p role="status" className="success">{notice}</p>}
-    {loading ? <p role="status">{t('Loading progress notes…', '載入進度紀錄中…')}</p> : loadError ? <div><p role="alert">{t('Could not load progress notes. Your entries are preserved.', '未能載入進度紀錄，已保留輸入內容。')}</p><button onClick={load} disabled={busy}>{t('Retry loading notes', '重試載入紀錄')}</button></div> : notes.length ? <ul className="link-list">{notes.map(note => <li key={note.id}><article>{note.lesson && <p className="muted">{t('Lesson', '課堂')}: {note.lesson.name} · <time dateTime={note.lesson.startsAt}>{lessonTime(note.lesson.startsAt)}</time></p>}<p style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{note.body}</p><p className="muted">{t('Recorded by', '記錄者')} {note.authorName} · <time dateTime={note.createdAt}>{time(note.createdAt)}</time></p>{note.version > 1 && <p className="muted">{t('Last corrected by', '最後更正者')} {note.updatedByName} · <time dateTime={note.updatedAt}>{time(note.updatedAt)}</time> · {t('Version', '版本')} {note.version}</p>}{note.editable && <button className="outline" disabled={busy || !!editing} onClick={() => { setEditing(note); setCorrection(note.body); setReason(''); setNeedsReview(false); setError(''); setNotice(''); }}>{t('Correct note', '更正紀錄')}</button>}</article></li>)}</ul> : <p>{t('No progress notes yet.', '暫無進度紀錄。')}</p>}
-    {editing && <form onSubmit={correct}><h3>{t('Correct progress note', '更正進度紀錄')}</h3><label htmlFor="progress-correction">{t('Corrected note', '更正內容')}</label><textarea id="progress-correction" value={correction} onChange={event => setCorrection(event.target.value)} required disabled={busy}/><label htmlFor="progress-reason">{t('Correction reason', '更正原因')}</label><textarea id="progress-reason" value={reason} onChange={event => setReason(event.target.value)} required disabled={busy}/>{needsReview && <div><p>{t('Compare your draft with the current note above. If it already contains your correction, cancel. Otherwise, use the current version before saving.', '請比較草稿與上方最新紀錄。如已包含你的更正，請取消；否則請先使用最新版本再儲存。')}</p><button type="button" disabled={busy || loading || loadError || !current?.editable} onClick={() => { if (current) { setEditing(current); setNeedsReview(false); setError(''); } }}>{t('Use current version; keep my draft', '使用最新版本並保留草稿')}</button></div>}<div className="form-actions"><button disabled={busy || loading || loadError || needsReview || !current?.editable}>{busy ? t('Saving…', '儲存中…') : t('Share correction', '分享更正')}</button><button type="button" className="outline" disabled={busy} onClick={() => { setEditing(null); setCorrection(''); setReason(''); setNeedsReview(false); setError(''); }}>{t('Cancel correction', '取消更正')}</button></div></form>}
-    {canCreate && <form onSubmit={create}><h3>{t('Add progress note', '新增進度紀錄')}</h3><label htmlFor="progress-body">{t('Progress note', '進度紀錄內容')}</label><textarea id="progress-body" value={body} onChange={event => setBody(event.target.value)} disabled={busy || retryCreate} required/><button disabled={busy || loading || loadError}>{busy ? t('Sharing…', '分享中…') : retryCreate ? t('Retry same submission', '重試同一次提交') : t('Share progress note', '分享進度紀錄')}</button></form>}
+    {loading ? <p role="status">{t('Loading progress notes…', '載入進度紀錄中…')}</p> : loadError ? <div><p role="alert">{t('Could not load progress notes. Your entries are preserved.', '未能載入進度紀錄，已保留輸入內容。')}</p><button onClick={load} disabled={busy}>{t('Retry loading notes', '重試載入紀錄')}</button></div> : notes.length ? <ul className="link-list">{notes.map(note => <li key={note.id}><article>{note.lesson && <p className="muted">{t('Lesson', '課堂')}: {note.lesson.name} · <time dateTime={note.lesson.startsAt}>{lessonTime(note.lesson.startsAt)}</time></p>}{note.body && <p style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{note.body}</p>}{note.media?.length ? <NoteMediaList media={note.media} t={t}/> : null}<p className="muted">{t('Recorded by', '記錄者')} {note.authorName} · <time dateTime={note.createdAt}>{time(note.createdAt)}</time></p>{note.version > 1 && <p className="muted">{t('Last corrected by', '最後更正者')} {note.updatedByName} · <time dateTime={note.updatedAt}>{time(note.updatedAt)}</time> · {t('Version', '版本')} {note.version}</p>}{note.editable && <button className="outline" disabled={busy || !!editing} onClick={() => { setEditing(note); setCorrection(note.body); setReason(''); setNeedsReview(false); setError(''); setNotice(''); }}>{t('Correct note', '更正紀錄')}</button>}</article></li>)}</ul> : <p>{t('No progress notes yet.', '暫無進度紀錄。')}</p>}
+    {editing && <form onSubmit={correct}><h3>{t('Correct progress note', '更正進度紀錄')}</h3><label htmlFor="progress-correction">{t('Corrected note', '更正內容')}</label><textarea id="progress-correction" value={correction} onChange={event => setCorrection(event.target.value)} required={!editing.media?.length} disabled={busy}/><label htmlFor="progress-reason">{t('Correction reason', '更正原因')}</label><textarea id="progress-reason" value={reason} onChange={event => setReason(event.target.value)} required disabled={busy}/>{needsReview && <div><p>{t('Compare your draft with the current note above. If it already contains your correction, cancel. Otherwise, use the current version before saving.', '請比較草稿與上方最新紀錄。如已包含你的更正，請取消；否則請先使用最新版本再儲存。')}</p><button type="button" disabled={busy || loading || loadError || !current?.editable} onClick={() => { if (current) { setEditing(current); setNeedsReview(false); setError(''); } }}>{t('Use current version; keep my draft', '使用最新版本並保留草稿')}</button></div>}<div className="form-actions"><button disabled={busy || loading || loadError || needsReview || !current?.editable}>{busy ? t('Saving…', '儲存中…') : t('Share correction', '分享更正')}</button><button type="button" className="outline" disabled={busy} onClick={() => { setEditing(null); setCorrection(''); setReason(''); setNeedsReview(false); setError(''); }}>{t('Cancel correction', '取消更正')}</button></div></form>}
+    {canCreate && <form onSubmit={create}><h3>{t('Add progress note', '新增進度紀錄')}</h3><label htmlFor="progress-body">{t('Progress note', '進度紀錄內容')}</label><textarea id="progress-body" value={body} onChange={event => setBody(event.target.value)} disabled={busy || retryCreate}/><MediaPicker id="progress-media" drafts={drafts} onChange={setDrafts} disabled={busy || retryCreate} t={t}/><button disabled={busy || loading || loadError}>{busy ? t('Sharing…', '分享中…') : retryCreate ? t('Retry same submission', '重試同一次提交') : t('Share progress note', '分享進度紀錄')}</button></form>}
   </section>;
 }

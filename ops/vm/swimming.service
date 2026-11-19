@@ -9,6 +9,9 @@ EnvironmentFile=/etc/swimming/app.env
 ExecStart=/opt/swimming/current/swimming-api
 Restart=on-failure
 NoNewPrivileges=true
+# Note photos, recordings and videos live in /var/lib/swimming/media (STATE_DIRECTORY), outside releases.
+StateDirectory=swimming
+StateDirectoryMode=0700
 PrivateTmp=true
 
 [Install]

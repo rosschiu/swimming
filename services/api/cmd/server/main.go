@@ -7,6 +7,7 @@ import (
 	"github.com/rosschiu/swimming/services/api/internal/app"
 	"log"
 	"net/http"
+	"os"
 	"os/signal"
 	"syscall"
 	"time"
@@ -16,6 +17,11 @@ func main() {
 	cfg, err := app.LoadConfig()
 	if err != nil {
 		log.Fatal(err)
+	}
+	if cfg.MediaDir != "" {
+		if err = os.MkdirAll(cfg.MediaDir, 0o700); err != nil {
+			log.Fatal(err)
+		}
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
@@ -33,7 +39,9 @@ func main() {
 	go func() { defer close(expiryDone); app.RunCreditExpiryWorker(ctx, cfg, db) }()
 	reminderDone := make(chan struct{})
 	go func() { defer close(reminderDone); app.RunReminderWorker(ctx, cfg, db) }()
-	defer func() { stop(); <-workerDone; <-expiryDone; <-reminderDone }()
+	mediaDone := make(chan struct{})
+	go func() { defer close(mediaDone); app.RunMediaCleanup(ctx, cfg, db) }()
+	defer func() { stop(); <-workerDone; <-expiryDone; <-reminderDone; <-mediaDone }()
 	server := &http.Server{Addr: cfg.Addr, Handler: app.New(cfg, db), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 15 * time.Second, IdleTimeout: 60 * time.Second}
 	shutdownDone := make(chan struct{})
 	go func() {

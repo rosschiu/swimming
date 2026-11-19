@@ -790,7 +790,7 @@ export interface paths {
         /** @description Notes shared with currently authorised student, guardians and coaches; administrators see all. Inaccessible student returns404. Ordered newest first. */
         get: operations["listProgressNotes"];
         put?: never;
-        /** @description Administrator or currently assigned coach. With bookingId, the swimmer must be marked present for that lesson (409 lesson_not_eligible otherwise) and a coach must be the class coach. Actor-scoped requestId replays the same student/body/lesson with 200; different payload reuse returns 409. Saved notes are shared immediately. */
+        /** @description Administrator or currently assigned coach. With bookingId, the swimmer must be marked present for that lesson (409 lesson_not_eligible otherwise) and a coach must be the class coach. Actor-scoped requestId replays the same student/body/lesson with 200; different payload reuse returns 409. Saved notes are shared immediately. mediaIds attach earlier uploads; a note needs text or at least one attachment (422 media_unavailable when an upload is missing, already attached, or belongs to someone else). */
         post: operations["createProgressNote"];
         delete?: never;
         options?: never;
@@ -1424,6 +1424,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/students/{id}/note-media": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload a photo, voice recording or video for a progress note
+         * @description Administrator or currently assigned coach. The body is the file itself, with its media type. Photos up to 15 MB, recordings up to 25 MB, videos up to 100 MB; the first bytes must match the type. The upload is private and attaches to the next note the same user shares for this swimmer with its ID; unattached uploads are removed after 24 hours. 503 media_unavailable when the server has no media storage.
+         */
+        post: operations["uploadNoteMedia"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/students/{id}/progress-notes/{noteId}/media/{mediaId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Fetch a progress note attachment
+         * @description Anyone who may read the swimmer's progress notes. Served inline with its stored media type, nosniff and a sandbox policy; supports range requests for playback.
+         */
+        get: operations["getNoteMedia"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1922,14 +1962,19 @@ export interface components {
             version: number;
             editable: boolean;
             lesson?: components["schemas"]["NoteLesson"];
+            media?: components["schemas"]["NoteMedia"][];
         };
         ProgressNoteInput: {
             requestId: string;
+            /** @description May be empty when mediaIds is not. */
             body: string;
             /** @description Links the note to a lesson the swimmer was marked present for. A coach must be that class's coach. */
             bookingId?: string;
+            /** @description Uploads from POST /students/{id}/note-media by the same user for the same swimmer, not yet attached. Kept in this order. */
+            mediaIds?: string[];
         };
         ProgressNoteUpdate: {
+            /** @description May be empty only for a note with attachments. */
             body: string;
             version: number;
             reason: string;
@@ -2513,6 +2558,17 @@ export interface components {
             name: string;
             /** Format: date-time */
             startsAt: string;
+        };
+        /** @description A photo, voice recording or video attached to a progress note. */
+        NoteMedia: {
+            id: string;
+            /** @enum {string} */
+            kind: "image" | "audio" | "video";
+            /** @enum {string} */
+            contentType: "image/jpeg" | "image/png" | "image/webp" | "audio/webm" | "audio/ogg" | "audio/mp4" | "audio/mpeg" | "video/mp4" | "video/quicktime" | "video/webm";
+            sizeBytes: number;
+            /** @description Where readers of the note fetch the file. Present once attached. */
+            url?: string;
         };
     };
     responses: never;
@@ -6642,6 +6698,114 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ImportRejected"];
+                };
+            };
+            /** @description Request failed */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    uploadNoteMedia: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-Token": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "image/jpeg": string;
+                "image/png": string;
+                "image/webp": string;
+                "audio/webm": string;
+                "audio/ogg": string;
+                "audio/mp4": string;
+                "audio/mpeg": string;
+                "video/mp4": string;
+                "video/quicktime": string;
+                "video/webm": string;
+            };
+        };
+        responses: {
+            /** @description Uploaded */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NoteMedia"];
+                };
+            };
+            /** @description Request failed */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getNoteMedia: {
+        parameters: {
+            query?: never;
+            header?: {
+                Range?: string;
+            };
+            path: {
+                id: string;
+                noteId: string;
+                mediaId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The file */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/jpeg": string;
+                    "image/png": string;
+                    "image/webp": string;
+                    "audio/webm": string;
+                    "audio/ogg": string;
+                    "audio/mp4": string;
+                    "audio/mpeg": string;
+                    "video/mp4": string;
+                    "video/quicktime": string;
+                    "video/webm": string;
+                };
+            };
+            /** @description Part of the file */
+            206: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/jpeg": string;
+                    "image/png": string;
+                    "image/webp": string;
+                    "audio/webm": string;
+                    "audio/ogg": string;
+                    "audio/mp4": string;
+                    "audio/mpeg": string;
+                    "video/mp4": string;
+                    "video/quicktime": string;
+                    "video/webm": string;
                 };
             };
             /** @description Request failed */
