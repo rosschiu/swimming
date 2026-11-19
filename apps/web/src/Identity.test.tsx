@@ -19,6 +19,7 @@ it('preserves invitation details on failure and requires a student profile for s
   const api = vi.fn(async (_path: string, options?: RequestInit) => options?.method === 'POST' ? response({ error: { message: 'Failed' } }, 500) : response({ items: [] }));
   vi.stubGlobal('fetch', api); const user = userEvent.setup();
   render(<UserManagement csrfToken="csrf" expired={() => false} t={t} students={[amy]}/>);
+  await user.click(screen.getByRole('tab', { name: 'Invite' }));
   await user.type(screen.getByLabelText('Member name'), 'New Student');
   await user.type(screen.getByLabelText('Member email'), 'new@swim.test');
   await user.selectOptions(screen.getByLabelText('Role'), 'student');
@@ -135,6 +136,7 @@ it('allows reissuing a revoked invitation without offering another revoke', asyn
   });
   vi.stubGlobal('fetch', api); const user = userEvent.setup();
   render(<UserManagement csrfToken="csrf" expired={() => false} t={t} students={[]}/>);
+  await user.click(screen.getByRole('tab', { name: 'Invitations' }));
   await user.click(await screen.findByRole('button', { name: 'Reissue invitation new@swim.test' }));
   expect(api).toHaveBeenCalledWith('/api/v1/invitations/invite-1/resend', expect.objectContaining({ method: 'POST' }));
   expect(screen.queryByRole('button', { name: 'Revoke invitation new@swim.test' })).not.toBeInTheDocument();

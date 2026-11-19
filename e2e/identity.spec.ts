@@ -22,6 +22,7 @@ test('invitation delivered over SMTP activates a scoped parent; reset revokes ol
   const email = `guardian-${Date.now()}@swim.test`;
   await signIn(page, 'admin@swim.test');
   await page.getByRole('link', { name: 'Accounts', exact: true }).click();
+  await page.getByRole('tab', { name: 'Invite', exact: true }).click();
   await page.getByLabel('Member name', { exact: true }).fill('Invited guardian');
   await page.getByLabel('Member email', { exact: true }).fill(email);
   await page.getByLabel('Role', { exact: true }).selectOption('parent');

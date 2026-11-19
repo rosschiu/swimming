@@ -602,3 +602,20 @@ it('moves the booking week forwards and back without going before today', async 
   await waitFor(() => expect(screen.getByLabelText('Show classes from')).toHaveValue(today));
   expect(screen.getByRole('button', { name: 'Previous week' })).toBeDisabled();
 });
+
+it('opens a school setup section from its link and keeps the chosen section in the address', async () => {
+  at('/setup?section=lessons'); api('admin'); render(<App />);
+  const lessons = await screen.findByRole('tab', { name: 'Lessons' });
+  expect(lessons).toHaveAttribute('aria-selected', 'true');
+  expect(await screen.findByLabelText('Parent change cutoff (hours)')).toBeVisible();
+  const user = userEvent.setup();
+  await user.click(screen.getByRole('tab', { name: 'Skills' }));
+  expect(window.location.pathname + window.location.search).toBe('/setup?section=skills');
+  expect(screen.getByRole('tab', { name: 'Skills' })).toHaveFocus();
+  expect(screen.getByLabelText('Parent change cutoff (hours)')).not.toBeVisible();
+});
+
+it('opens the first school setup section for an unknown section', async () => {
+  at('/setup?section=nope'); api('admin'); render(<App />);
+  expect(await screen.findByRole('tab', { name: 'Places' })).toHaveAttribute('aria-selected', 'true');
+});

@@ -19,8 +19,10 @@ test('a lesson entering the reminder window reminds the family in-app and by ema
   const dsn = process.env.DATABASE_URL;
   expect(dsn, 'dedicated synthetic database required').toBeTruthy();
   const sql = (input: string) => execFileSync('psql', [dsn!, '-XAtq', '-v', 'ON_ERROR_STOP=1'], { input }).toString().trim();
-  // A dedicated synthetic coach keeps this near-term lesson clear of other journeys' schedules.
-  sql(`INSERT INTO users(id,email,name,role,password_hash) SELECT 'reminder-coach','reminder-coach@swim.test','Reminder Coach','coach',password_hash FROM users WHERE id='coach' ON CONFLICT (id) DO NOTHING;`);
+  // A synthetic coach per run keeps this near-term lesson clear of other journeys' and earlier runs' schedules.
+  const suffix = Date.now();
+  const coachId = 'reminder-coach-' + suffix;
+  sql(`INSERT INTO users(id,email,name,role,password_hash) SELECT '${coachId}','${coachId}@swim.test','Reminder Coach','coach',password_hash FROM users WHERE id='coach';`);
   let headers = await signIn(page, 'admin');
   async function post(path: string, data: object, status = 201) {
     const response = await page.request.post('/api/v1/' + path, { headers, data });
@@ -28,18 +30,19 @@ test('a lesson entering the reminder window reminds the family in-app and by ema
     return response.json();
   }
 
-  await page.goto('/setup');
+  await page.goto('/setup?section=lessons');
   await expect(page.getByLabel('Lesson reminder (hours before)')).toHaveValue('24');
   await expect(page.getByLabel('Also email lesson reminders')).toBeChecked();
   const settings = await (await page.request.get('/api/v1/settings/lessons')).json();
   expectContract('LessonSettings', settings);
 
-  const suffix = Date.now();
   const start = new Date(Math.ceil((Date.now() + 3 * 3600000) / 3600000) * 3600000 + (suffix % 7) * 60000);
   const end = new Date(start.getTime() + 3600000);
+  const swimmer = await post('students', { name: 'Reminder swimmer ' + suffix, level: 'Beginner' });
+  expect((await page.request.put(`/api/v1/students/${swimmer.id}/relationships/parent`, { headers, data: { kind: 'guardian' } })).status()).toBe(200);
   const venue = await post('venues', { name: 'Reminder pool ' + suffix, address: 'Synthetic pool', region: 'hk-island' });
   const kind = await post('class-types', { name: 'Reminder lesson ' + suffix, level: 'Beginner' });
-  const lesson = await post('classes', { venueId: venue.id, classTypeId: kind.id, coachId: 'reminder-coach', capacity: 3,
+  const lesson = await post('classes', { venueId: venue.id, classTypeId: kind.id, coachId, capacity: 3,
     startsAt: start.toISOString(), endsAt: end.toISOString() });
   const offer = await post('package-offers', { name: 'Reminder credits ' + suffix, credits: 1, priceMinor: 10000, currency: 'HKD', active: true,
     policyOverride: { expiryEnabled: false, carryForwardEnabled: false, earlyCancellationRetainsCredit: true, lateCancellationRetainsCredit: true, absenceRetainsCredit: true, illnessRetainsCredit: true } });
@@ -48,11 +51,11 @@ test('a lesson entering the reminder window reminds the family in-app and by ema
   headers = await signIn(page, 'parent');
   const service = await page.request.put('/api/v1/notification-preferences', { headers, data: { serviceEmailEnabled: true } });
   expect(service.status(), await service.text()).toBe(200);
-  const purchase = await post('students/amy/purchases', { offerId: offer.id, offerVersion: offer.version, idempotencyKey: 'reminder-' + suffix });
+  const purchase = await post(`students/${swimmer.id}/purchases`, { offerId: offer.id, offerVersion: offer.version, idempotencyKey: 'reminder-' + suffix });
   const attempt = await post(`purchases/${purchase.id}/payment-attempts`, { idempotencyKey: 'reminder-pay-' + suffix });
   await post(`payment-attempts/${attempt.id}/mock-outcome`, { outcome: 'succeeded' }, 200);
-  const pack = (await (await page.request.get('/api/v1/students/amy/credits')).json()).items.find((item: { purchaseId: string }) => item.purchaseId === purchase.id);
-  const booking = await post('students/amy/bookings', { classId: lesson.id, classVersion: lesson.version, classTypeVersion: lesson.classTypeVersion, creditPackageId: pack.id, idempotencyKey: 'reminder-book-' + suffix });
+  const pack = (await (await page.request.get(`/api/v1/students/${swimmer.id}/credits`)).json()).items.find((item: { purchaseId: string }) => item.purchaseId === purchase.id);
+  const booking = await post(`students/${swimmer.id}/bookings`, { classId: lesson.id, classVersion: lesson.version, classTypeVersion: lesson.classTypeVersion, creditPackageId: pack.id, idempotencyKey: 'reminder-book-' + suffix });
 
   // The server's reminder worker scans every minute.
   type Item = { id: string; kind: string; sourceId: string };

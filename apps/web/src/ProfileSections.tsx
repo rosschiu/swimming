@@ -4,9 +4,10 @@ type Section = { id: string; label: string; content: ReactNode };
 
 // Phones show one profile section at a time; wide screens keep every section on the page.
 // Hidden sections stay mounted so drafts and in-flight booking state survive switching.
-export default function ProfileSections({ compact, label, sections }: { compact: boolean; label: string; sections: Section[] }) {
+export default function ProfileSections({ compact, label, sections, initial, onChange }: { compact: boolean; label: string; sections: Section[]; initial?: string; onChange?: (id: string) => void }) {
   const id = useId();
-  const [current, setCurrent] = useState(sections[0]?.id);
+  const [current, setSection] = useState(initial ?? sections[0]?.id);
+  function setCurrent(next: string) { setSection(next); onChange?.(next); }
   if (!compact || sections.length < 2) return <>{sections.map(section => <div key={section.id}>{section.content}</div>)}</>;
   const active = sections.some(section => section.id === current) ? current : sections[0].id;
   function move(event: KeyboardEvent<HTMLButtonElement>, index: number) {

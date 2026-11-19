@@ -244,7 +244,7 @@ test('school validity controls an overnight reservation and preserves it after t
     expect((await coach.request.patch(settings, { headers: coachHeaders, data: {
       validityRule: 'lesson_start', version: original.version,
     } })).status()).toBe(403);
-    await admin.goto('/setup');
+    await admin.goto('/setup?section=bookings');
     await setRule('lesson_end');
 
     const suffix = Date.now();

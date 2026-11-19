@@ -39,8 +39,9 @@ test('administrator reviews conflicting lesson timing edits, persists values and
   const first = { ...original, parentChangeCutoffHours: cutoff, version: original.version + 1 };
   const second = { ...first, attendanceOpenMinutes: minutes, version: first.version + 1 };
   await page.getByRole('link', { name: 'School setup' }).click();
+  await page.getByRole('tab', { name: 'Lessons' }).click();
   const otherTab = await context.newPage();
-  await otherTab.goto('/setup');
+  await otherTab.goto('/setup?section=lessons');
   const cutoffInput = page.getByLabel('Parent change cutoff (hours)');
   const minutesInput = otherTab.getByLabel('Attendance opens after start (minutes)');
   await expect(cutoffInput).toHaveValue(String(original.parentChangeCutoffHours));
