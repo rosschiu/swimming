@@ -4,7 +4,7 @@ import { APIError } from './api';
 import { isAborted, useProtectedRequest, type ProtectedProps } from './useProtectedRequest';
 
 type Settings = components['schemas']['LessonSettings'];
-type Field = Exclude<keyof Settings, 'version' | 'cancellationEmail'>;
+type Field = Exclude<keyof Settings, 'version' | 'cancellationEmail' | 'reminderEmail'>;
 type Draft = Record<Field, string>;
 
 function draftFrom(settings: Settings): Draft {
@@ -12,6 +12,7 @@ function draftFrom(settings: Settings): Draft {
     parentChangeCutoffHours: String(settings.parentChangeCutoffHours),
     attendanceOpenMinutes: String(settings.attendanceOpenMinutes),
     correctionWindowDays: String(settings.correctionWindowDays),
+    reminderHours: String(settings.reminderHours),
   };
 }
 
@@ -21,6 +22,7 @@ export default function LessonSettings({ csrfToken, expired, t }: ProtectedProps
   const [settings, setSettings] = useState<Settings | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [email, setEmail] = useState(true);
+  const [reminderEmail, setReminderEmail] = useState(true);
   const [busy, setBusy] = useState(true);
   const [stale, setStale] = useState(false);
   const [error, setError] = useState<'load' | 'save' | 'stale' | 'denied' | null>(null);
@@ -43,6 +45,11 @@ export default function LessonSettings({ csrfToken, expired, t }: ProtectedProps
       key: 'correctionWindowDays', max: 365,
       label: t('Attendance correction window (days)', '出席紀錄更正期限（日）'),
       help: t('The number of days allowed for attendance corrections.', '可更正出席紀錄的日數。'),
+    },
+    {
+      key: 'reminderHours', max: 168,
+      label: t('Lesson reminder (hours before)', '課堂提醒（開始前小時）'),
+      help: t('Families get one in-app reminder this many hours before each booked lesson. 0 turns reminders off.', '家庭會在每堂已預約課堂開始前這個小時數收到一次系統內提醒。0 代表關閉提醒。'),
     },
   ];
 
@@ -69,6 +76,7 @@ export default function LessonSettings({ csrfToken, expired, t }: ProtectedProps
         }
       }
       if (!keepDraft || !settings || email === settings.cancellationEmail) setEmail(value.cancellationEmail);
+      if (!keepDraft || !settings || reminderEmail === settings.reminderEmail) setReminderEmail(value.reminderEmail);
       setSettings(value);
       setDraft(latest);
       setStale(false);
@@ -88,6 +96,7 @@ export default function LessonSettings({ csrfToken, expired, t }: ProtectedProps
       parentChangeCutoffHours: Number(draft.parentChangeCutoffHours),
       attendanceOpenMinutes: Number(draft.attendanceOpenMinutes),
       correctionWindowDays: Number(draft.correctionWindowDays),
+      reminderHours: Number(draft.reminderHours),
     };
     if (fields.some(({ key, max }) => draft[key] === '' || !Number.isInteger(values[key]) || values[key] < 0 || values[key] > max)) return;
     submitting.current = true;
@@ -98,11 +107,12 @@ export default function LessonSettings({ csrfToken, expired, t }: ProtectedProps
       const value = await api<Settings>('/settings/lessons', {
         method: 'PATCH',
         headers: { 'X-CSRF-Token': csrfToken },
-        body: JSON.stringify({ ...values, cancellationEmail: email, version: settings.version }),
+        body: JSON.stringify({ ...values, cancellationEmail: email, reminderEmail, version: settings.version }),
       });
       setSettings(value);
       setDraft(draftFrom(value));
       setEmail(value.cancellationEmail);
+      setReminderEmail(value.reminderEmail);
       setSaved(true);
     } catch (error) {
       if (!isAborted(error) && !deny(error)) {
@@ -135,6 +145,8 @@ export default function LessonSettings({ csrfToken, expired, t }: ProtectedProps
       </div>)}
       <label className="checkbox-label"><input type="checkbox" checked={email} disabled={busy} onChange={event => { setEmail(event.target.checked); setSaved(false); }}/>
         {t('Email families when a guardian cancels a lesson', '家長取消課堂時以電郵通知家庭')}</label>
+      <label className="checkbox-label"><input type="checkbox" checked={reminderEmail} disabled={busy} onChange={event => { setReminderEmail(event.target.checked); setSaved(false); }}/>
+        {t('Also email lesson reminders', '同時以電郵發送課堂提醒')}</label>
       <p className="muted">{t('In-app notices are always sent. Each family can turn off service email in their notification settings.', '系統內通知一定會發出。每個家庭可在通知設定中關閉服務電郵。')}</p>
       <div className="form-actions">
         <button disabled={busy || stale || error === 'load'}>{t('Save lesson timing', '儲存課堂時間規則')}</button>

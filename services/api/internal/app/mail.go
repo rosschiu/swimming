@@ -39,8 +39,16 @@ func (a *API) smtpSend(ctx context.Context, recipient, purpose, token string) er
 	return a.smtpSendMessage(ctx, recipient, subject, body, "")
 }
 func (a *API) sendTeachingMail(ctx context.Context, claim notificationClaim) error {
-	body := "You have a shared teaching update. Sign in to view it.\r\n您有新的教學近況。請登入查看。\r\n\r\n" + a.cfg.Origin + "/notifications\r\n"
-	return a.smtpSendMessage(ctx, claim.Recipient, "SwimCoach Pro update / 教學近況", body, "<teaching-"+claim.NotificationID+"@swimcoach.invalid>")
+	// Every email stays generic: only a sign-in link, never student, lesson or venue details.
+	subject, text := "SwimCoach Pro update / 教學近況", "You have a shared teaching update. Sign in to view it.\r\n您有新的教學近況。請登入查看。"
+	switch claim.Kind {
+	case "booking.reminder":
+		subject, text = "SwimCoach Pro lesson reminder / 課堂提醒", "You have a lesson coming up. Sign in to see the details.\r\n您有課堂即將開始。請登入查看詳情。"
+	case "booking.cancelled", "class.cancelled":
+		subject, text = "SwimCoach Pro lesson notice / 課堂通知", "A booked lesson has changed. Sign in to see the details.\r\n已預約的課堂有變更。請登入查看詳情。"
+	}
+	body := text + "\r\n\r\n" + a.cfg.Origin + "/notifications\r\n"
+	return a.smtpSendMessage(ctx, claim.Recipient, subject, body, "<teaching-"+claim.NotificationID+"@swimcoach.invalid>")
 }
 func (a *API) smtpSendMessage(ctx context.Context, recipient, subject, body, messageID string) error {
 	if a.cfg.SMTPAddr == "" || a.cfg.SMTPFrom == "" {

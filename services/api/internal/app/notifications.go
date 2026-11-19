@@ -191,7 +191,7 @@ func createLessonChangeRequestNotice(ctx context.Context, tx pgx.Tx, student, co
 }
 
 // serviceKinds are booking-service notices governed by the service email preference rather than teaching email.
-var serviceKinds = []string{"booking.cancelled", "class.cancelled"}
+var serviceKinds = []string{"booking.cancelled", "class.cancelled", "booking.reminder"}
 
 func suppressTeachingDeliveries(ctx context.Context, tx pgx.Tx, user, student, reason string) error {
 	return suppressDeliveries(ctx, tx, user, student, reason, nil, false)

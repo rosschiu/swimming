@@ -31,7 +31,9 @@ func main() {
 	go func() { defer close(workerDone); app.RunNotificationWorker(ctx, cfg, db) }()
 	expiryDone := make(chan struct{})
 	go func() { defer close(expiryDone); app.RunCreditExpiryWorker(ctx, cfg, db) }()
-	defer func() { stop(); <-workerDone; <-expiryDone }()
+	reminderDone := make(chan struct{})
+	go func() { defer close(reminderDone); app.RunReminderWorker(ctx, cfg, db) }()
+	defer func() { stop(); <-workerDone; <-expiryDone; <-reminderDone }()
 	server := &http.Server{Addr: cfg.Addr, Handler: app.New(cfg, db), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 15 * time.Second, IdleTimeout: 60 * time.Second}
 	shutdownDone := make(chan struct{})
 	go func() {

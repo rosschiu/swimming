@@ -4,7 +4,7 @@ import { StrictMode } from 'react';
 import { afterEach, expect, it, vi } from 'vitest';
 import LessonSettings from './LessonSettings';
 
-const defaults = { parentChangeCutoffHours: 24, attendanceOpenMinutes: 15, correctionWindowDays: 3, version: 1 };
+const defaults = { parentChangeCutoffHours: 24, attendanceOpenMinutes: 15, correctionWindowDays: 3, cancellationEmail: true, reminderHours: 24, reminderEmail: true, version: 1 };
 const props = { csrfToken: 'csrf-value', expired: () => false, t: (en: string) => en };
 const response = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status });
 
@@ -25,6 +25,9 @@ it('loads and saves all three integer settings, sends CSRF and updates the versi
   expect(cutoff).toHaveValue(24);
   expect(attendance).toHaveValue(15);
   expect(correction).toHaveValue(3);
+  const reminder = screen.getByLabelText('Lesson reminder (hours before)');
+  expect(reminder).toHaveValue(24);
+  expect(screen.getByLabelText('Also email lesson reminders')).toBeChecked();
   const save = screen.getByRole('button', { name: 'Save lesson timing' });
   fireEvent.change(cutoff, { target: { value: '8761' } });
   expect(cutoff).toBeInvalid();
@@ -33,12 +36,16 @@ it('loads and saves all three integer settings, sends CSRF and updates the versi
   fireEvent.change(cutoff, { target: { value: '0' } });
   fireEvent.change(attendance, { target: { value: '1440' } });
   fireEvent.change(correction, { target: { value: '365' } });
+  fireEvent.change(reminder, { target: { value: '169' } });
+  expect(reminder).toBeInvalid();
+  fireEvent.change(reminder, { target: { value: '0' } });
+  await user.click(screen.getByLabelText('Also email lesson reminders'));
   await user.click(save);
   expect(await screen.findByText('Lesson timing saved.')).toHaveAttribute('role', 'status');
   expect(fetch).toHaveBeenCalledWith('/api/v1/settings/lessons', expect.objectContaining({
     method: 'PATCH',
     headers: expect.objectContaining({ 'X-CSRF-Token': 'csrf-value' }),
-    body: JSON.stringify({ parentChangeCutoffHours: 0, attendanceOpenMinutes: 1440, correctionWindowDays: 365, version: 1 }),
+    body: JSON.stringify({ parentChangeCutoffHours: 0, attendanceOpenMinutes: 1440, correctionWindowDays: 365, reminderHours: 0, cancellationEmail: true, reminderEmail: false, version: 1 }),
   }));
   fireEvent.change(cutoff, { target: { value: '29' } });
   await user.click(save);

@@ -1759,6 +1759,14 @@ export interface components {
             correctionWindowDays: number;
             /** @description When true, guardian cancellations also queue a generic email to linked guardians and the student, subject to each recipient's service email preference and the delivery allowlist. In-app notices are always created. */
             cancellationEmail: boolean;
+            /**
+             * Format: int32
+             * @description Hours before a reserved lesson when linked guardians and the student get an in-app reminder. 0 turns reminders off. Nothing is created after the lesson starts.
+             * @example 24
+             */
+            reminderHours: number;
+            /** @description When true, reminders also queue a generic email, subject to each recipient's service email preference and the delivery allowlist. The email is suppressed if the lesson is cancelled, moved, attended or started before it is sent. */
+            reminderEmail: boolean;
             /** Format: int32 */
             version: number;
         };
@@ -1920,7 +1928,7 @@ export interface components {
             studentId: string;
             studentName: string;
             /** @enum {string} */
-            kind: "progress.created" | "progress.updated" | "milestone.achieved" | "milestone.revoked" | "booking.created" | "lesson_change.requested" | "lesson_change.approved" | "lesson_change.rejected" | "booking.cancelled" | "class.cancelled" | "class.coach_changed";
+            kind: "progress.created" | "progress.updated" | "milestone.achieved" | "milestone.revoked" | "booking.created" | "lesson_change.requested" | "lesson_change.approved" | "lesson_change.rejected" | "booking.cancelled" | "class.cancelled" | "class.coach_changed" | "booking.reminder";
             sourceId: string;
             sourceVersion: number;
             /** Format: date-time */

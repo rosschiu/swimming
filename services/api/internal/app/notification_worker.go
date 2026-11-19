@@ -10,13 +10,17 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type notificationClaim struct{ ID, NotificationID, Token, Recipient string }
+type notificationClaim struct{ ID, NotificationID, Token, Recipient, Kind string }
 
 func (a *API) notificationEligibility(ctx context.Context, tx pgx.Tx, notificationID string) (string, string, error) {
 	var email string
-	var active, enabled, linked, teaching bool
+	var active, enabled, linked, teaching, current bool
 	var role string
-	err := tx.QueryRow(ctx, `SELECT u.email,u.active,u.role,CASE WHEN n.kind IN ('booking.cancelled','class.cancelled') THEN u.service_email_enabled ELSE u.teaching_email_enabled END,EXISTS(SELECT 1 FROM student_access sa WHERE sa.student_id=n.student_id AND sa.user_id=u.id AND sa.kind=CASE u.role WHEN 'parent' THEN 'guardian' WHEN 'student' THEN 'self' END),n.kind IN ('progress.created','progress.updated','milestone.achieved','milestone.revoked','booking.cancelled','class.cancelled') FROM notifications n JOIN users u ON u.id=n.recipient_id WHERE n.id=$1`, notificationID).Scan(&email, &active, &role, &enabled, &linked, &teaching)
+	// A reminder is current only while its occurrence is still booked, unchanged, unattended and not yet started.
+	err := tx.QueryRow(ctx, `SELECT u.email,u.active,u.role,CASE WHEN n.kind IN ('booking.cancelled','class.cancelled','booking.reminder') THEN u.service_email_enabled ELSE u.teaching_email_enabled END,EXISTS(SELECT 1 FROM student_access sa WHERE sa.student_id=n.student_id AND sa.user_id=u.id AND sa.kind=CASE u.role WHEN 'parent' THEN 'guardian' WHEN 'student' THEN 'self' END),n.kind IN ('progress.created','progress.updated','milestone.achieved','milestone.revoked','booking.cancelled','class.cancelled','booking.reminder'),
+		n.kind<>'booking.reminder' OR EXISTS(SELECT 1 FROM booking_reminders br JOIN bookings b ON b.id=br.booking_id AND b.class_id=br.class_id JOIN class_sessions c ON c.id=b.class_id AND c.starts_at=br.starts_at
+			WHERE br.booking_id=n.source_id AND br.sequence=n.source_version AND b.status='reserved' AND c.cancelled_at IS NULL AND c.starts_at>clock_timestamp() AND NOT EXISTS(SELECT 1 FROM booking_attendance ba WHERE ba.booking_id=b.id))
+		FROM notifications n JOIN users u ON u.id=n.recipient_id WHERE n.id=$1`, notificationID).Scan(&email, &active, &role, &enabled, &linked, &teaching, &current)
 	if err != nil {
 		return "", "", err
 	}
@@ -25,6 +29,9 @@ func (a *API) notificationEligibility(ctx context.Context, tx pgx.Tx, notificati
 	}
 	if !teaching {
 		return email, "email_unavailable", nil
+	}
+	if !current {
+		return email, "reminder_outdated", nil
 	}
 	if !enabled {
 		return email, "email_disabled", nil
@@ -74,6 +81,9 @@ func (a *API) claimNotificationDelivery(ctx context.Context) (*notificationClaim
 		return nil, err
 	}
 	claim.Recipient = email
+	if err = tx.QueryRow(ctx, "SELECT kind FROM notifications WHERE id=$1", claim.NotificationID).Scan(&claim.Kind); err != nil {
+		return nil, err
+	}
 	_, err = tx.Exec(ctx, `UPDATE notification_deliveries SET status='leased',attempts=attempts+1,cycle_attempts=cycle_attempts+1,version=version+1,lease_token=$2,lease_until=clock_timestamp()+interval '60 seconds',recipient=$3,next_attempt_at=NULL,completed_at=NULL WHERE id=$1`, claim.ID, claim.Token, email)
 	if err != nil {
 		return nil, err

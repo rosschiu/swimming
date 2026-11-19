@@ -11,8 +11,12 @@ type LessonSettings struct {
 	AttendanceOpenMinutes   int32 `json:"attendanceOpenMinutes"`
 	CorrectionWindowDays    int32 `json:"correctionWindowDays"`
 	// CancellationEmail adds a generic family email to in-app cancellation notices.
-	CancellationEmail bool  `json:"cancellationEmail"`
-	Version           int32 `json:"version"`
+	CancellationEmail bool `json:"cancellationEmail"`
+	// ReminderHours is how long before a lesson families are reminded; 0 turns reminders off.
+	ReminderHours int32 `json:"reminderHours"`
+	// ReminderEmail adds a generic family email to in-app reminders.
+	ReminderEmail bool  `json:"reminderEmail"`
+	Version       int32 `json:"version"`
 }
 
 func (a *API) lessonSettingsRoutes(mux *http.ServeMux) {
@@ -21,15 +25,16 @@ func (a *API) lessonSettingsRoutes(mux *http.ServeMux) {
 }
 
 const (
-	lessonSettingsColumns      = "parent_change_cutoff_hours,attendance_open_minutes,correction_window_days,cancellation_email,version"
+	lessonSettingsColumns      = "parent_change_cutoff_hours,attendance_open_minutes,correction_window_days,cancellation_email,reminder_hours,reminder_email,version"
 	maxParentChangeCutoffHours = 8760
 	maxAttendanceOpenMinutes   = 1440
 	maxCorrectionWindowDays    = 365
+	maxReminderHours           = 168
 )
 
 func scanLessonSettings(row pgx.Row) (LessonSettings, error) {
 	var x LessonSettings
-	err := row.Scan(&x.ParentChangeCutoffHours, &x.AttendanceOpenMinutes, &x.CorrectionWindowDays, &x.CancellationEmail, &x.Version)
+	err := row.Scan(&x.ParentChangeCutoffHours, &x.AttendanceOpenMinutes, &x.CorrectionWindowDays, &x.CancellationEmail, &x.ReminderHours, &x.ReminderEmail, &x.Version)
 	return x, err
 }
 
@@ -68,6 +73,8 @@ func (a *API) updateLessonSettings(w http.ResponseWriter, r *http.Request, s Ses
 		AttendanceOpenMinutes   *int32 `json:"attendanceOpenMinutes"`
 		CorrectionWindowDays    *int32 `json:"correctionWindowDays"`
 		CancellationEmail       *bool  `json:"cancellationEmail"`
+		ReminderHours           *int32 `json:"reminderHours"`
+		ReminderEmail           *bool  `json:"reminderEmail"`
 		Version                 int32  `json:"version"`
 	}
 	if !decode(w, r, &in) {
@@ -75,8 +82,9 @@ func (a *API) updateLessonSettings(w http.ResponseWriter, r *http.Request, s Ses
 	}
 	if in.Version < 1 || in.ParentChangeCutoffHours == nil || *in.ParentChangeCutoffHours < 0 || *in.ParentChangeCutoffHours > maxParentChangeCutoffHours ||
 		in.AttendanceOpenMinutes == nil || *in.AttendanceOpenMinutes < 0 || *in.AttendanceOpenMinutes > maxAttendanceOpenMinutes ||
-		in.CorrectionWindowDays == nil || *in.CorrectionWindowDays < 0 || *in.CorrectionWindowDays > maxCorrectionWindowDays {
-		fail(w, 422, "validation_error", "Provide 0–8760 cutoff hours, 0–1440 attendance minutes, 0–365 correction days and a valid version")
+		in.CorrectionWindowDays == nil || *in.CorrectionWindowDays < 0 || *in.CorrectionWindowDays > maxCorrectionWindowDays ||
+		(in.ReminderHours != nil && (*in.ReminderHours < 0 || *in.ReminderHours > maxReminderHours)) {
+		fail(w, 422, "validation_error", "Provide 0–8760 cutoff hours, 0–1440 attendance minutes, 0–365 correction days, 0–168 reminder hours and a valid version")
 		return
 	}
 	ctx := r.Context()
@@ -99,8 +107,8 @@ func (a *API) updateLessonSettings(w http.ResponseWriter, r *http.Request, s Ses
 		return
 	}
 	x, err := scanLessonSettings(tx.QueryRow(ctx, `UPDATE lesson_settings
-		SET parent_change_cutoff_hours=$1,attendance_open_minutes=$2,correction_window_days=$3,cancellation_email=COALESCE($4,cancellation_email),version=version+1
-		WHERE id RETURNING `+lessonSettingsColumns, *in.ParentChangeCutoffHours, *in.AttendanceOpenMinutes, *in.CorrectionWindowDays, in.CancellationEmail))
+		SET parent_change_cutoff_hours=$1,attendance_open_minutes=$2,correction_window_days=$3,cancellation_email=COALESCE($4,cancellation_email),reminder_hours=COALESCE($5,reminder_hours),reminder_email=COALESCE($6,reminder_email),version=version+1
+		WHERE id RETURNING `+lessonSettingsColumns, *in.ParentChangeCutoffHours, *in.AttendanceOpenMinutes, *in.CorrectionWindowDays, in.CancellationEmail, in.ReminderHours, in.ReminderEmail))
 	if err == nil {
 		err = audit(ctx, tx, s.User.ID, "lesson.settings.updated", "lessons", map[string]any{"before": before, "after": x})
 	}
