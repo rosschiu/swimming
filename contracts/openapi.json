@@ -6181,6 +6181,180 @@
           }
         }
       }
+    },
+    "/api/v1/imports/template": {
+      "get": {
+        "operationId": "downloadImportTemplate",
+        "summary": "Download the migration import template",
+        "description": "Administrator only. An Excel workbook whose first row holds the recognised column headings, with one example row.",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Template workbook",
+            "content": {
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/imports/preview": {
+      "post": {
+        "operationId": "previewImport",
+        "summary": "Check a migration workbook without importing it",
+        "description": "Administrator only. Reads the first worksheet of an Excel (.xlsx) file of at most 5 MB and 2000 swimmers. The first non-empty row holds headings, in English or Traditional Chinese; \"Student name\" and \"Level\" are required, unknown columns are ignored and listed. Each row is checked against the sheet and current accounts. Nothing is written.",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Preview",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportPreview"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/imports": {
+      "post": {
+        "operationId": "runImport",
+        "summary": "Import a previewed migration workbook",
+        "description": "Administrator only. Imports every row of the previewed file in one transaction: students, guardian links, new guardian accounts that wait inactive with an unsent invitation, and one \"Migrated balance\" package per swimmer with remaining credits (no purchase or receipt). The file must match the previewed hash (409 file_changed otherwise). A file with problems returns 422 with a fresh preview. Importing the same file again returns the first result with 200.",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "fileSha256",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Imported",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportResult"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Same file already imported",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The file has problems",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportRejected"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -6419,8 +6593,10 @@
             "enum": [
               "pending",
               "sent",
-              "failed"
-            ]
+              "failed",
+              "not_sent"
+            ],
+            "description": "not_sent: an imported guardian's invitation waits until an administrator sends it."
           },
           "expiresAt": {
             "type": "string"
@@ -9465,6 +9641,10 @@
           "complimentary": {
             "type": "boolean",
             "description": "True for credits granted by an administrator rather than purchased."
+          },
+          "migrated": {
+            "type": "boolean",
+            "description": "A balance imported from the school's previous records."
           }
         },
         "required": [
@@ -9477,7 +9657,8 @@
           "expired",
           "movements",
           "sourcePackageId",
-          "complimentary"
+          "complimentary",
+          "migrated"
         ],
         "additionalProperties": false
       },
@@ -10329,6 +10510,224 @@
           "actorId",
           "createdAt"
         ],
+        "additionalProperties": false
+      },
+      "ImportSummary": {
+        "type": "object",
+        "required": [
+          "students",
+          "guardiansCreated",
+          "guardiansLinked",
+          "packages",
+          "credits"
+        ],
+        "properties": {
+          "students": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "guardiansCreated": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "guardiansLinked": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "packages": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "credits": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "additionalProperties": false
+      },
+      "ImportGuardian": {
+        "type": "object",
+        "required": [
+          "name",
+          "email",
+          "existing"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "existing": {
+            "type": "boolean",
+            "description": "An existing guardian account is linked; otherwise a new one is created."
+          }
+        },
+        "additionalProperties": false
+      },
+      "ImportRow": {
+        "type": "object",
+        "required": [
+          "row",
+          "studentName",
+          "level",
+          "guardians",
+          "credits",
+          "errors"
+        ],
+        "properties": {
+          "row": {
+            "type": "integer",
+            "description": "Sheet row number"
+          },
+          "studentName": {
+            "type": "string"
+          },
+          "level": {
+            "type": "string"
+          },
+          "guardians": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ImportGuardian"
+            }
+          },
+          "credits": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "expiresOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "ImportPreview": {
+        "type": "object",
+        "required": [
+          "fileSha256",
+          "valid",
+          "errors",
+          "ignoredColumns",
+          "rows",
+          "summary"
+        ],
+        "properties": {
+          "fileSha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "valid": {
+            "type": "boolean"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "ignoredColumns": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ImportRow"
+            }
+          },
+          "summary": {
+            "$ref": "#/components/schemas/ImportSummary"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ImportResult": {
+        "type": "object",
+        "required": [
+          "id",
+          "fileSha256",
+          "students",
+          "guardiansCreated",
+          "guardiansLinked",
+          "packages",
+          "credits",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "fileSha256": {
+            "type": "string"
+          },
+          "students": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "guardiansCreated": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "guardiansLinked": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "packages": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "credits": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ImportRejected": {
+        "type": "object",
+        "required": [
+          "error",
+          "preview"
+        ],
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "details": {
+                "$ref": "#/components/schemas/PartialEnrolmentDetails"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          "preview": {
+            "$ref": "#/components/schemas/ImportPreview"
+          }
+        },
         "additionalProperties": false
       }
     },

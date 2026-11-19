@@ -1364,6 +1364,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/imports/template": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download the migration import template
+         * @description Administrator only. An Excel workbook whose first row holds the recognised column headings, with one example row.
+         */
+        get: operations["downloadImportTemplate"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/imports/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Check a migration workbook without importing it
+         * @description Administrator only. Reads the first worksheet of an Excel (.xlsx) file of at most 5 MB and 2000 swimmers. The first non-empty row holds headings, in English or Traditional Chinese; "Student name" and "Level" are required, unknown columns are ignored and listed. Each row is checked against the sheet and current accounts. Nothing is written.
+         */
+        post: operations["previewImport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/imports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import a previewed migration workbook
+         * @description Administrator only. Imports every row of the previewed file in one transaction: students, guardian links, new guardian accounts that wait inactive with an unsent invitation, and one "Migrated balance" package per swimmer with remaining credits (no purchase or receipt). The file must match the previewed hash (409 file_changed otherwise). A file with problems returns 422 with a fresh preview. Importing the same file again returns the first result with 200.
+         */
+        post: operations["runImport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1424,8 +1484,11 @@ export interface components {
             role: "admin" | "parent" | "coach" | "student";
             /** @enum {string} */
             status: "pending" | "accepted" | "revoked" | "expired";
-            /** @enum {string} */
-            deliveryStatus: "pending" | "sent" | "failed";
+            /**
+             * @description not_sent: an imported guardian's invitation waits until an administrator sends it.
+             * @enum {string}
+             */
+            deliveryStatus: "pending" | "sent" | "failed" | "not_sent";
             expiresAt: string;
         };
         Relationship: {
@@ -2178,6 +2241,8 @@ export interface components {
             sourcePackageId: string | null;
             /** @description True for credits granted by an administrator rather than purchased. */
             complimentary: boolean;
+            /** @description A balance imported from the school's previous records. */
+            migrated: boolean;
         };
         CreditRecovery: {
             id: string;
@@ -2387,6 +2452,57 @@ export interface components {
             actorId: string;
             /** Format: date-time */
             createdAt: string;
+        };
+        ImportSummary: {
+            students: number;
+            guardiansCreated: number;
+            guardiansLinked: number;
+            packages: number;
+            credits: number;
+        };
+        ImportGuardian: {
+            name: string;
+            email: string;
+            /** @description An existing guardian account is linked; otherwise a new one is created. */
+            existing: boolean;
+        };
+        ImportRow: {
+            /** @description Sheet row number */
+            row: number;
+            studentName: string;
+            level: string;
+            guardians: components["schemas"]["ImportGuardian"][];
+            credits: number;
+            /** Format: date */
+            expiresOn?: string;
+            errors: string[];
+        };
+        ImportPreview: {
+            fileSha256: string;
+            valid: boolean;
+            errors: string[];
+            ignoredColumns: string[];
+            rows: components["schemas"]["ImportRow"][];
+            summary: components["schemas"]["ImportSummary"];
+        };
+        ImportResult: {
+            id: string;
+            fileSha256: string;
+            students: number;
+            guardiansCreated: number;
+            guardiansLinked: number;
+            packages: number;
+            credits: number;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        ImportRejected: {
+            error: {
+                code: string;
+                details?: components["schemas"]["PartialEnrolmentDetails"];
+                message: string;
+            };
+            preview: components["schemas"]["ImportPreview"];
         };
     };
     responses: never;
@@ -6397,6 +6513,125 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MissingAttendanceList"];
+                };
+            };
+            /** @description Request failed */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    downloadImportTemplate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Template workbook */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": string;
+                };
+            };
+            /** @description Request failed */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    previewImport: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-Token": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": string;
+            };
+        };
+        responses: {
+            /** @description Preview */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportPreview"];
+                };
+            };
+            /** @description Request failed */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    runImport: {
+        parameters: {
+            query: {
+                fileSha256: string;
+            };
+            header: {
+                "X-CSRF-Token": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": string;
+            };
+        };
+        responses: {
+            /** @description Same file already imported */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportResult"];
+                };
+            };
+            /** @description Imported */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportResult"];
+                };
+            };
+            /** @description The file has problems */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportRejected"];
                 };
             };
             /** @description Request failed */
