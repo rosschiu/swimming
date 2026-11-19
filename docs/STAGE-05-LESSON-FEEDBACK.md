@@ -19,7 +19,11 @@ Planning draft based on main at `55a4a9a`. Let staff share a progress note for a
 | Replay and corrections | Concurrent identical submissions create one note, audit entry and notification per eligible recipient. A reused request ID with another booking or class conflicts. Recheck current permissions before replay. Preserve edit version checks and the author/administrator correction model, subject to the confirmed coach access rule. |
 | Failure and audit | An audit or notification write failure rolls back the note. Audit records lesson association alongside the existing note evidence. Existing opt-in teaching email behavior applies, with a synthetic inbox in tests. Sharing does not alter attendance, booking, credit or milestone state. |
 
-## Material decisions
+## Confirmed decisions (2026-11-19)
+
+The owner confirmed the recommended defaults: the class coach (with current student assignment) or an administrator writes the note; only for a swimmer marked present; several notes per lesson; visible to the family as soon as it is shared. Notes may carry text, voice recordings, pictures and video. Media files are stored privately on the server with per-file size and type limits, served only to readers of the note, and never sent by email.
+
+## Material decisions (as proposed)
 
 - **Class coach versus profile assignment.** Recommend requiring both current class coach and current student assignment for coach creation. This matches the existing read and correction scope. If covering coaches must share feedback for a student outside their assignment, define whether they receive access only to that class note and whether they can later correct it. Keep full student progress scope unchanged.
 - **Lesson eligibility.** Recommend a confirmed present outcome for the initial slice. This ties feedback to a taught lesson and prevents a pending move from changing its context. Confirm whether administrators or covering coaches need to record feedback after class when attendance is unmarked, or link historical absence and illness notes.
