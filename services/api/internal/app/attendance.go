@@ -130,8 +130,8 @@ func lockAttendancePackage(ctx context.Context, tx pgx.Tx, packageID, studentID 
 	var expiry *time.Time
 	var policy CreditPolicy
 	var data []byte
-	err := tx.QueryRow(ctx, `SELECT cp.expires_on,cp.policy FROM credit_packages cp JOIN purchases p ON p.id=cp.purchase_id
-		WHERE cp.id=$1 AND cp.student_id=$2 AND p.student_id=$2 AND p.status='paid' FOR UPDATE OF cp`,
+	err := tx.QueryRow(ctx, `SELECT cp.expires_on,cp.policy FROM credit_packages cp LEFT JOIN purchases p ON p.id=cp.purchase_id
+		WHERE cp.id=$1 AND cp.student_id=$2 AND (cp.grant_id IS NOT NULL OR (p.student_id=$2 AND p.status='paid')) FOR UPDATE OF cp`,
 		packageID, studentID).Scan(&expiry, &data)
 	if err == nil {
 		err = json.Unmarshal(data, &policy)

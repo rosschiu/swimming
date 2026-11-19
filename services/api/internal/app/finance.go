@@ -110,18 +110,20 @@ type CreditMovement struct {
 	CreatedAt time.Time `json:"createdAt"`
 }
 type CreditPackage struct {
-	SourcePackageID *string          `json:"sourcePackageId"`
-	ID              string           `json:"id"`
-	PurchaseID      string           `json:"purchaseId"`
-	OfferID         string           `json:"offerId"`
-	Credits         int              `json:"credits"`
-	ExpiresOn       *string          `json:"expiresOn"`
-	Policy          CreditPolicy     `json:"policy"`
-	Available       int              `json:"available"`
-	Reserved        int              `json:"reserved"`
-	Consumed        int              `json:"consumed"`
-	Expired         int              `json:"expired"`
-	Movements       []CreditMovement `json:"movements"`
+	SourcePackageID *string `json:"sourcePackageId"`
+	ID              string  `json:"id"`
+	PurchaseID      string  `json:"purchaseId,omitempty"`
+	// GrantID marks a complimentary package created by an administrator rather than a purchase.
+	GrantID   *string          `json:"grantId,omitempty"`
+	OfferID   string           `json:"offerId"`
+	Credits   int              `json:"credits"`
+	ExpiresOn *string          `json:"expiresOn"`
+	Policy    CreditPolicy     `json:"policy"`
+	Available int              `json:"available"`
+	Reserved  int              `json:"reserved"`
+	Consumed  int              `json:"consumed"`
+	Expired   int              `json:"expired"`
+	Movements []CreditMovement `json:"movements"`
 }
 
 func (a *API) financeRoutes(m *http.ServeMux) {
@@ -819,8 +821,8 @@ func (a *API) loadStudentCredits(ctx context.Context, tx pgx.Tx, studentID strin
 	if err := expireStudentCredits(ctx, tx, studentID, a.now()); err != nil {
 		return nil, err
 	}
-	rows, err := tx.Query(ctx, `SELECT cp.id,cp.purchase_id,COALESCE(p.terms->>'offerId',''),cp.credits,cp.expires_on::text,cp.policy,cp.source_package_id
-		FROM credit_packages cp JOIN purchases p ON p.id=cp.purchase_id WHERE cp.student_id=$1 ORDER BY cp.created_at,cp.id`, studentID)
+	rows, err := tx.Query(ctx, `SELECT cp.id,COALESCE(cp.purchase_id,''),cp.grant_id,COALESCE(p.terms->>'offerId',''),cp.credits,cp.expires_on::text,cp.policy,cp.source_package_id
+		FROM credit_packages cp LEFT JOIN purchases p ON p.id=cp.purchase_id WHERE cp.student_id=$1 ORDER BY cp.created_at,cp.id`, studentID)
 	if err != nil {
 		return nil, err
 	}
@@ -828,7 +830,7 @@ func (a *API) loadStudentCredits(ctx context.Context, tx pgx.Tx, studentID strin
 	for rows.Next() {
 		var x CreditPackage
 		var data []byte
-		if err = rows.Scan(&x.ID, &x.PurchaseID, &x.OfferID, &x.Credits, &x.ExpiresOn, &data, &x.SourcePackageID); err != nil {
+		if err = rows.Scan(&x.ID, &x.PurchaseID, &x.GrantID, &x.OfferID, &x.Credits, &x.ExpiresOn, &data, &x.SourcePackageID); err != nil {
 			rows.Close()
 			return nil, err
 		}

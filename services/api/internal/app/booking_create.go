@@ -303,8 +303,8 @@ func (a *API) reserveBooking(ctx context.Context, tx pgx.Tx, w http.ResponseWrit
 
 func lockBookingPackage(ctx context.Context, tx pgx.Tx, packageID, studentID string) (*time.Time, error) {
 	var expiry *time.Time
-	err := tx.QueryRow(ctx, `SELECT cp.expires_on FROM credit_packages cp JOIN purchases p ON p.id=cp.purchase_id
-		WHERE cp.id=$1 AND cp.student_id=$2 AND p.student_id=$2 AND p.status='paid' FOR UPDATE OF cp`,
+	err := tx.QueryRow(ctx, `SELECT cp.expires_on FROM credit_packages cp LEFT JOIN purchases p ON p.id=cp.purchase_id
+		WHERE cp.id=$1 AND cp.student_id=$2 AND (cp.grant_id IS NOT NULL OR (p.student_id=$2 AND p.status='paid')) FOR UPDATE OF cp`,
 		packageID, studentID).Scan(&expiry)
 	return expiry, err
 }

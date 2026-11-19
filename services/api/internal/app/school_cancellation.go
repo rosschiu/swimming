@@ -228,8 +228,8 @@ func restoreCredit(ctx context.Context, tx pgx.Tx, actorID, studentID, sourceID,
 	if err != nil {
 		return err
 	}
-	if _, err = tx.Exec(ctx, `INSERT INTO credit_packages(id,purchase_id,student_id,credits,expires_on,policy,created_at,source_package_id)
-		SELECT $1,purchase_id,student_id,1,$3,$4,$5,id FROM credit_packages WHERE id=$2`, destination, sourceID, expiresOn, policy, now); err != nil {
+	if _, err = tx.Exec(ctx, `INSERT INTO credit_packages(id,purchase_id,grant_id,student_id,credits,expires_on,policy,created_at,source_package_id)
+		SELECT $1,purchase_id,grant_id,student_id,1,$3,$4,$5,id FROM credit_packages WHERE id=$2`, destination, sourceID, expiresOn, policy, now); err != nil {
 		return err
 	}
 	request, _ := json.Marshal(map[string]string{"source": key})

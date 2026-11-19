@@ -5329,6 +5329,78 @@
         "description": "Assigned coaches and administrators transfer only actual expired unused credits into a new package. Current assignment is rechecked on idempotent replay. Expiry is inclusive in Hong Kong; reason and future-or-today date required. No extra grants."
       }
     },
+    "/api/v1/students/{id}/credit-grants": {
+      "post": {
+        "operationId": "grantCredits",
+        "summary": "Grant complimentary credits",
+        "description": "Administrator only. Creates a separate complimentary credit package for the student under the current school credit policy, with the given credits, expiry and reason. Works for students without purchases. No purchase or receipt is created, and the package is not offered as a paid renewal package. Booking, attendance and coach recovery treat it like other packages. Returns 201 for a new grant and 200 for an exact replay.",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreditGrantInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Grant created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreditGrant"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Replayed grant",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreditGrant"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/lesson-changes": {
       "get": {
         "operationId": "listLessonChanges",
@@ -9252,12 +9324,15 @@
             "minLength": 1,
             "maxLength": 100,
             "nullable": true
+          },
+          "grantId": {
+            "type": "string",
+            "description": "Set on complimentary packages created by an administrator grant; such packages have no purchase."
           }
         },
         "required": [
           "offerId",
           "id",
-          "purchaseId",
           "credits",
           "expiresOn",
           "policy",
@@ -9371,6 +9446,10 @@
             "minLength": 1,
             "maxLength": 100,
             "nullable": true
+          },
+          "complimentary": {
+            "type": "boolean",
+            "description": "True for credits granted by an administrator rather than purchased."
           }
         },
         "required": [
@@ -9382,7 +9461,8 @@
           "consumed",
           "expired",
           "movements",
-          "sourcePackageId"
+          "sourcePackageId",
+          "complimentary"
         ],
         "additionalProperties": false
       },
@@ -10157,6 +10237,82 @@
           "toCoachId",
           "reason",
           "substitutedAt"
+        ],
+        "additionalProperties": false
+      },
+      "CreditGrantInput": {
+        "type": "object",
+        "properties": {
+          "credits": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "expiresOn": {
+            "type": "string",
+            "format": "date",
+            "description": "Hong Kong date, today or later; credits remain usable through this date."
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "idempotencyKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "pattern": "^[!-~]{1,100}$"
+          }
+        },
+        "required": [
+          "credits",
+          "expiresOn",
+          "reason",
+          "idempotencyKey"
+        ],
+        "additionalProperties": false
+      },
+      "CreditGrant": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "studentId": {
+            "type": "string"
+          },
+          "packageId": {
+            "type": "string"
+          },
+          "credits": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "expiresOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "actorId": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "studentId",
+          "packageId",
+          "credits",
+          "expiresOn",
+          "reason",
+          "actorId",
+          "createdAt"
         ],
         "additionalProperties": false
       }
