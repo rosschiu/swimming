@@ -41,3 +41,14 @@ The owner approved the proposed first-slice choices on 2026-11-18. Coach substit
 - **Migration 27** adds `cancelled_at`, `class_cancellations`, a `cancelled_by_school` flag on booking cancellations (school rows have no early/late timing) and the `class.cancelled` notice kind.
 
 Not covered: whole-series cancellation, cancelling a lesson that has started, and notices for families whose inbound request closed.
+
+## Delivered: coach substitution (stage 6 of the mobile-first plan)
+
+- **Operation.** From Schedule → Substitute coach, an administrator picks another active coach and gives a reason. `POST /classes/{id}/substitution` sends the coach, reason, reviewed class version and a request key. The incoming coach must be active and free of overlap and travel-gap conflicts (`scheduling_conflict`); a stale version, a started or cancelled lesson, or the same coach is refused; an exact replay returns the recorded substitution.
+- **Unchanged.** Bookings, times, venue, capacity, enrolment links and credits stay as they were.
+- **Access.** Roster access and pending lesson-change decisions follow the class's current coach, so they move to the substitute at once and the previous coach loses them, including through direct URLs. Historical decisions keep their original attribution. A pending request targeting the lesson is protected by the existing stale-target check.
+- **Silent changes closed.** A class with reservations can no longer change coach through the ordinary edit (`substitution_required`).
+- **History and notices.** An immutable `class_substitutions` row records the previous and new coach, actor, reason and time, with a `class.substituted` audit event. Booked swimmers' guardians and students and both coaches get an in-app `class.coach_changed` notice; the previous coach can still read theirs. No email is sent for substitutions.
+- **Migration 28** adds `class_substitutions` and the notice kind.
+
+Not covered: a substitute accepting the cover, substitution of lessons that have started, and email notices for substitutions.

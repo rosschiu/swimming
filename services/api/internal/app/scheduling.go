@@ -670,6 +670,11 @@ func (a *API) updateClass(w http.ResponseWriter, r *http.Request, s Session) {
 		fail(w, 409, "booked_class_conflict", "A class with reservations must keep its venue, class type and times")
 		return
 	}
+	// A booked class changes coach only through substitution, which records the reason and tells families.
+	if reservations > 0 && before.CoachID != input.CoachID {
+		fail(w, 409, "substitution_required", "Use coach substitution to change the coach of a booked class")
+		return
+	}
 	if input.Capacity < reservations {
 		fail(w, 409, "booked_class_conflict", "Capacity cannot be lower than the current reservation count")
 		return
