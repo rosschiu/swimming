@@ -3780,7 +3780,7 @@
             }
           }
         ],
-        "description": "Administrator or currently assigned coach. With bookingId, the swimmer must be marked present for that lesson (409 lesson_not_eligible otherwise) and a coach must be the class coach. Actor-scoped requestId replays the same student/body/lesson with 200; different payload reuse returns 409. Saved notes are shared immediately."
+        "description": "Administrator or currently assigned coach. With bookingId, the swimmer must be marked present for that lesson (409 lesson_not_eligible otherwise) and a coach must be the class coach. Actor-scoped requestId replays the same student/body/lesson with 200; different payload reuse returns 409. Saved notes are shared immediately. mediaIds attach earlier uploads; a note needs text or at least one attachment (422 media_unavailable when an upload is missing, already attached, or belongs to someone else)."
       }
     },
     "/api/v1/students/{id}/progress-notes/{noteId}": {
@@ -6355,6 +6355,311 @@
           }
         }
       }
+    },
+    "/api/v1/students/{id}/note-media": {
+      "post": {
+        "operationId": "uploadNoteMedia",
+        "summary": "Upload a photo, voice recording or video for a progress note",
+        "description": "Administrator or currently assigned coach. The body is the file itself, with its media type. Photos up to 15 MB, recordings up to 25 MB, videos up to 100 MB; the first bytes must match the type. The upload is private and attaches to the next note the same user shares for this swimmer with its ID; unattached uploads are removed after 24 hours. 503 media_unavailable when the server has no media storage.",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "image/jpeg": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            },
+            "image/png": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            },
+            "image/webp": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            },
+            "audio/webm": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            },
+            "audio/ogg": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            },
+            "audio/mp4": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            },
+            "audio/mpeg": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            },
+            "video/mp4": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            },
+            "video/quicktime": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            },
+            "video/webm": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Uploaded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoteMedia"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/students/{id}/progress-notes/{noteId}/media/{mediaId}": {
+      "get": {
+        "operationId": "getNoteMedia",
+        "summary": "Fetch a progress note attachment",
+        "description": "Anyone who may read the swimmer's progress notes. Served inline with its stored media type, nosniff and a sandbox policy; supports range requests for playback.",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "noteId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "mediaId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Range",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The file",
+            "content": {
+              "image/jpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/png": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/webp": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "audio/webm": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "audio/ogg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "audio/mp4": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "audio/mpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "video/mp4": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "video/quicktime": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "video/webm": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "206": {
+            "description": "Part of the file",
+            "content": {
+              "image/jpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/png": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/webp": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "audio/webm": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "audio/ogg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "audio/mp4": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "audio/mpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "video/mp4": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "video/quicktime": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "video/webm": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -8192,7 +8497,7 @@
           },
           "body": {
             "type": "string",
-            "minLength": 1,
+            "minLength": 0,
             "maxLength": 4000
           },
           "createdAt": {
@@ -8212,6 +8517,13 @@
           },
           "lesson": {
             "$ref": "#/components/schemas/NoteLesson"
+          },
+          "media": {
+            "type": "array",
+            "maxItems": 6,
+            "items": {
+              "$ref": "#/components/schemas/NoteMedia"
+            }
           }
         },
         "additionalProperties": false
@@ -8232,14 +8544,26 @@
           },
           "body": {
             "type": "string",
-            "minLength": 1,
-            "maxLength": 4000
+            "minLength": 0,
+            "maxLength": 4000,
+            "description": "May be empty when mediaIds is not."
           },
           "bookingId": {
             "type": "string",
             "minLength": 1,
             "maxLength": 128,
             "description": "Links the note to a lesson the swimmer was marked present for. A coach must be that class's coach."
+          },
+          "mediaIds": {
+            "type": "array",
+            "maxItems": 6,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "description": "Uploads from POST /students/{id}/note-media by the same user for the same swimmer, not yet attached. Kept in this order."
           }
         }
       },
@@ -8254,8 +8578,9 @@
         "properties": {
           "body": {
             "type": "string",
-            "minLength": 1,
-            "maxLength": 4000
+            "minLength": 0,
+            "maxLength": 4000,
+            "description": "May be empty only for a note with attachments."
           },
           "version": {
             "type": "integer",
@@ -10758,6 +11083,53 @@
           "startsAt": {
             "type": "string",
             "format": "date-time"
+          }
+        }
+      },
+      "NoteMedia": {
+        "type": "object",
+        "description": "A photo, voice recording or video attached to a progress note.",
+        "required": [
+          "id",
+          "kind",
+          "contentType",
+          "sizeBytes"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "image",
+              "audio",
+              "video"
+            ]
+          },
+          "contentType": {
+            "type": "string",
+            "enum": [
+              "image/jpeg",
+              "image/png",
+              "image/webp",
+              "audio/webm",
+              "audio/ogg",
+              "audio/mp4",
+              "audio/mpeg",
+              "video/mp4",
+              "video/quicktime",
+              "video/webm"
+            ]
+          },
+          "sizeBytes": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "url": {
+            "type": "string",
+            "description": "Where readers of the note fetch the file. Present once attached."
           }
         }
       }

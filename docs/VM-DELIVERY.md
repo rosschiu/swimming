@@ -23,6 +23,10 @@ sudo systemctl enable swimming.service
 
 The first successful delivery starts the service. The deployment does not seed data. Prepare the database and intended first administrator through the approved environment setup before giving users access. Use demo seeding only for a disposable synthetic database.
 
+## Note media storage
+
+Progress note photos, voice recordings and videos are files, not database rows. `swimming.service` declares `StateDirectory=swimming`, so systemd creates `/var/lib/swimming` (mode 0700, owned by `swimming`) and the API stores media in `/var/lib/swimming/media`. Set `MEDIA_DIR` in `app.env` only to use another directory. Without either, uploads answer `503 media_unavailable` and everything else works. The release installer does not update unit files: after a release that changes `ops/vm/swimming.service`, install it again and run `sudo systemctl daemon-reload` before restarting the API. Database backups do not include these files; back up `/var/lib/swimming/media` alongside them. Videos may be up to 100 MB, so the reverse proxy must not cap request bodies below that.
+
 ## Activate the target
 
 The selected virtual machine uses private NetBird SSH. Complete the operator’s SSO flow before inspecting its current service and reverse-proxy state. Confirm the VM can reach GitHub over outbound HTTPS and retrieve the hosted CI artifact with its dedicated credential before enabling delivery.

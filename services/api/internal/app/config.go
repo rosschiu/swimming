@@ -5,6 +5,7 @@ import (
 	"net/mail"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -16,6 +17,8 @@ type Config struct {
 	TeachingEmailAllowlist                              []string
 	CookieSecure                                        bool
 	SessionTTL                                          time.Duration
+	// MediaDir holds note photos, recordings and videos. Uploads are refused when it is empty.
+	MediaDir string
 }
 
 func LoadConfig() (Config, error) {
@@ -38,6 +41,10 @@ func LoadConfig() (Config, error) {
 		if err != nil {
 			return c, fmt.Errorf("COOKIE_SECURE must be a boolean")
 		}
+	}
+	c.MediaDir = os.Getenv("MEDIA_DIR")
+	if state, _, _ := strings.Cut(os.Getenv("STATE_DIRECTORY"), ":"); c.MediaDir == "" && state != "" {
+		c.MediaDir = filepath.Join(state, "media")
 	}
 	c.SMTPAddr = os.Getenv("SMTP_ADDR")
 	c.SMTPFrom = os.Getenv("SMTP_FROM")

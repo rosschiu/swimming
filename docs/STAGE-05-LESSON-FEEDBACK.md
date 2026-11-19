@@ -40,3 +40,10 @@ PostgreSQL integration covers legacy notes and migration, mismatch and missing b
 - Several notes per lesson are allowed. A request ID reused with a different lesson, or with none, returns `409 request_conflict`.
 - Families and the student see the note in Progress notes at once, labelled with the lesson name and Hong Kong date and time. A later class rename does not change it, corrections keep the link, and the database refuses to rewrite it.
 - Notifications and teaching email work exactly as for other progress notes. Voice, picture and video attachments follow in stage 8b.
+
+## Delivered: photos, voice and video (stage 8b of the mobile-first plan)
+
+- Both the roster's **Share feedback** form and the student's Progress notes form take up to six attachments: photos or videos chosen from the phone (or taken with its camera) and voice recordings made in the browser with **Record voice**. A note may be only attachments.
+- Each file is uploaded first to `POST /api/v1/students/{id}/note-media` as the raw body with its media type, then the note is shared with `mediaIds`. Photos (JPEG, PNG, WebP) up to 15 MB, recordings (WebM, Ogg, MP4, MP3) up to 25 MB, videos (MP4, MOV, WebM) up to 100 MB. The first bytes must match the declared type. Only an administrator or the swimmer's assigned coach may upload, an upload can be attached once, only by its uploader and only to that swimmer, and unattached uploads are deleted after 24 hours.
+- Files are stored privately on the server (migration 33 records them in `note_media`; attached media can never change or be deleted). They are served only through `GET /api/v1/students/{id}/progress-notes/{noteId}/media/{mediaId}` to people who can read that swimmer's notes, with `nosniff`, a sandbox policy and range support so phones can play and seek video. Families see photos inline and play recordings and videos in place. Teaching email stays generic and never carries attachments.
+- Corrections change the text only; a note with attachments may have its text cleared.
