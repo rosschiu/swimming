@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strings"
@@ -140,7 +141,12 @@ func (a *API) createProgressNote(w http.ResponseWriter, r *http.Request, s Sessi
 		fail(w, 422, "validation_error", "Provide a note of 1–4000 characters and an ASCII request ID of 1–128 characters")
 		return
 	}
-	tx, err := a.beginIdentity(r.Context())
+	// Lesson feedback reads scheduling rows, so it takes the scheduling lock first, in the same order as attendance.
+	begin := a.beginIdentity
+	if input.BookingID != nil {
+		begin = a.beginLessonFeedback
+	}
+	tx, err := begin(r.Context())
 	if err != nil {
 		internal(w, err)
 		return
@@ -292,4 +298,16 @@ func (a *API) updateProgressNote(w http.ResponseWriter, r *http.Request, s Sessi
 		return
 	}
 	respond(w, 200, n)
+}
+
+func (a *API) beginLessonFeedback(ctx context.Context) (pgx.Tx, error) {
+	tx, err := a.beginScheduling(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if _, err = tx.Exec(ctx, "SELECT pg_advisory_xact_lock(829417002)"); err != nil {
+		tx.Rollback(ctx)
+		return nil, err
+	}
+	return tx, nil
 }
