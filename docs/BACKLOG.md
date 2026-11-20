@@ -61,7 +61,7 @@ Update these rows in the stage PR when scope, evidence or status changes. Record
 | Identify the demo target | Verified on the designated VM | Inspect its OS, existing ingress, deployment directory and persistent storage. Confirm the app URL and whether it is private. |
 | Package a tested revision | Verified in the first VM installation | Build the web assets and Go services from the reviewed commit. Record the commit in the release artifact. |
 | Automate rollout | Updater verified locally, activation pending a dedicated read-only repository credential and an observed automatic delivery | Deploy only the selected release after CI passes. Serialize deployments, run migrations once and retain application data. |
-| Verify and recover | Live health and routing verified. Migration rehearsed against a restored copy. Live rollback pending. | Check the running version, API health and web routing from the target. Exercise recovery to the previous compatible release on the demo VM. |
+| Verify and recover | Live health and routing verified. Migration rehearsed against a restored copy. Live rollback to the previous release and back verified on 2026-11-20. | Check the running version, API health and web routing from the target. Exercise recovery to the previous compatible release on the demo VM. |
 
 ## Open decisions and external dependencies
 
@@ -191,7 +191,7 @@ The [application review](APP-REVIEW-2026-11-18.md) found the backend sound and t
 | 9 | Scheduled reminders, in-app and email by default, configurable (migration 30) | Merged [#48](https://github.com/rosschiu/swimming/pull/48) as `9939fce` | Decision confirmed; external email needs recipients |
 | 10 | Administrator pages on the new shell: School setup and Accounts in tabs | Merged [#49](https://github.com/rosschiu/swimming/pull/49) as `e7e0b6e` | None |
 | 11 | [Excel (.xlsx) migration import](STAGE-11-MIGRATION-IMPORT.md) (migration 31) | Merged [#50](https://github.com/rosschiu/swimming/pull/50) as `6223a28` | Column mapping proposed in the stage document; owner can adjust headings |
-| 12 | Final acceptance, external email proof, live rollback, automatic delivery | Planned | Demo recipients and SMTP; VM read-only GitHub token |
+| 12 | Final acceptance, external email proof, live rollback, automatic delivery | Live rollback done 2026-11-20; the rest planned | Demo recipients and SMTP; VM read-only GitHub token |
 
 ### Waiting on the owner
 
@@ -201,7 +201,7 @@ The [application review](APP-REVIEW-2026-11-18.md) found the backend sound and t
 
 ### Status on 2026-11-19
 
-Stages 0–11 are merged and live on the demo at `4cdc9da`. Stage 8 delivered lesson feedback with the confirmed defaults (class coach or administrator, swimmers marked present, several notes per lesson, visible to the family at once) and notes carrying text, voice recordings, photos and video, stored privately in `/var/lib/swimming/media` on the VM. Database backups do not include those files yet; an off-host backup of the media directory is still to be arranged. Stage 12 waits for the email recipients, SMTP access and the GitHub token above. The import's column layout is a proposal the owner can adjust.
+Stages 0–11 are merged and live on the demo at `4cdc9da`. Stage 8 delivered lesson feedback with the confirmed defaults (class coach or administrator, swimmers marked present, several notes per lesson, visible to the family at once) and notes carrying text, voice recordings, photos and video, stored privately in `/var/lib/swimming/media` on the VM. Database backups do not include those files yet; an off-host backup of the media directory is still to be arranged. Live rollback was rehearsed on 2026-11-20. The rest of stage 12 waits for the email recipients, SMTP access and the GitHub token above. The media backup is parked at the owner's request. The import's column layout is a proposal the owner can adjust.
 
 ### Progress log
 
@@ -256,3 +256,5 @@ Stage 8b adds photos, voice recordings and videos to progress notes and roster f
 Demo rollout, 2026-11-19 (second): stage 8 (`0a3ac38`, main run 44519230709, passed on its second rerun after two Ubuntu mirror timeouts while installing Playwright's browser dependencies) went to the demo. A fresh backup restored with identical row counts in all 44 tables; Traefik's HTTPS entry point gained a 600s read timeout (PROXY trust unchanged, both IPv4 and IPv6 answered afterwards); `swimming.service` was reinstalled with `StateDirectory=swimming`, creating `/var/lib/swimming/media` (0700, `swimming`); migrations 32–33 applied and the API passed readiness; all four demo accounts still sign in and see 20, 7, 1 and 1 swimmers. A 20 MB video upload through the proxy then failed with 502 after 90 seconds: the upload extended the server's read deadline but not its write deadline, so the reply could not be sent. The fix extends both, with a regression test that uploads slowly to a server with 300 ms timeouts.
 
 The fix (`4cdc9da`, main run 44528738609) went to the demo after another verified backup (45 tables, identical row counts). The same 20 MB video upload through the proxy then returned 201 in 11 seconds and the file is stored in `/var/lib/swimming/media`; IPv4 and IPv6 answer, and all four demo accounts sign in. The two test uploads were never attached to a note, so the hourly cleanup removes them after 24 hours; the synthetic school is unchanged.
+
+2026-11-20: Live rollback rehearsed on the demo VM. After verified backup `pre-rollback-0a3ac387e539-20261120T010211Z.dump` (45 tables, identical row counts), the installer switched the demo from `4cdc9da` back to `0a3ac38`. Both releases use schema 33, so no migration ran. The running binary and readiness confirmed the switch. A slow 10 MB video upload through the public URL then returned 502 after 25s, the failure that #55 fixed, which proves the old code was serving. Rolling forward to `4cdc9da` the same way made the same upload return 201. Afterwards IPv4 and IPv6 answered, the four demo sign-ins saw 20/7/1/1 students, and the synthetic school was unchanged (20 students, 60 bookings, 20 receipts, 3 venues, 20 attendance records). The two test uploads are unattached and will be removed by the daily cleanup. The media backup is parked at the owner's request.

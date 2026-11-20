@@ -64,3 +64,16 @@ tar -tzf /tmp/swimming-release.tar.gz
 ```
 
 The installer checks the revision, applies migrations, switches the active release and polls the local database-backed API readiness endpoint. If the new API fails to start or become ready, the installer restores the previous release, restarts it and checks that it is ready. An unhealthy retry of the active revision preserves its release link and reports the failure. Applied database migrations remain in place. Verify schema compatibility before deploying and keep a restorable backup. After deployment, check the web page and `/api/v1/ready` through the intended HTTPS origin. Release files stay on the VM for troubleshooting and rollback.
+
+## Roll back to a kept release
+
+Pause the release timer first. Only roll back to a release whose code accepts the current schema; migrations are never reversed. Take and verify a backup, then reinstall the kept release from its own files:
+
+```bash
+rev=<full revision of the kept release>
+sudo tar -czf - -C /opt/swimming/releases/$rev REVISION swimming-api swimming-migrate web \
+  | sudo /usr/local/sbin/swimming-install-release $rev
+readlink /proc/$(systemctl show -p MainPID --value swimming.service)/exe
+```
+
+The installer applies the same checks and readiness fallback as a normal install. Roll forward the same way, or let the timer install the current `main` once it is re-enabled.
